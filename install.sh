@@ -42,6 +42,7 @@ SCRIPTS=(
   "System|install-packages|script/install-packages.sh|Update system + install base packages (multi-distro)"
   "System|set-timezone|script/set-timezone.sh|Set timezone (default Asia/Jakarta)"
   "Security|install-firewall|script/install-firewall.sh|Install & configure ufw firewall"
+  "Security|firewall-manager|script/firewall-manager.sh|Full ufw manager: allow/deny IP/port, multiple, rate-limit"
   "Security|install-fail2ban|script/install-fail2ban.sh|Install & enable Fail2Ban"
   "Security|secure-ssh|script/secure-ssh.sh|Harden SSH: change port, disable root/password, pubkey"
   "Security|generate-ssh-key|script/generate-ssh-key.sh|Generate an ed25519 SSH key (user-local)"

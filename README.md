@@ -42,6 +42,7 @@ Select scripts to run:  ↑/↓ move · SPACE toggle · A all · ENTER run · Q 
   [ ] set-timezone         Set timezone (default Asia/Jakarta)
 ── Security ──
   [ ] install-firewall     Install & configure ufw firewall
+  [ ] firewall-manager     Full ufw manager: allow/deny IP/port, multiple, rate-limit
   [ ] install-fail2ban     Install & enable Fail2Ban
   [ ] secure-ssh           Harden SSH: change port, disable root/password, pubkey
   [ ] generate-ssh-key     Generate an ed25519 SSH key (user-local)
@@ -72,6 +73,7 @@ curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/se
 
 # Security
 curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/install-firewall.sh | bash
+curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/firewall-manager.sh | bash
 curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/install-fail2ban.sh | bash
 curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/secure-ssh.sh | bash
 curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/generate-ssh-key.sh | bash
@@ -103,6 +105,7 @@ curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/se
 | System        | `install-packages.sh`    | Update/upgrade system, install base packages                     | Yes  | Multi           |
 | System        | `set-timezone.sh`        | Set timezone via `timedatectl` (default `Asia/Jakarta`)          | Yes  | Any (systemd)   |
 | Security      | `install-firewall.sh`    | Install `ufw`, open SSH/http/https, add custom ports, enable     | Yes  | Mainly Deb/Ubu  |
+| Security      | `firewall-manager.sh`    | Full ufw manager: allow/deny IP & port, multi-IP, rate-limit     | Yes  | Any (ufw)       |
 | Security      | `install-fail2ban.sh`    | Install and enable the Fail2Ban service                          | Yes  | Multi           |
 | Security      | `secure-ssh.sh`          | Change SSH port, disable root/password login, enable pubkey      | Yes  | Any (OpenSSH)   |
 | Security      | `generate-ssh-key.sh`    | Generate an ed25519 SSH key, fix perms, print public key         | No   | Any             |
@@ -138,6 +141,18 @@ curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/se
 - Installs `ufw` if missing, allows OpenSSH, http, https.
 - Prompts for extra ports (e.g. `8443/tcp 3000/tcp`).
 - Optionally enables the firewall and shows verbose status.
+
+### firewall-manager.sh
+
+- Full interactive `ufw` manager (installs ufw if missing). Looping menu:
+  - **View & control**: status (verbose + numbered), enable, disable, reload,
+    reset, default policy (incoming/outgoing/routed × allow/deny/reject), logging level.
+  - **Ports**: allow port, deny port, rate-limit port (brute-force protection).
+  - **IP / subnet**: allow IP/CIDR, deny IP/CIDR, **allow multiple IPs**, **deny
+    multiple IPs** (space/comma separated), allow IP→port, deny IP→port.
+  - **Apps & rules**: list/allow application profiles, delete a rule by number.
+- Addresses are validated; multiple-IP actions report applied/skipped counts.
+- Warns to allow your SSH port before enabling, to avoid lockout.
 
 ### install-fail2ban.sh
 
