@@ -52,10 +52,13 @@ Select scripts to run:  ↑/↓ move · SPACE toggle · A all · ENTER run · Q 
 ── Database ──
   [ ] install-postgresql   Install PostgreSQL + create roles + remote access
   [ ] enable-mysql-remote  Allow remote MySQL/MariaDB access (sensitive)
+  [ ] database-toolkit     Monitor, optimize, config, datetime (MySQL/PostgreSQL)
 ── App Runtime ──
   [ ] install-nodejs       Install Node.js via nvm (user-local) + PM2
   [ ] install-composer     Install Composer (user-local, signature-verified)
   [ ] setup-pm2-app        Configure pm2-logrotate + register an app (ecosystem)
+── Monitoring ──
+  [ ] monitor-system       CPU, RAM, storage, processes, network snapshot
 ```
 
 ## Run a Single Script
@@ -81,6 +84,10 @@ curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/in
 # Databases
 curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/install-postgresql.sh | bash
 curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/enable-mysql-remote.sh | bash
+curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/database-toolkit.sh | bash
+
+# Monitoring
+curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/monitor-system.sh | bash
 
 # App runtime
 curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/install-nodejs.sh | bash
@@ -104,9 +111,11 @@ curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/se
 | Panel & Console | `install-cockpit.sh`   | Install Cockpit + modules, reverse-proxy config, open port 9090  | Yes  | Debian/Ubuntu   |
 | Database      | `install-postgresql.sh`  | Install latest PostgreSQL (PGDG), create roles, remote access    | Yes  | Debian/Ubuntu   |
 | Database      | `enable-mysql-remote.sh` | Remote MySQL/MariaDB: bind-address, firewall, create users       | Yes  | Debian/Ubuntu   |
+| Database      | `database-toolkit.sh`    | Monitor / optimize / config / datetime — MySQL & PostgreSQL      | Yes  | Any (DB client) |
 | App Runtime   | `install-nodejs.sh`      | Install Node.js via nvm (user-local), choose version, PM2        | No   | Any             |
 | App Runtime   | `install-composer.sh`    | Install Composer to `~/.local/bin`, verify signature             | No   | Any (needs PHP) |
 | App Runtime   | `setup-pm2-app.sh`       | Configure pm2-logrotate + register an app (ecosystem.config.js)  | No   | Any             |
+| Monitoring    | `monitor-system.sh`      | CPU, RAM, storage, processes, network, sensors snapshot          | Some | Any             |
 
 ## Script Details
 
@@ -211,6 +220,27 @@ curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/se
   or a root password), then loops to create `user@host` with a password and a
   grant on a chosen database (or all). Host defaults to `%` (any client).
   Passwords are entered interactively and never stored.
+
+### database-toolkit.sh
+
+- Works with MySQL/MariaDB and PostgreSQL (auto-detects the client; asks which
+  engine when both are present). Looping action menu.
+- **MySQL/MariaDB**: status (version, uptime, threads, connections), databases
+  by size, full process list, date/time + timezone check, key config variables,
+  slow-query-log status, optimize + analyze (`mysqlcheck`), MySQLTuner.
+- **PostgreSQL**: status (version, uptime, connections), databases by size,
+  `pg_stat_activity`, date/time + timezone check, key settings, cache hit ratio,
+  `VACUUM ANALYZE` + optional `REINDEX`.
+- Connects via root socket (`sudo`) or a prompted password (MySQL) / the
+  `postgres` system user (PostgreSQL). Read-only actions are safe; optimize
+  actions modify tables.
+
+### monitor-system.sh
+
+- Grouped checkbox snapshot (default all on): uptime & load, CPU, memory, disk
+  usage + inodes, largest directories, top processes by CPU/memory, network
+  interfaces + listening sockets, temperatures (`lm-sensors`).
+- Optional **Tools** section installs `htop`, `btop`, `ncdu`, `glances`, `iotop`.
 
 ### install-nodejs.sh
 

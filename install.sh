@@ -89,9 +89,11 @@ SCRIPTS=(
   "Panel & Console|install-cockpit|script/install-cockpit.sh|Install Cockpit web console + modules (Debian/Ubuntu)"
   "Database|install-postgresql|script/install-postgresql.sh|Install PostgreSQL + create roles + remote access"
   "Database|enable-mysql-remote|script/enable-mysql-remote.sh|Allow remote MySQL/MariaDB access (sensitive)"
+  "Database|database-toolkit|script/database-toolkit.sh|Monitor, optimize, config, datetime (MySQL/PostgreSQL)"
   "App Runtime|install-nodejs|script/install-nodejs.sh|Install Node.js via nvm (user-local) + PM2"
   "App Runtime|install-composer|script/install-composer.sh|Install Composer (user-local, signature-verified)"
   "App Runtime|setup-pm2-app|script/setup-pm2-app.sh|Configure pm2-logrotate + register an app (ecosystem)"
+  "Monitoring|monitor-system|script/monitor-system.sh|CPU, RAM, storage, processes, network snapshot"
 )
 # ------------------------------------------------------------------------
 
