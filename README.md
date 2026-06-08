@@ -299,6 +299,25 @@ flowchart TD
   boot startup (`pm2 startup`) is optional and needs `sudo` for systemd.
 - **Disable colors**: set `NO_COLOR=1` before running.
 
+## Shared library
+
+The banner, colors, logging helpers (`info`/`ok`/`warn`/`err`/`hd`), prompts
+(`ask`/`asks`), and the grouped `checkbox` menu live once in
+[`script/lib.sh`](script/lib.sh). Every script sources it:
+
+```bash
+TASK="my-script"
+__LIB="https://raw.githubusercontent.com/wanforge/server-mine/main/script/lib.sh"
+__d="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
+if [ -r "${__d}/lib.sh" ]; then . "${__d}/lib.sh"
+else . <(curl -fsSL "${__LIB}"); fi
+```
+
+It uses the local sibling `lib.sh` when present (cloned repo), otherwise fetches
+it from the same public repo over HTTPS. Set `TASK` before sourcing — the banner
+subtitle uses it. To add a script, copy this header, fill in `TASK`, write your
+logic with the shared helpers, and register it in `install.sh`.
+
 ## License
 
 GNU General Public License v3.0 (GPL-3.0). Copyright (c) 2026 Sugeng Sulistiyawan.

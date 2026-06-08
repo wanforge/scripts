@@ -13,50 +13,11 @@
 #
 set -euo pipefail
 
-# --- colors --------------------------------------------------------------
-if [ -t 2 ] && [ -z "${NO_COLOR:-}" ]; then
-  C_RESET="\033[0m"; C_BOLD="\033[1m"; C_DIM="\033[2m"
-  C_RED="\033[38;5;196m"; C_GREEN="\033[38;5;46m"; C_YELLOW="\033[38;5;226m"; C_CYAN="\033[38;5;45m"
-  USE_COLOR=1
-else
-  C_RESET=""; C_BOLD=""; C_DIM=""
-  C_RED=""; C_GREEN=""; C_YELLOW=""; C_CYAN=""
-  USE_COLOR=0
-fi
-
-banner() {
-  local lines=(
-'██╗    ██╗ █████╗ ███╗   ██╗███████╗ ██████╗ ██████╗  ██████╗ ███████╗'
-'██║    ██║██╔══██╗████╗  ██║██╔════╝██╔═══██╗██╔══██╗██╔════╝ ██╔════╝'
-'██║ █╗ ██║███████║██╔██╗ ██║█████╗  ██║   ██║██████╔╝██║  ███╗█████╗  '
-'██║███╗██║██╔══██║██║╚██╗██║██╔══╝  ██║   ██║██╔══██╗██║   ██║██╔══╝  '
-'╚███╔███╔╝██║  ██║██║ ╚████║██║     ╚██████╔╝██║  ██║╚██████╔╝███████╗'
-' ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝      ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚══════╝'
-  )
-  # single-hue gradients (light -> dark, one tone); one picked at random each run
-  local themes=(
-    "51 50 44 38 37 31"     # cyan
-    "45 39 33 32 26 21"     # blue
-    "48 42 36 35 29 28"     # green
-    "141 135 134 98 92 91"  # purple
-    "218 212 211 205 199 198" # pink
-    "215 214 208 202 173 166" # orange
-  )
-  local pick=$(( RANDOM % ${#themes[@]} ))
-  read -r -a grad <<< "${themes[$pick]}"
-  printf "\n" >&2
-  local i=0
-  for l in "${lines[@]}"; do
-    if [ "${USE_COLOR}" -eq 1 ]; then
-      printf "\033[1;38;5;%sm%s\033[0m\n" "${grad[$i]}" "$l" >&2
-    else
-      printf "%s\n" "$l" >&2
-    fi
-    i=$((i + 1))
-    sleep 0.05
-  done
-  printf "%b        wanforge.asia • GPLv3 © 2026 Sugeng Sulistiyawan%b\n\n" "${C_DIM}" "${C_RESET}" >&2
-}
+# --- shared library: colors, banner, logging, prompts --------------------
+__LIB="https://raw.githubusercontent.com/wanforge/server-mine/main/script/lib.sh"
+__d="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
+if [ -r "${__d}/script/lib.sh" ]; then . "${__d}/script/lib.sh"
+else . <(curl -fsSL "${__LIB}"); fi
 
 spinner() {
   # spinner PID "message"
