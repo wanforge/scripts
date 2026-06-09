@@ -54,6 +54,21 @@ run() {
   "$@"
 }
 
+# ---- assume-yes ---------------------------------------------------------
+# ASSUME_YES=1 (or YES=1, or -y/--yes) makes ask() return the default answer
+# without prompting — for non-interactive / automated runs.
+ASSUME_YES="${ASSUME_YES:-${YES:-0}}"
+for __a in "$@"; do case "$__a" in -y|--yes|--assume-yes) ASSUME_YES=1 ;; esac; done
+
+# ---- log file -----------------------------------------------------------
+# LOG_FILE=/path appends a plain-text (no-color) copy of every log line.
+LOG_FILE="${LOG_FILE:-}"
+if [ -n "${LOG_FILE}" ]; then : >> "${LOG_FILE}" 2>/dev/null || { printf "    cannot write LOG_FILE: %s\n" "${LOG_FILE}" >&2; LOG_FILE=""; }; fi
+__log() {  # __log "<line with color escapes>"
+  printf '%b\n' "$1" >&2
+  [ -n "${LOG_FILE}" ] && printf '%b\n' "$1" | sed 's/\x1b\[[0-9;]*m//g' >> "${LOG_FILE}" 2>/dev/null || true
+}
+
 # ---- banner (random single-hue gradient) --------------------------------
 banner() {
   [ "${LOG_LEVEL:-1}" -ge 1 ] || return 0
@@ -78,18 +93,18 @@ banner() {
     "${C_DIM}" "${TASK:+ · ${TASK}}" "${C_RESET}" >&2
 }
 
-# ---- logging (gated by LOG_LEVEL; err always prints) --------------------
-hd()   { [ "${LOG_LEVEL:-1}" -ge 1 ] || return 0; printf "\n%b▸ %s%b\n" "${C_BOLD}${C_CYAN}" "$1" "${C_RESET}" >&2; }
-info() { [ "${LOG_LEVEL:-1}" -ge 1 ] || return 0; printf "    %b•%b %s\n" "${C_DIM}" "${C_RESET}" "$1" >&2; }
-ok()   { [ "${LOG_LEVEL:-1}" -ge 1 ] || return 0; printf "    %b✔%b %s\n" "${C_GREEN}" "${C_RESET}" "$1" >&2; }
-warn() { [ "${LOG_LEVEL:-1}" -ge 1 ] || return 0; printf "    %b!%b %s\n" "${C_YELLOW}" "${C_RESET}" "$1" >&2; }
-err()  { printf "    %b✖%b %s\n" "${C_RED}" "${C_RESET}" "$1" >&2; }
-dbg()  { [ "${LOG_LEVEL:-1}" -ge 2 ] || return 0; printf "    %b⋯%b %s\n" "${C_DIM}" "${C_RESET}" "$1" >&2; }
+# ---- logging (gated by LOG_LEVEL; err always prints; mirrored to LOG_FILE)
+hd()   { [ "${LOG_LEVEL:-1}" -ge 1 ] || return 0; __log "\n${C_BOLD}${C_CYAN}▸ $1${C_RESET}"; }
+info() { [ "${LOG_LEVEL:-1}" -ge 1 ] || return 0; __log "    ${C_DIM}•${C_RESET} $1"; }
+ok()   { [ "${LOG_LEVEL:-1}" -ge 1 ] || return 0; __log "    ${C_GREEN}✔${C_RESET} $1"; }
+warn() { [ "${LOG_LEVEL:-1}" -ge 1 ] || return 0; __log "    ${C_YELLOW}!${C_RESET} $1"; }
+err()  { __log "    ${C_RED}✖${C_RESET} $1"; }
+dbg()  { [ "${LOG_LEVEL:-1}" -ge 2 ] || return 0; __log "    ${C_DIM}⋯${C_RESET} $1"; }
 
 # ---- prompts (read from the terminal even under `curl | bash`) -----------
 # Open the terminal on FD 3; fall back to stdin if /dev/tty is not available.
 if ! { [ -e /dev/tty ] && exec 3</dev/tty; } 2>/dev/null; then exec 3<&0; fi
-ask()  { local p="$1" d="${2:-}" a; printf "%b?%b %s " "${C_YELLOW}" "${C_RESET}" "${p}" >&2; read -r a <&3 || a=""; echo "${a:-$d}"; }
+ask()  { local p="$1" d="${2:-}" a; if [ "${ASSUME_YES:-0}" = "1" ]; then echo "${d}"; return 0; fi; printf "%b?%b %s " "${C_YELLOW}" "${C_RESET}" "${p}" >&2; read -r a <&3 || a=""; echo "${a:-$d}"; }
 asks() { local p="$1" a; printf "%b?%b %s " "${C_YELLOW}" "${C_RESET}" "${p}" >&2; read -rs a <&3 || a=""; printf "\n" >&2; echo "${a}"; }
 
 # ---- privilege ----------------------------------------------------------

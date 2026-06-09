@@ -101,7 +101,21 @@ services (`systemctl`/`rc-service`), `ufw`, `sed -i`, `tee` config writes,
 still run so you see real state. A few user-local installs (nvm/Node, Composer,
 PM2) and MySQL client mutations execute as normal.
 
-`NO_COLOR=1` disables colors in any mode.
+### Automation & logging
+
+| Variable / flag                | Effect                                                        |
+| ------------------------------ | ------------------------------------------------------------ |
+| `ASSUME_YES=1` · `YES=1` · `-y`| `ask` returns the default answer without prompting (non-interactive) |
+| `LOG_FILE=/path`               | Appends a plain-text (no-color) copy of every log line       |
+| `NO_COLOR=1`                   | Disables colors in any mode                                  |
+
+```bash
+# fully unattended, dry-run, logged
+curl -fsSL .../script/install-fail2ban.sh | ASSUME_YES=1 DRY_RUN=1 LOG_FILE=/var/log/wf.log bash
+```
+
+Note: `ASSUME_YES` only fills prompts that have a safe default; password prompts
+and free-text inputs (e.g. role names) still need real input or are skipped.
 
 ## Run a Single Script
 
