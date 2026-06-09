@@ -56,6 +56,7 @@ SCRIPTS=(
   "App Runtime|install-composer|script/install-composer.sh|Install Composer (user-local, signature-verified)"
   "App Runtime|setup-pm2-app|script/setup-pm2-app.sh|Configure pm2-logrotate + register an app (ecosystem)"
   "Monitoring|monitor-system|script/monitor-system.sh|CPU, RAM, storage, processes, network (snapshot or realtime)"
+  "Network|net-tools|script/net-tools.sh|Local/public IP, ports, speedtest, ping, dig, scan"
 )
 # ------------------------------------------------------------------------
 

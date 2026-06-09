@@ -60,6 +60,8 @@ Select scripts to run:  ↑/↓ move · SPACE toggle · A all · ENTER run · Q 
   [ ] setup-pm2-app        Configure pm2-logrotate + register an app (ecosystem)
 ── Monitoring ──
   [ ] monitor-system       CPU, RAM, storage, processes, network (snapshot or realtime)
+── Network ──
+  [ ] net-tools            Local/public IP, ports, speedtest, ping, dig, scan
 ```
 
 ## Output Modes
@@ -159,8 +161,9 @@ curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/in
 curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/enable-mysql-remote.sh | bash
 curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/database-toolkit.sh | bash
 
-# Monitoring
+# Monitoring & network
 curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/monitor-system.sh | bash
+curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/net-tools.sh | bash
 
 # App runtime
 curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/install-nodejs.sh | bash
@@ -190,6 +193,7 @@ curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/se
 | App Runtime   | `install-composer.sh`    | Install Composer to `~/.local/bin`, verify signature             | No   | Any (needs PHP) |
 | App Runtime   | `setup-pm2-app.sh`       | Configure pm2-logrotate + register an app (ecosystem.config.js)  | No   | Any             |
 | Monitoring    | `monitor-system.sh`      | CPU/RAM/storage/processes/network — snapshot or realtime watch          | Some | Any             |
+| Network       | `net-tools.sh`           | Local/public IP, ports, speedtest, ping/traceroute/dig/whois/scan       | Some | Any             |
 
 ## Script Details
 
@@ -344,6 +348,20 @@ curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/se
 
 - Optional **Tools** section installs `htop`, `btop`, `ncdu`, `glances`, `iotop`
   — full-screen realtime monitors if you prefer a TUI.
+
+### net-tools.sh
+
+- Arrow-key TUI network toolkit, grouped:
+  - **Addresses** — local interfaces/IPs, public IP (v4/v6) + geo/ISP, routes &
+    default gateway, DNS resolvers, ARP/neighbours.
+  - **Ports & connections** — listening sockets, established connections, check a
+    local port, check a remote `host:port`, scan ports (`nmap` or `/dev/tcp`).
+  - **Diagnostics** — ping, traceroute/`mtr`, DNS lookup (`dig`), whois, HTTP
+    headers (`curl -I`), interface traffic stats.
+  - **Speed** — internet speed test (`speedtest`/`speedtest-cli`).
+  - **Tools** — install the network tooling (iproute2, net-tools, dnsutils,
+    traceroute, mtr, nmap, whois, speedtest-cli).
+- Each tool falls back gracefully when a binary is missing.
 
 ### install-nodejs.sh
 
