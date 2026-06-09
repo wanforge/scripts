@@ -34,6 +34,8 @@ fi
 # ---- supported OS check -------------------------------------------------
 # Per https://www.cloudpanel.io/docs/v2/getting-started/other/
 # Supported: Ubuntu 24.04 / 22.04 LTS, Debian 11 / 12 / 13.  (Ubuntu 25/26: NO)
+# TODO: re-check the docs above periodically — when Ubuntu 26.04 becomes
+#       supported, add `ubuntu:26.04` to the case below and to the ENGINES case.
 # shellcheck disable=SC1091
 . /etc/os-release 2>/dev/null || true
 OS_ID="${ID:-}"; OS_VER="${VERSION_ID:-}"
