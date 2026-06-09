@@ -22,13 +22,13 @@ curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/install.s
 
 Menu controls:
 
-| Key            | Action                       |
-| -------------- | ---------------------------- |
-| Up / Down      | Move between rows            |
-| Space          | Toggle a selection           |
-| A              | Toggle all                   |
-| Enter          | Run the selected scripts     |
-| Q              | Cancel and exit              |
+| Key       | Action                   |
+| --------- | ------------------------ |
+| Up / Down | Move between rows        |
+| Space     | Toggle a selection       |
+| A         | Toggle all               |
+| Enter     | Run the selected scripts |
+| Q         | Cancel and exit          |
 
 The menu is grouped by category and runs the selected scripts in menu order. If
 one fails, the rest still continue. No authentication is needed — this is a
@@ -70,12 +70,12 @@ Every script shares one verbosity control (defined in `lib.sh`). Set it with an
 environment variable (recommended — it also propagates through the launcher) or
 a flag:
 
-| Mode      | Shows                                   | How                                   |
-| --------- | --------------------------------------- | ------------------------------------- |
-| `silent`  | Errors and final result only, no banner | `MODE=silent` · `QUIET=1` · `-q`      |
-| `normal`  | Banner + info/ok/warn/err (default)     | `MODE=normal` (default)               |
-| `verbose` | Normal + extra `dbg` detail             | `MODE=verbose` · `VERBOSE=1` · `-v`   |
-| `debug`   | Verbose + shell trace (`set -x`)        | `MODE=debug` · `DEBUG=1` · `--debug`  |
+| Mode      | Shows                                   | How                                  |
+| --------- | --------------------------------------- | ------------------------------------ |
+| `silent`  | Errors and final result only, no banner | `MODE=silent` · `QUIET=1` · `-q`     |
+| `normal`  | Banner + info/ok/warn/err (default)     | `MODE=normal` (default)              |
+| `verbose` | Normal + extra `dbg` detail             | `MODE=verbose` · `VERBOSE=1` · `-v`  |
+| `debug`   | Verbose + shell trace (`set -x`)        | `MODE=debug` · `DEBUG=1` · `--debug` |
 
 ```bash
 # silent (good for automation / cron)
@@ -105,11 +105,11 @@ PM2) and MySQL client mutations execute as normal.
 
 ### Automation & logging
 
-| Variable / flag                | Effect                                                        |
-| ------------------------------ | ------------------------------------------------------------ |
-| `ASSUME_YES=1` · `YES=1` · `-y`| `ask` returns the default answer without prompting (non-interactive) |
-| `LOG_FILE=/path`               | Appends a plain-text (no-color) copy of every log line       |
-| `NO_COLOR=1`                   | Disables colors in any mode                                  |
+| Variable / flag                 | Effect                                                               |
+| ------------------------------- | -------------------------------------------------------------------- |
+| `ASSUME_YES=1` · `YES=1` · `-y` | `ask` returns the default answer without prompting (non-interactive) |
+| `LOG_FILE=/path`                | Appends a plain-text (no-color) copy of every log line               |
+| `NO_COLOR=1`                    | Disables colors in any mode                                          |
 
 ```bash
 # fully unattended, dry-run, logged
@@ -173,27 +173,27 @@ curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/se
 
 ## Scripts Overview
 
-| Group         | Script                   | Purpose                                                          | Sudo | Distro          |
-| ------------- | ------------------------ | ---------------------------------------------------------------- | ---- | --------------- |
-| —             | `install.sh`             | Grouped checkbox launcher that runs the other scripts            | —    | Any             |
-| System        | `install-packages.sh`    | Update/upgrade system, install base packages                     | Yes  | Multi           |
-| System        | `set-timezone.sh`        | Set timezone via `timedatectl` (default `Asia/Jakarta`)          | Yes  | Any (systemd)   |
-| Security      | `install-firewall.sh`    | Install `ufw`, open SSH/http/https, add custom ports, enable     | Yes  | Mainly Deb/Ubu  |
-| Security      | `firewall-manager.sh`    | Full ufw manager: allow/deny IP & port, multi-IP, rate-limit     | Yes  | Any (ufw)       |
-| Security      | `install-fail2ban.sh`    | Install and enable the Fail2Ban service                          | Yes  | Multi           |
-| Security      | `secure-ssh.sh`          | Change SSH port, disable root/password login, enable pubkey      | Yes  | Any (OpenSSH)   |
-| Security      | `generate-ssh-key.sh`    | Generate an ed25519 SSH key, fix perms, print public key         | No   | Any             |
-| Panel & Console | `install-cloudpanel.sh`| Install CloudPanel CE v2, choose DB engine, verify checksum      | Yes  | Debian/Ubuntu   |
-| Panel & Console | `clpctl-manager.sh`    | Manage CloudPanel via `clpctl`: sites, db, users, certs, vhosts  | Yes  | CloudPanel      |
-| Panel & Console | `install-cockpit.sh`   | Install Cockpit + modules, reverse-proxy config, open port 9090  | Yes  | Debian/Ubuntu   |
-| Database      | `install-postgresql.sh`  | Install latest PostgreSQL (PGDG), create roles, remote access    | Yes  | Debian/Ubuntu   |
-| Database      | `enable-mysql-remote.sh` | Remote MySQL/MariaDB: bind-address, firewall, create users       | Yes  | Debian/Ubuntu   |
-| Database      | `database-toolkit.sh`    | Monitor / optimize / config / datetime — MySQL & PostgreSQL      | Yes  | Any (DB client) |
-| App Runtime   | `install-nodejs.sh`      | Install Node.js via nvm (user-local), choose version, PM2        | No   | Any             |
-| App Runtime   | `install-composer.sh`    | Install Composer to `~/.local/bin`, verify signature             | No   | Any (needs PHP) |
-| App Runtime   | `setup-pm2-app.sh`       | Configure pm2-logrotate + register an app (ecosystem.config.js)  | No   | Any             |
-| Monitoring    | `monitor-system.sh`      | CPU/RAM/storage/processes/network — snapshot or realtime watch          | Some | Any             |
-| Network       | `net-tools.sh`           | Local/public IP, ports, speedtest, ping/traceroute/dig/whois/scan       | Some | Any             |
+| Group           | Script                   | Purpose                                                           | Sudo | Distro          |
+| --------------- | ------------------------ | ----------------------------------------------------------------- | ---- | --------------- |
+| —               | `install.sh`             | Grouped checkbox launcher that runs the other scripts             | —    | Any             |
+| System          | `install-packages.sh`    | Update/upgrade system, install base packages                      | Yes  | Multi           |
+| System          | `set-timezone.sh`        | Set timezone via `timedatectl` (default `Asia/Jakarta`)           | Yes  | Any (systemd)   |
+| Security        | `install-firewall.sh`    | Install `ufw`, open SSH/http/https, add custom ports, enable      | Yes  | Mainly Deb/Ubu  |
+| Security        | `firewall-manager.sh`    | Full ufw manager: allow/deny IP & port, multi-IP, rate-limit      | Yes  | Any (ufw)       |
+| Security        | `install-fail2ban.sh`    | Install and enable the Fail2Ban service                           | Yes  | Multi           |
+| Security        | `secure-ssh.sh`          | Change SSH port, disable root/password login, enable pubkey       | Yes  | Any (OpenSSH)   |
+| Security        | `generate-ssh-key.sh`    | Generate an ed25519 SSH key, fix perms, print public key          | No   | Any             |
+| Panel & Console | `install-cloudpanel.sh`  | Install CloudPanel CE v2, choose DB engine, verify checksum       | Yes  | Debian/Ubuntu   |
+| Panel & Console | `clpctl-manager.sh`      | Manage CloudPanel via `clpctl`: sites, db, users, certs, vhosts   | Yes  | CloudPanel      |
+| Panel & Console | `install-cockpit.sh`     | Install Cockpit + modules, reverse-proxy config, open port 9090   | Yes  | Debian/Ubuntu   |
+| Database        | `install-postgresql.sh`  | Install latest PostgreSQL (PGDG), create roles, remote access     | Yes  | Debian/Ubuntu   |
+| Database        | `enable-mysql-remote.sh` | Remote MySQL/MariaDB: bind-address, firewall, create users        | Yes  | Debian/Ubuntu   |
+| Database        | `database-toolkit.sh`    | Monitor / optimize / config / datetime — MySQL & PostgreSQL       | Yes  | Any (DB client) |
+| App Runtime     | `install-nodejs.sh`      | Install Node.js via nvm (user-local), choose version, PM2         | No   | Any             |
+| App Runtime     | `install-composer.sh`    | Install Composer to `~/.local/bin`, verify signature              | No   | Any (needs PHP) |
+| App Runtime     | `setup-pm2-app.sh`       | Configure pm2-logrotate + register an app (ecosystem.config.js)   | No   | Any             |
+| Monitoring      | `monitor-system.sh`      | CPU/RAM/storage/processes/network — snapshot or realtime watch    | Some | Any             |
+| Network         | `net-tools.sh`           | Local/public IP, ports, speedtest, ping/traceroute/dig/whois/scan | Some | Any             |
 
 ## Script Details
 
