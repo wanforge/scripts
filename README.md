@@ -31,8 +31,8 @@ Menu controls:
 | Q              | Cancel and exit              |
 
 The menu is grouped by category and runs the selected scripts in menu order. If
-one fails, the rest still continue. Auth (GitHub username + token) is shown but
-optional — only needed if you fork the scripts into a private repository.
+one fails, the rest still continue. No authentication is needed — this is a
+public repository.
 
 ```text
 Select scripts to run:  ↑/↓ move · SPACE toggle · A all · ENTER run · Q quit

@@ -5,8 +5,8 @@
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/install.sh | bash
 #
-# Shows a menu of available scripts, then fetches and runs the chosen one.
-# Auth (username + PAT) is OPTIONAL — only needed for scripts in private repos.
+# Shows a grouped checkbox menu, then fetches and runs the chosen scripts
+# from this public repo (no authentication needed).
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2026 Sugeng Sulistiyawan
@@ -134,34 +134,6 @@ fi
 
 printf "\n%bSelected %d script(s).%b\n\n" "${C_GREEN}" "${#SELECTED[@]}" "${C_RESET}" >&2
 
-# --- optional auth (private repos only) ----------------------------------
-# Build a descriptive PAT label: host, login user, and public IP, so the token
-# is easy to identify (and revoke) per server.
-PAT_HOST="$(hostname 2>/dev/null || echo host)"
-PAT_USER="${USER:-$(whoami 2>/dev/null || echo user)}"
-PAT_IP="$(curl -fsS --max-time 4 https://api.ipify.org 2>/dev/null || echo noip)"
-PAT_DESC="wanforge-deploy ${PAT_USER}@${PAT_HOST} ${PAT_IP}"
-# URL-encode spaces and '@' for the query string
-PAT_DESC="${PAT_DESC// /%20}"; PAT_DESC="${PAT_DESC//@/%40}"
-PAT_URL="https://github.com/settings/tokens/new?scopes=repo&description=${PAT_DESC}"
-printf "%bAuth is only needed for PRIVATE repos. Press Enter to skip.%b\n" "${C_DIM}" "${C_RESET}" >&2
-printf "%bGenerate a token (PAT):%b %b%s%b\n" "${C_DIM}" "${C_RESET}" "${C_YELLOW}" "${PAT_URL}" "${C_RESET}" >&2
-
-printf "GitHub username (Enter to skip): " >&2
-read -r GH_USER <&3
-
-AUTH=()
-if [ -n "${GH_USER}" ]; then
-  printf "GitHub token (PAT, hidden): " >&2
-  read -rs GH_TOKEN <&3
-  printf "\n" >&2
-  if [ -z "${GH_TOKEN}" ]; then
-    echo "Token required when username is given." >&2
-    exit 1
-  fi
-  AUTH=(-u "${GH_USER}:${GH_TOKEN}")
-fi
-
 # --- fetch + run each selected script, in menu order ---------------------
 TMP_SCRIPT="$(mktemp)"
 trap 'rm -f "${TMP_SCRIPT}"' EXIT
@@ -170,9 +142,9 @@ for sel in "${SELECTED[@]}"; do
   IFS='|' read -r _ SEL_LABEL SCRIPT_PATH _ <<< "${SCRIPTS[$sel]}"
   RAW_URL="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${REPO_BRANCH}/${SCRIPT_PATH}"
 
-  curl -fsSL "${AUTH[@]}" "${RAW_URL}" -o "${TMP_SCRIPT}" &
+  curl -fsSL "${RAW_URL}" -o "${TMP_SCRIPT}" &
   spinner $! "Fetching ${SEL_LABEL}"
-  wait $! || { echo "Download failed: ${SCRIPT_PATH} (check token / repo)." >&2; exit 1; }
+  wait $! || { echo "Download failed: ${SCRIPT_PATH} (check repo / network)." >&2; exit 1; }
 
   printf "%b▶ running %s...%b\n" "${C_BOLD}${C_GREEN}" "${SEL_LABEL}" "${C_RESET}" >&2
   bash "${TMP_SCRIPT}" || { err_msg="${SEL_LABEL} exited non-zero"; printf "%b✖ %s%b\n" "${C_BOLD}" "${err_msg}" "${C_RESET}" >&2; }
