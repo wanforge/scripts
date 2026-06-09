@@ -131,29 +131,30 @@ checkbox_menu() {
 }
 
 banner
-checkbox_menu || { printf "\n%bCancelled.%b\n" "${C_YELLOW}" "${C_RESET}" >&2; exit 0; }
 
-if [ "${#SELECTED[@]}" -eq 0 ]; then
-  printf "\n%bNothing selected.%b\n" "${C_YELLOW}" "${C_RESET}" >&2
-  exit 0
-fi
-
-printf "\n%bSelected %d script(s).%b\n\n" "${C_GREEN}" "${#SELECTED[@]}" "${C_RESET}" >&2
-
-# --- fetch + run each selected script, in menu order ---------------------
+# Reusable temp file for fetched scripts.
 TMP_SCRIPT="$(mktemp)"
 trap 'rm -f "${TMP_SCRIPT}"' EXIT
 
-for sel in "${SELECTED[@]}"; do
-  IFS='|' read -r _ SEL_LABEL SCRIPT_PATH _ <<< "${SCRIPTS[$sel]}"
-  RAW_URL="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${REPO_BRANCH}/${SCRIPT_PATH}"
+# --- launcher loop: menu -> run selection -> back to menu (Q quits) -------
+while true; do
+  printf "\n" >&2
+  checkbox_menu || { printf "\n%bBye.%b\n\n" "${C_DIM}" "${C_RESET}" >&2; break; }
+  [ "${#SELECTED[@]}" -eq 0 ] && continue   # nothing picked → back to menu
 
-  dlo "${RAW_URL}" "${TMP_SCRIPT}" &
-  spinner $! "Fetching ${SEL_LABEL}"
-  wait $! || { echo "Download failed: ${SCRIPT_PATH} (check repo / network)." >&2; exit 1; }
+  printf "\n%bRunning %d script(s).%b\n\n" "${C_GREEN}" "${#SELECTED[@]}" "${C_RESET}" >&2
+  for sel in "${SELECTED[@]}"; do
+    IFS='|' read -r _ SEL_LABEL SCRIPT_PATH _ <<< "${SCRIPTS[$sel]}"
+    RAW_URL="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${REPO_BRANCH}/${SCRIPT_PATH}"
 
-  printf "%b▶ running %s...%b\n" "${C_BOLD}${C_GREEN}" "${SEL_LABEL}" "${C_RESET}" >&2
-  bash "${TMP_SCRIPT}" || { err_msg="${SEL_LABEL} exited non-zero"; printf "%b✖ %s%b\n" "${C_BOLD}" "${err_msg}" "${C_RESET}" >&2; }
+    dlo "${RAW_URL}" "${TMP_SCRIPT}" &
+    spinner $! "Fetching ${SEL_LABEL}"
+    wait $! || { printf "%b✖ Download failed: %s%b\n" "${C_RED}" "${SCRIPT_PATH}" "${C_RESET}" >&2; continue; }
+
+    printf "%b▶ running %s...%b\n" "${C_BOLD}${C_GREEN}" "${SEL_LABEL}" "${C_RESET}" >&2
+    bash "${TMP_SCRIPT}" || printf "%b✖ %s exited non-zero%b\n" "${C_BOLD}" "${SEL_LABEL}" "${C_RESET}" >&2
+  done
+
+  printf "\n%b✔ Done. Press Enter to return to the menu (Q there to quit)…%b" "${C_DIM}${C_GREEN}" "${C_RESET}" >&2
+  read -r _ <&3 || break
 done
-
-printf "\n%b✔ All selected scripts finished.%b\n\n" "${C_BOLD}${C_GREEN}" "${C_RESET}" >&2

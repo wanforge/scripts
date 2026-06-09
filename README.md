@@ -65,6 +65,11 @@ The menu is grouped by category and runs the selected scripts in menu order. If
 one fails, the rest still continue. No authentication is needed — this is a
 public repository.
 
+**Navigation:** the launcher loops. After the chosen scripts finish you return to
+this menu (press Enter), so you can keep picking more. Inside a sub-script's own
+menu (firewall / database / CloudPanel / Proxmox / net-tools managers) press `Q`
+to go **back to the launcher**. Press `Q` at the launcher to quit entirely.
+
 ```text
 Select scripts to run:  ↑/↓ move · SPACE toggle · A all · ENTER run · Q quit
 
