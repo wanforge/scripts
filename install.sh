@@ -55,7 +55,7 @@ SCRIPTS=(
   "App Runtime|install-nodejs|script/install-nodejs.sh|Install Node.js via nvm (user-local) + PM2"
   "App Runtime|install-composer|script/install-composer.sh|Install Composer (user-local, signature-verified)"
   "App Runtime|setup-pm2-app|script/setup-pm2-app.sh|Configure pm2-logrotate + register an app (ecosystem)"
-  "Monitoring|monitor-system|script/monitor-system.sh|CPU, RAM, storage, processes, network snapshot"
+  "Monitoring|monitor-system|script/monitor-system.sh|CPU, RAM, storage, processes, network (snapshot or realtime)"
 )
 # ------------------------------------------------------------------------
 

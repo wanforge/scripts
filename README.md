@@ -59,7 +59,7 @@ Select scripts to run:  ↑/↓ move · SPACE toggle · A all · ENTER run · Q 
   [ ] install-composer     Install Composer (user-local, signature-verified)
   [ ] setup-pm2-app        Configure pm2-logrotate + register an app (ecosystem)
 ── Monitoring ──
-  [ ] monitor-system       CPU, RAM, storage, processes, network snapshot
+  [ ] monitor-system       CPU, RAM, storage, processes, network (snapshot or realtime)
 ```
 
 ## Output Modes
@@ -173,7 +173,7 @@ curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/se
 | App Runtime   | `install-nodejs.sh`      | Install Node.js via nvm (user-local), choose version, PM2        | No   | Any             |
 | App Runtime   | `install-composer.sh`    | Install Composer to `~/.local/bin`, verify signature             | No   | Any (needs PHP) |
 | App Runtime   | `setup-pm2-app.sh`       | Configure pm2-logrotate + register an app (ecosystem.config.js)  | No   | Any             |
-| Monitoring    | `monitor-system.sh`      | CPU, RAM, storage, processes, network, sensors snapshot          | Some | Any             |
+| Monitoring    | `monitor-system.sh`      | CPU/RAM/storage/processes/network — snapshot or realtime watch          | Some | Any             |
 
 ## Script Details
 
@@ -316,7 +316,16 @@ curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/se
 - Grouped checkbox snapshot (default all on): uptime & load, CPU, memory, disk
   usage + inodes, largest directories, top processes by CPU/memory, network
   interfaces + listening sockets, temperatures (`lm-sensors`).
-- Optional **Tools** section installs `htop`, `btop`, `ncdu`, `glances`, `iotop`.
+- **Realtime / watch mode**: refreshes the selected sections on an interval until
+  `Ctrl-C`. Enable with the prompt, `WATCH=1`, or `-w`/`--watch`; set the cadence
+  with `INTERVAL=<seconds>` (default 2). `bigdirs` is skipped while watching.
+
+  ```bash
+  curl -fsSL .../script/monitor-system.sh | WATCH=1 INTERVAL=2 bash
+  ```
+
+- Optional **Tools** section installs `htop`, `btop`, `ncdu`, `glances`, `iotop`
+  — full-screen realtime monitors if you prefer a TUI.
 
 ### install-nodejs.sh
 
