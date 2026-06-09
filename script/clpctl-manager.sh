@@ -66,25 +66,36 @@ a_vht_view() { local n; n="$(ask 'Template name:')"; req "$n" name || return; ru
 a_perms_reset() { local d f path; d="$(ask 'Directory perms:' '770')"; f="$(ask 'File perms:' '660')"; path="$(ask 'Path:' '.')"; runclp system:permissions:reset --directories="$d" --files="$f" --path="$path"; }
 a_varnish_purge() { local v; v="$(ask "Purge target ('all', 'tag1,tag2', or a URL):" 'all')"; runclp varnish-cache:purge --purge="$v"; }
 
-# ---- menu ---------------------------------------------------------------
-hdr() { printf "  %b— %s —%b\n" "${C_DIM}" "$1" "${C_RESET}" >&2; }
-menu() {
-  printf "%bCloudPanel CLI — choose an action (q to quit):%b\n" "${C_BOLD}" "${C_RESET}" >&2
-  hdr "CloudPanel"
-  printf "   1) basic-auth enable        2) basic-auth disable      3) cloudflare update IPs\n" >&2
-  hdr "Database"
-  printf "   4) show master credentials  5) db add                  6) db export\n   7) db import\n" >&2
-  hdr "Certificates"
-  printf "   8) Let's Encrypt install    9) install custom cert\n" >&2
-  hdr "Sites"
-  printf "  10) add PHP                 11) add Node.js            12) add Python\n  13) add Static             14) add Reverse Proxy      15) delete site\n" >&2
-  hdr "Users"
-  printf "  16) add user               17) delete user            18) list users\n  19) reset password         20) disable MFA\n" >&2
-  hdr "vHost Templates"
-  printf "  21) list                   22) import                 23) add\n  24) delete                 25) view\n" >&2
-  hdr "System"
-  printf "  26) reset permissions      27) purge varnish cache\n" >&2
-}
+# ---- menu (single-select TUI) -------------------------------------------
+MENU=(
+  "CloudPanel|ba_enable|basic-auth enable"
+  "CloudPanel|ba_disable|basic-auth disable"
+  "CloudPanel|cf_ips|cloudflare update IPs"
+  "Database|db_master|show master credentials"
+  "Database|db_add|db add"
+  "Database|db_export|db export"
+  "Database|db_import|db import"
+  "Certificates|le_cert|Let's Encrypt install"
+  "Certificates|site_cert|install custom cert"
+  "Sites|site_php|add PHP site"
+  "Sites|site_nodejs|add Node.js site"
+  "Sites|site_python|add Python site"
+  "Sites|site_static|add Static site"
+  "Sites|site_proxy|add Reverse Proxy"
+  "Sites|site_delete|delete site"
+  "Users|user_add|add user"
+  "Users|user_delete|delete user"
+  "Users|user_list|list users"
+  "Users|user_reset|reset password"
+  "Users|user_mfa_off|disable MFA"
+  "vHost Templates|vht_list|list"
+  "vHost Templates|vht_import|import"
+  "vHost Templates|vht_add|add"
+  "vHost Templates|vht_delete|delete"
+  "vHost Templates|vht_view|view"
+  "System|perms_reset|reset permissions"
+  "System|varnish_purge|purge varnish cache"
+)
 
 # ---- run ----------------------------------------------------------------
 banner
@@ -96,21 +107,18 @@ warn "Passwords are passed to clpctl as flags (CloudPanel's interface) and may b
 
 while true; do
   printf "\n" >&2
-  menu
-  CH="$(ask 'Action number:' '')"
-  case "${CH}" in
-    1) a_basic_auth_enable ;;  2) a_basic_auth_disable ;; 3) a_cloudflare_ips ;;
-    4) a_db_master ;;          5) a_db_add ;;             6) a_db_export ;;
-    7) a_db_import ;;          8) a_le_cert ;;            9) a_site_cert ;;
-    10) a_site_php ;;          11) a_site_nodejs ;;       12) a_site_python ;;
-    13) a_site_static ;;       14) a_site_proxy ;;        15) a_site_delete ;;
-    16) a_user_add ;;          17) a_user_delete ;;       18) a_user_list ;;
-    19) a_user_reset ;;        20) a_user_mfa_off ;;
-    21) a_vht_list ;;          22) a_vht_import ;;         23) a_vht_add ;;
-    24) a_vht_delete ;;        25) a_vht_view ;;
-    26) a_perms_reset ;;       27) a_varnish_purge ;;
-    q|Q|quit|"") info "Bye."; break ;;
-    *) warn "Unknown choice: ${CH}" ;;
+  menu_select "CloudPanel CLI:" || break
+  case "${MENU_KEY}" in
+    ba_enable) a_basic_auth_enable ;;  ba_disable) a_basic_auth_disable ;; cf_ips) a_cloudflare_ips ;;
+    db_master) a_db_master ;;          db_add) a_db_add ;;                 db_export) a_db_export ;;
+    db_import) a_db_import ;;           le_cert) a_le_cert ;;               site_cert) a_site_cert ;;
+    site_php) a_site_php ;;             site_nodejs) a_site_nodejs ;;       site_python) a_site_python ;;
+    site_static) a_site_static ;;       site_proxy) a_site_proxy ;;         site_delete) a_site_delete ;;
+    user_add) a_user_add ;;            user_delete) a_user_delete ;;       user_list) a_user_list ;;
+    user_reset) a_user_reset ;;         user_mfa_off) a_user_mfa_off ;;
+    vht_list) a_vht_list ;;            vht_import) a_vht_import ;;          vht_add) a_vht_add ;;
+    vht_delete) a_vht_delete ;;         vht_view) a_vht_view ;;
+    perms_reset) a_perms_reset ;;      varnish_purge) a_varnish_purge ;;
   esac
 done
 

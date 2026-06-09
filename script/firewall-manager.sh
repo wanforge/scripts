@@ -86,18 +86,27 @@ a_delete() {
 
 req_nonempty() { [ -n "$1" ] || { err "Value required."; return 1; }; }
 
-# ---- menu ---------------------------------------------------------------
-menu() {
-  printf "%bufw firewall — choose an action (q to quit):%b\n" "${C_BOLD}" "${C_RESET}" >&2
-  printf "  %b— View & control —%b\n" "${C_DIM}" "${C_RESET}" >&2
-  printf "   1) status            2) enable            3) disable\n   4) reload            5) reset (danger)    6) default policy\n   7) logging level\n" >&2
-  printf "  %b— Ports —%b\n" "${C_DIM}" "${C_RESET}" >&2
-  printf "   8) allow port        9) deny port        10) rate-limit port\n" >&2
-  printf "  %b— IP / subnet —%b\n" "${C_DIM}" "${C_RESET}" >&2
-  printf "  11) allow IP/CIDR     12) deny IP/CIDR     13) allow multiple IPs\n  14) deny multiple IPs 15) allow IP→port    16) deny IP→port\n" >&2
-  printf "  %b— Apps & rules —%b\n" "${C_DIM}" "${C_RESET}" >&2
-  printf "  17) app profiles     18) delete rule\n" >&2
-}
+# ---- menu (single-select TUI) -------------------------------------------
+MENU=(
+  "View & control|status|status (verbose + numbered)"
+  "View & control|enable|enable firewall"
+  "View & control|disable|disable firewall"
+  "View & control|reload|reload"
+  "View & control|reset|reset (danger)"
+  "View & control|default|default policy"
+  "View & control|logging|logging level"
+  "Ports|allow_port|allow port"
+  "Ports|deny_port|deny port"
+  "Ports|limit_port|rate-limit port"
+  "IP / subnet|allow_ip|allow IP/CIDR"
+  "IP / subnet|deny_ip|deny IP/CIDR"
+  "IP / subnet|allow_many|allow multiple IPs"
+  "IP / subnet|deny_many|deny multiple IPs"
+  "IP / subnet|allow_ip_port|allow IP → port"
+  "IP / subnet|deny_ip_port|deny IP → port"
+  "Apps & rules|apps|app profiles"
+  "Apps & rules|delete|delete rule"
+)
 
 # ---- run ----------------------------------------------------------------
 banner
@@ -115,15 +124,15 @@ fi
 warn "Tip: before enabling, allow your SSH port so you don't lock yourself out."
 
 while true; do
-  printf "\n" >&2; menu
-  case "$(ask 'Action:' '')" in
-    1) a_status ;;       2) a_enable ;;       3) a_disable ;;
-    4) a_reload ;;       5) a_reset ;;        6) a_default ;;
-    7) a_logging ;;      8) a_allow_port ;;   9) a_deny_port ;;
-    10) a_limit_port ;;  11) a_allow_ip ;;    12) a_deny_ip ;;
-    13) a_allow_many ;;  14) a_deny_many ;;   15) a_allow_ip_port ;;
-    16) a_deny_ip_port ;; 17) a_apps ;;       18) a_delete ;;
-    q|Q|quit|"") break ;; *) warn "Unknown choice." ;;
+  printf "\n" >&2
+  menu_select "ufw firewall:" || break
+  case "${MENU_KEY}" in
+    status) a_status ;;     enable) a_enable ;;     disable) a_disable ;;
+    reload) a_reload ;;     reset) a_reset ;;       default) a_default ;;
+    logging) a_logging ;;   allow_port) a_allow_port ;; deny_port) a_deny_port ;;
+    limit_port) a_limit_port ;; allow_ip) a_allow_ip ;;  deny_ip) a_deny_ip ;;
+    allow_many) a_allow_many ;; deny_many) a_deny_many ;; allow_ip_port) a_allow_ip_port ;;
+    deny_ip_port) a_deny_ip_port ;; apps) a_apps ;;   delete) a_delete ;;
   esac
 done
 

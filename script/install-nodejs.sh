@@ -18,6 +18,9 @@ __LIB="https://raw.githubusercontent.com/wanforge/server-mine/main/script/lib.sh
 __d="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
 if [ -r "${__d}/lib.sh" ]; then . "${__d}/lib.sh"
 else . <(curl -fsSL "${__LIB}"); fi
+
+# run as a target user (e.g. a CloudPanel site user) when invoked as root
+maybe_switch_user "https://raw.githubusercontent.com/wanforge/server-mine/main/script/install-nodejs.sh"
 NVM_VERSION="v0.40.1"   # pinned nvm release; bump as needed
 
 # ---- run ----------------------------------------------------------------

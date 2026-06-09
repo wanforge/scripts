@@ -113,16 +113,6 @@ pg_optimize() {
   ok "Done."
 }
 
-# ---- menus --------------------------------------------------------------
-menu_mysql() {
-  printf "%bMySQL/MariaDB — choose an action (q to quit):%b\n" "${C_BOLD}" "${C_RESET}" >&2
-  printf "  1) status        2) databases+size   3) process list\n  4) date/time     5) config vars      6) slow query log\n  7) optimize      8) mysqltuner\n" >&2
-}
-menu_pg() {
-  printf "%bPostgreSQL — choose an action (q to quit):%b\n" "${C_BOLD}" "${C_RESET}" >&2
-  printf "  1) status        2) databases+size   3) activity\n  4) date/time     5) config settings  6) cache hit ratio\n  7) VACUUM/REINDEX\n" >&2
-}
-
 # ---- run ----------------------------------------------------------------
 banner
 HAVE_MY=0; HAVE_PG=0
@@ -132,31 +122,51 @@ command -v psql  >/dev/null 2>&1 && HAVE_PG=1
 
 ENGINE=""
 if [ "${HAVE_MY}" -eq 1 ] && [ "${HAVE_PG}" -eq 1 ]; then
-  ENGINE="$(ask "Engine? [mysql/postgres]:" "mysql")"
+  MENU=("Engine|mysql|MySQL / MariaDB" "Engine|postgres|PostgreSQL")
+  menu_select "Which database engine?" || exit 0
+  ENGINE="${MENU_KEY}"
 elif [ "${HAVE_MY}" -eq 1 ]; then ENGINE="mysql"; else ENGINE="postgres"; fi
 
 case "${ENGINE}" in
   mysql|mariadb)
     connect_mysql || { err "Cannot connect to MySQL/MariaDB."; exit 1; }
     ok "Connected to MySQL/MariaDB."
+    MENU=(
+      "MySQL|status|status (version, uptime, threads)"
+      "MySQL|databases|databases + size"
+      "MySQL|processlist|process list"
+      "MySQL|datetime|date / time + timezone"
+      "MySQL|variables|config variables"
+      "MySQL|slowlog|slow query log"
+      "MySQL|optimize|optimize + analyze"
+      "MySQL|tuner|MySQLTuner"
+    )
     while true; do
-      printf "\n" >&2; menu_mysql
-      case "$(ask 'Action:' '')" in
-        1) my_status ;; 2) my_databases ;; 3) my_processlist ;; 4) my_datetime ;;
-        5) my_variables ;; 6) my_slowlog ;; 7) my_optimize ;; 8) my_tuner ;;
-        q|Q|quit|"") break ;; *) warn "Unknown choice." ;;
+      printf "\n" >&2; menu_select "MySQL/MariaDB:" || break
+      case "${MENU_KEY}" in
+        status) my_status ;; databases) my_databases ;; processlist) my_processlist ;;
+        datetime) my_datetime ;; variables) my_variables ;; slowlog) my_slowlog ;;
+        optimize) my_optimize ;; tuner) my_tuner ;;
       esac
     done
     ;;
   postgres|postgresql|pg)
     connect_pg || { err "Cannot connect to PostgreSQL (need sudo to user postgres)."; exit 1; }
     ok "Connected to PostgreSQL."
+    MENU=(
+      "PostgreSQL|status|status (version, uptime, connections)"
+      "PostgreSQL|databases|databases + size"
+      "PostgreSQL|activity|activity (pg_stat_activity)"
+      "PostgreSQL|datetime|date / time + timezone"
+      "PostgreSQL|settings|config settings"
+      "PostgreSQL|cache|cache hit ratio"
+      "PostgreSQL|optimize|VACUUM ANALYZE / REINDEX"
+    )
     while true; do
-      printf "\n" >&2; menu_pg
-      case "$(ask 'Action:' '')" in
-        1) pg_status ;; 2) pg_databases ;; 3) pg_activity ;; 4) pg_datetime ;;
-        5) pg_settings ;; 6) pg_cache ;; 7) pg_optimize ;;
-        q|Q|quit|"") break ;; *) warn "Unknown choice." ;;
+      printf "\n" >&2; menu_select "PostgreSQL:" || break
+      case "${MENU_KEY}" in
+        status) pg_status ;; databases) pg_databases ;; activity) pg_activity ;;
+        datetime) pg_datetime ;; settings) pg_settings ;; cache) pg_cache ;; optimize) pg_optimize ;;
       esac
     done
     ;;

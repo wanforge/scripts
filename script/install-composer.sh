@@ -19,6 +19,9 @@ __d="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
 if [ -r "${__d}/lib.sh" ]; then . "${__d}/lib.sh"
 else . <(curl -fsSL "${__LIB}"); fi
 
+# run as a target user (e.g. a CloudPanel site user) when invoked as root
+maybe_switch_user "https://raw.githubusercontent.com/wanforge/server-mine/main/script/install-composer.sh"
+
 # ---- run ----------------------------------------------------------------
 banner
 command -v php >/dev/null 2>&1 || { err "PHP is required for Composer. Install PHP first."; exit 1; }

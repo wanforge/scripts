@@ -117,6 +117,22 @@ curl -fsSL .../script/install-fail2ban.sh | ASSUME_YES=1 DRY_RUN=1 LOG_FILE=/var
 Note: `ASSUME_YES` only fills prompts that have a safe default; password prompts
 and free-text inputs (e.g. role names) still need real input or are skipped.
 
+### Target user (install for a CloudPanel / site user)
+
+The user-local scripts (`install-nodejs`, `install-composer`, `setup-pm2-app`)
+install into a user's home — not the system. When you run them as **root**, they
+ask which user to install for (or set `TARGET_USER=<name>` / `--user=<name>`) and
+re-run themselves as that user via `sudo -u`, so Node/Composer/PM2 land in that
+user's home. Perfect for CloudPanel site users:
+
+```bash
+# install Node + PM2 into the CloudPanel site user 'john'
+curl -fsSL .../script/install-nodejs.sh | TARGET_USER=john bash
+```
+
+All menus (launcher and the `clpctl` / database / firewall managers) are
+arrow-key TUIs — `↑/↓` to move, `ENTER` to select, `Q` to go back.
+
 ## Run a Single Script
 
 Each script can also be run directly without the launcher.

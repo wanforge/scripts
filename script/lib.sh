@@ -157,3 +157,55 @@ checkbox() {
   return 0
 }
 has_key() { local x; for x in "${CHOSEN_KEYS[@]:-}"; do [ "$x" = "$1" ] && return 0; done; return 1; }
+
+# ---- single-select TUI menu ---------------------------------------------
+# Caller fills MENU=("group|key|label" ...). ↑/↓ move, ENTER select, Q back.
+# The chosen key lands in MENU_KEY; returns 1 (and empty MENU_KEY) on quit.
+MENU_KEY=""
+menu_select() {
+  local title="${1:-Select:}"
+  local n=${#MENU[@]} i cursor=0 first=1 key rest prev g k lbl
+  local groups=0 pg=""
+  for ((i = 0; i < n; i++)); do IFS='|' read -r g _ <<< "${MENU[i]}"; [ "$g" != "$pg" ] && { groups=$((groups + 1)); pg="$g"; }; done
+  local total=$((n + groups))
+  printf "%b%s%b  %b↑/↓ move · ENTER select · Q back%b\n\n" "${C_BOLD}" "${title}" "${C_RESET}" "${C_DIM}" "${C_RESET}" >&2
+  while true; do
+    [ "$first" -eq 0 ] && printf "\033[%dA" "$total" >&2
+    first=0; prev=""
+    for ((i = 0; i < n; i++)); do
+      IFS='|' read -r g k lbl <<< "${MENU[i]}"
+      if [ "$g" != "$prev" ]; then printf "\033[2K%b── %s ──%b\n" "${C_BOLD}${C_YELLOW}" "$g" "${C_RESET}" >&2; prev="$g"; fi
+      printf "\033[2K" >&2
+      if [ "$i" -eq "$cursor" ]; then printf "%b❯ %s%b\n" "${C_CYAN}${C_BOLD}" "$lbl" "${C_RESET}" >&2
+      else printf "    %b%s%b\n" "${C_DIM}" "$lbl" "${C_RESET}" >&2; fi
+    done
+    IFS= read -rsn1 key <&3 || break
+    [ "$key" = $'\x1b' ] && { IFS= read -rsn2 -t 0.01 rest <&3 || rest=""; key+="$rest"; }
+    case "$key" in
+      $'\x1b[A'|k) cursor=$(( (cursor - 1 + n) % n )) ;;
+      $'\x1b[B'|j) cursor=$(( (cursor + 1) % n )) ;;
+      q|Q) MENU_KEY=""; return 1 ;;
+      '') IFS='|' read -r _ MENU_KEY _ <<< "${MENU[cursor]}"; return 0 ;;
+    esac
+  done
+  MENU_KEY=""; return 1
+}
+
+# ---- target user (run user-local installs as a CloudPanel/site user) -----
+# When run as root, re-exec the whole script as TARGET_USER so installs land in
+# that user's home. Set TARGET_USER=name (or AS_USER), or you are prompted.
+TARGET_USER="${TARGET_USER:-${AS_USER:-}}"
+for __a in "$@"; do case "$__a" in --user=*) TARGET_USER="${__a#--user=}" ;; esac; done
+maybe_switch_user() {  # maybe_switch_user "<self raw url>"
+  local self="$1"
+  [ "$(id -u)" -eq 0 ] || return 0                    # only relevant as root
+  if [ -z "${TARGET_USER}" ]; then
+    TARGET_USER="$(ask 'Install for which user? (e.g. a CloudPanel site user; Enter = root):' '')"
+  fi
+  [ -z "${TARGET_USER}" ] && return 0                 # stay as root
+  id "${TARGET_USER}" >/dev/null 2>&1 || { err "User '${TARGET_USER}' not found."; exit 1; }
+  info "Switching to user ${TARGET_USER} (home: $(home_of "${TARGET_USER}"))..."
+  exec sudo -u "${TARGET_USER}" -H bash -c \
+    "export MODE='${MODE:-}' DRY_RUN='${DRY_RUN:-0}' VERBOSE='${VERBOSE:-0}' QUIET='${QUIET:-0}' ASSUME_YES='${ASSUME_YES:-0}'; curl -fsSL '${self}' | bash"
+}
+home_of() { getent passwd "${1:-${TARGET_USER}}" 2>/dev/null | cut -d: -f6; }
