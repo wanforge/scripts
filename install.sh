@@ -58,6 +58,9 @@ SCRIPTS=(
   "Monitoring|monitor-system|script/monitor-system.sh|CPU, RAM, storage, processes, network (snapshot or realtime)"
   "Network|net-tools|script/net-tools.sh|Local/public IP, ports, speedtest, ping, dig, scan"
   "Proxmox|proxmox-toolkit|script/proxmox-toolkit.sh|PVE: node/VM/CT resources, storage, realtime dashboard"
+  "Observability|install-prometheus|script/install-prometheus.sh|Prometheus + node_exporter (+ Alertmanager)"
+  "Observability|install-grafana|script/install-grafana.sh|Grafana + Prometheus data source"
+  "Observability|install-zabbix|script/install-zabbix.sh|Zabbix agent or server (official repo)"
 )
 # ------------------------------------------------------------------------
 

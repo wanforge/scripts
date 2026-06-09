@@ -64,6 +64,10 @@ Select scripts to run:  ↑/↓ move · SPACE toggle · A all · ENTER run · Q 
   [ ] net-tools            Local/public IP, ports, speedtest, ping, dig, scan
 ── Proxmox ──
   [ ] proxmox-toolkit      PVE: node/VM/CT resources, storage, realtime dashboard
+── Observability ──
+  [ ] install-prometheus   Prometheus + node_exporter (+ Alertmanager)
+  [ ] install-grafana      Grafana + Prometheus data source
+  [ ] install-zabbix       Zabbix agent or server (official repo)
 ```
 
 ## Output Modes
@@ -170,6 +174,11 @@ curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/ne
 # Proxmox (run on a PVE node)
 curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/proxmox-toolkit.sh | bash
 
+# Observability stack
+curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/install-prometheus.sh | bash
+curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/install-grafana.sh | bash
+curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/install-zabbix.sh | bash
+
 # App runtime
 curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/install-nodejs.sh | bash
 curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/install-composer.sh | bash
@@ -200,6 +209,9 @@ curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/se
 | Monitoring      | `monitor-system.sh`      | CPU/RAM/storage/processes/network — snapshot or realtime watch    | Some | Any             |
 | Network         | `net-tools.sh`           | Local/public IP, ports, speedtest, ping/traceroute/dig/whois/scan | Some | Any             |
 | Proxmox         | `proxmox-toolkit.sh`     | PVE node/VM/CT resources, storage, cluster, realtime dashboard    | Yes  | Proxmox VE      |
+| Observability   | `install-prometheus.sh`  | Prometheus + node_exporter + optional Alertmanager, scrape config | Yes  | Debian/Ubuntu   |
+| Observability   | `install-grafana.sh`     | Grafana (official repo) + auto Prometheus data source             | Yes  | Debian/Ubuntu   |
+| Observability   | `install-zabbix.sh`      | Zabbix agent or full server (frontend + MySQL schema)             | Yes  | Debian/Ubuntu   |
 
 ## Script Details
 
@@ -382,6 +394,44 @@ curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/se
   - **Realtime** — live dashboard refreshing in place: CPU/load, RAM, root FS,
     Proxmox storage, and running-vs-total VMs/containers.
 - Mutating actions (start/stop/backup) honor `DRY_RUN`.
+
+### install-prometheus.sh
+
+- Debian/Ubuntu. Checkbox components: Prometheus (`:9090`), node_exporter
+  (`:9100`, host CPU/RAM/disk metrics), Alertmanager (`:9093`), and firewall.
+- Installs from distro packages, enables services, and **adds a node_exporter
+  scrape job** to `/etc/prometheus/prometheus.yml`. Prints the URLs at the end.
+
+### install-grafana.sh
+
+- Debian/Ubuntu. Adds the **official Grafana APT repo**, installs and enables
+  `grafana-server` (`:3000`), optionally **provisions a Prometheus data source**,
+  and opens the firewall. Login `admin/admin` on first use; import dashboard
+  ID `1860` (Node Exporter Full) to visualize host metrics.
+
+### install-zabbix.sh
+
+- Debian/Ubuntu. Adds the **official Zabbix repo** (version + OS auto-detected),
+  then choose:
+  - **Agent** — `zabbix-agent2`, set the server IP + hostname, open `:10050`.
+  - **Server** — server + PHP frontend + MySQL/MariaDB: creates the `zabbix`
+    database, imports the schema, sets `DBPassword`, starts everything. Frontend
+    at `http://<ip>/zabbix`, default login `Admin/zabbix`.
+
+### Monitoring stack — quick walkthrough
+
+```bash
+# 1) On each host you want to monitor: metrics exporter
+curl -fsSL .../script/install-prometheus.sh | bash      # pick node_exporter (+ Prometheus on the main host)
+
+# 2) On the monitoring host: Grafana + Prometheus data source
+curl -fsSL .../script/install-grafana.sh | bash         # auto-add http://localhost:9090
+
+# 3) In Grafana (http://host:3000) → Dashboards → Import → 1860 → done.
+
+# Alternative all-in-one platform:
+curl -fsSL .../script/install-zabbix.sh | bash          # server on the main host, agent on the rest
+```
 
 ### install-nodejs.sh
 
