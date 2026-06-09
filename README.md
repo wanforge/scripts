@@ -75,7 +75,7 @@ Select scripts to run:  ↑/↓ move · SPACE toggle · A all · ENTER run · Q 
 
 ── System ──
 ❯ [ ] install-packages     Update system + base essentials (micro, curl, wget, git)
-  [ ] set-timezone         Set timezone (default Asia/Jakarta)
+  [ ] set-timezone         Set timezone (UTC recommended for servers)
 ── Security ──
   [ ] install-firewall     Install & configure ufw firewall
   [ ] firewall-manager     Full ufw manager: allow/deny IP/port, multiple, rate-limit
@@ -271,8 +271,12 @@ curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/se
 
 ### set-timezone.sh
 
-- Sets the timezone with `timedatectl`. Default `Asia/Jakarta`.
-- Type `s` / `skip` to skip, or enter any valid zone (e.g. `UTC`, `Europe/London`).
+- Sets the timezone with `timedatectl` via an arrow-key menu: **UTC (recommended
+  for servers & databases — no DST, consistent logs)**, `Asia/Jakarta`, a custom
+  zone, or skip. Best practice: keep the OS and DB in UTC and format to local
+  time in the application.
+- Databases follow the same rule — `database-toolkit.sh`'s *date/time* action
+  reminds you to run MySQL/PostgreSQL in UTC.
 
 ### install-firewall.sh
 

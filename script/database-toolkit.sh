@@ -48,6 +48,7 @@ my_datetime() {
   hd "Date / time"
   myq "SELECT NOW() AS db_time, @@global.time_zone AS tz, @@system_time_zone AS system_tz;"
   info "System time: $(date '+%Y-%m-%d %H:%M:%S %Z' 2>/dev/null)"
+  info "Recommended: run the DB in UTC (my.cnf: default-time-zone='+00:00'); format to local in the app."
 }
 my_variables() {
   hd "Key configuration"
@@ -95,6 +96,7 @@ pg_datetime() {
   hd "Date / time"
   pgq "SELECT now() AS db_time, current_setting('TimeZone') AS tz;"
   info "System time: $(date '+%Y-%m-%d %H:%M:%S %Z' 2>/dev/null)"
+  info "Recommended: run the DB in UTC (postgresql.conf: timezone='UTC'); format to local in the app."
 }
 pg_settings() {
   hd "Key configuration"

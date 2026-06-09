@@ -40,7 +40,7 @@ REPO_BRANCH="main"
 # Script registry — "group|label|path-in-repo|description". Keep groups contiguous.
 SCRIPTS=(
   "System|install-packages|script/install-packages.sh|Update system + install base essentials (micro, curl, wget, git)"
-  "System|set-timezone|script/set-timezone.sh|Set timezone (default Asia/Jakarta)"
+  "System|set-timezone|script/set-timezone.sh|Set timezone (UTC recommended for servers)"
   "Security|install-firewall|script/install-firewall.sh|Install & configure ufw firewall"
   "Security|firewall-manager|script/firewall-manager.sh|Full ufw manager: allow/deny IP/port, multiple, rate-limit"
   "Security|install-fail2ban|script/install-fail2ban.sh|Install & enable Fail2Ban"
