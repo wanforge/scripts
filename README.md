@@ -62,6 +62,8 @@ Select scripts to run:  ↑/↓ move · SPACE toggle · A all · ENTER run · Q 
   [ ] monitor-system       CPU, RAM, storage, processes, network (snapshot or realtime)
 ── Network ──
   [ ] net-tools            Local/public IP, ports, speedtest, ping, dig, scan
+── Proxmox ──
+  [ ] proxmox-toolkit      PVE: node/VM/CT resources, storage, realtime dashboard
 ```
 
 ## Output Modes
@@ -165,6 +167,9 @@ curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/da
 curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/monitor-system.sh | bash
 curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/net-tools.sh | bash
 
+# Proxmox (run on a PVE node)
+curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/proxmox-toolkit.sh | bash
+
 # App runtime
 curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/install-nodejs.sh | bash
 curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/install-composer.sh | bash
@@ -194,6 +199,7 @@ curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/se
 | App Runtime     | `setup-pm2-app.sh`       | Configure pm2-logrotate + register an app (ecosystem.config.js)   | No   | Any             |
 | Monitoring      | `monitor-system.sh`      | CPU/RAM/storage/processes/network — snapshot or realtime watch    | Some | Any             |
 | Network         | `net-tools.sh`           | Local/public IP, ports, speedtest, ping/traceroute/dig/whois/scan | Some | Any             |
+| Proxmox         | `proxmox-toolkit.sh`     | PVE node/VM/CT resources, storage, cluster, realtime dashboard    | Yes  | Proxmox VE      |
 
 ## Script Details
 
@@ -362,6 +368,18 @@ curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/se
   - **Tools** — install the network tooling (iproute2, net-tools, dnsutils,
     traceroute, mtr, nmap, whois, speedtest-cli).
 - Each tool falls back gracefully when a binary is missing.
+
+### proxmox-toolkit.sh
+
+- Run on a **Proxmox VE** node (detects `pvesh`/`qm`/`/etc/pve`). Arrow-key TUI:
+  - **Overview** — version, node status, cluster (`pvecm`), recent tasks, HA.
+  - **Resources** — memory (RAM + swap), CPU load/usage, disk + `pvesm` storage,
+    top processes, disk I/O.
+  - **Guests** — list VMs (`qm`) and containers (`pct`); manage one VM/CT
+    (status / start / shutdown / stop / reboot / config / `vzdump` backup).
+  - **Realtime** — live dashboard refreshing in place: CPU/load, RAM, root FS,
+    Proxmox storage, and running-vs-total VMs/containers.
+- Mutating actions (start/stop/backup) honor `DRY_RUN`.
 
 ### install-nodejs.sh
 
