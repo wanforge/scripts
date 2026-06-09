@@ -267,8 +267,10 @@ curl -fsSL https://raw.githubusercontent.com/wanforge/server-mine/main/script/se
 
 ### install-cloudpanel.sh
 
-- Debian/Ubuntu only. Installs prerequisites, lets you choose the database engine
-  (`MARIADB_11.4`, `MARIADB_10.11`, `MYSQL_8.4`, `MYSQL_8.0`).
+- **Supported OS** (per the docs): Ubuntu 24.04 / 22.04 LTS, Debian 11 / 12 / 13.
+  The script detects the OS and **refuses unsupported versions** (e.g. Ubuntu
+  25/26) unless you explicitly opt in. Database-engine options are offered per OS
+  (e.g. MariaDB 11.8 on Debian 13, MariaDB 10.6 on Ubuntu 22.04).
 - Downloads the official installer and verifies its SHA-256 checksum. **Fails
   closed** on mismatch. Update `EXPECTED_SHA` from the CloudPanel docs for new
   releases. Web console at `https://<server-ip>:8443`.

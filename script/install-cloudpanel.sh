@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2086
 #
-# install-cloudpanel.sh — install CloudPanel CE v2 (Debian/Ubuntu only).
+# install-cloudpanel.sh — install CloudPanel CE v2.
+# Supported: Ubuntu 24.04/22.04 LTS, Debian 11/12/13 (NOT Ubuntu 25/26).
 # Docs: https://www.cloudpanel.io/docs/v2/getting-started/other/
 #
 # Usage (public repo, no auth needed):
@@ -30,6 +31,26 @@ if ! command -v apt-get >/dev/null 2>&1; then
   exit 1
 fi
 
+# ---- supported OS check -------------------------------------------------
+# Per https://www.cloudpanel.io/docs/v2/getting-started/other/
+# Supported: Ubuntu 24.04 / 22.04 LTS, Debian 11 / 12 / 13.  (Ubuntu 25/26: NO)
+# shellcheck disable=SC1091
+. /etc/os-release 2>/dev/null || true
+OS_ID="${ID:-}"; OS_VER="${VERSION_ID:-}"
+info "Detected OS: ${OS_ID} ${OS_VER}"
+case "${OS_ID}:${OS_VER}" in
+  ubuntu:24.04|ubuntu:22.04|debian:11|debian:12|debian:13) ;;
+  *)
+    warn "CloudPanel officially supports Ubuntu 24.04/22.04 LTS and Debian 11/12/13."
+    warn "${OS_ID} ${OS_VER} is NOT supported (e.g. Ubuntu 25/26 not yet supported)."
+    warn "Docs: https://www.cloudpanel.io/docs/v2/getting-started/other/"
+    case "$(ask "Try installing anyway? (likely to fail) [y/N]:" "n")" in
+      y|Y|yes) warn "Proceeding on an unsupported OS at your own risk." ;;
+      *) err "Aborting on unsupported OS."; exit 1 ;;
+    esac
+    ;;
+esac
+
 # ---- step 1: prerequisites ----------------------------------------------
 step "Update system & install prerequisites"
 info "apt update && upgrade"
@@ -39,17 +60,24 @@ info "Installing curl wget sudo"
 run ${SUDO} apt-get -y install curl wget sudo
 ok "Prerequisites ready."
 
-# ---- step 2: choose database engine -------------------------------------
+# ---- step 2: choose database engine (options vary per OS, per docs) ------
 step "Choose database engine"
-ENGINES=(MARIADB_11.4 MARIADB_10.11 MYSQL_8.4 MYSQL_8.0)
+case "${OS_ID}:${OS_VER}" in
+  ubuntu:24.04) ENGINES=(MARIADB_11.4 MARIADB_10.11 MYSQL_8.4 MYSQL_8.0) ;;
+  ubuntu:22.04) ENGINES=(MARIADB_11.4 MARIADB_10.11 MARIADB_10.6 MYSQL_8.0) ;;
+  debian:13)    ENGINES=(MARIADB_11.8 MYSQL_8.4 MYSQL_8.0) ;;
+  debian:12)    ENGINES=(MARIADB_11.4 MARIADB_10.11 MYSQL_8.4 MYSQL_8.0) ;;
+  debian:11)    ENGINES=(MARIADB_10.6 MYSQL_8.0 MYSQL_5.7) ;;
+  *)            ENGINES=(MARIADB_11.4 MARIADB_10.11 MYSQL_8.4 MYSQL_8.0) ;;
+esac
 idx=1
 for e in "${ENGINES[@]}"; do
   printf "    %b%d%b) %s\n" "${C_YELLOW}" "${idx}" "${C_RESET}" "${e}" >&2
   idx=$((idx + 1))
 done
-DB_CHOICE="$(ask "Select DB engine [1-${#ENGINES[@]}] (default 1 = MARIADB_11.4):" "1")"
+DB_CHOICE="$(ask "Select DB engine [1-${#ENGINES[@]}] (default 1 = ${ENGINES[0]}):" "1")"
 if ! [[ "${DB_CHOICE}" =~ ^[0-9]+$ ]] || [ "${DB_CHOICE}" -lt 1 ] || [ "${DB_CHOICE}" -gt "${#ENGINES[@]}" ]; then
-  warn "Invalid choice; using default MARIADB_11.4."
+  warn "Invalid choice; using default ${ENGINES[0]}."
   DB_CHOICE=1
 fi
 DB_ENGINE="${ENGINES[$((DB_CHOICE - 1))]}"
