@@ -1,6 +1,6 @@
 # wanforge/scripts
 
-Interactive Linux server automation toolkit — one launcher, 24 scripts across
+Interactive Linux server automation toolkit — one launcher, 25 scripts across
 8 categories: system setup, security hardening, cloud panels, databases, app
 runtimes, monitoring & observability, CI/CD, and network & Proxmox tooling.
 
@@ -89,6 +89,7 @@ Select scripts to run:  ↑/↓ move · SPACE toggle · A all · ENTER run · Q 
   [ ] install-fail2ban     Install & enable Fail2Ban
   [ ] secure-ssh           Harden SSH: change port, disable root/password, pubkey
   [ ] generate-ssh-key     Generate an ed25519 SSH key (user-local)
+  [ ] manage-users         Manage Linux users, sudo access & SSH keys
 ── Panel & Console ──
   [ ] install-cloudpanel   Install CloudPanel CE v2 (Debian/Ubuntu only)
   [ ] clpctl-manager       Manage CloudPanel via clpctl (sites, db, users, certs)
@@ -202,6 +203,7 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/security/firewall-manager.
 curl -fsSL https://scripts.wanforge.asia/script/linux/security/install-fail2ban.sh | bash
 curl -fsSL https://scripts.wanforge.asia/script/linux/security/secure-ssh.sh | bash
 curl -fsSL https://scripts.wanforge.asia/script/linux/security/generate-ssh-key.sh | bash
+curl -fsSL https://scripts.wanforge.asia/script/linux/security/manage-users.sh | bash
 
 # Panels & consoles
 curl -fsSL https://scripts.wanforge.asia/script/linux/cloud/install-cloudpanel.sh | bash
@@ -246,6 +248,7 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/runtime/setup-pm2-app.sh |
 | Security        | `firewall-manager.sh`    | Full ufw manager: allow/deny IP & port, multi-IP, rate-limit      | Yes  | Any (ufw)       |
 | Security        | `install-fail2ban.sh`    | Install and enable the Fail2Ban service                           | Yes  | Multi           |
 | Security        | `secure-ssh.sh`          | Change SSH port, disable root/password login, enable pubkey       | Yes  | Any (OpenSSH)   |
+| Security        | `manage-users.sh`        | Manage Linux users, sudo access, passwords, shells, and SSH keys  | Yes | Any             |
 | Security        | `generate-ssh-key.sh`    | Generate an ed25519 SSH key, fix perms, print public key          | No   | Any             |
 | Panel & Console | `install-cloudpanel.sh`  | Install CloudPanel CE v2, choose DB engine, verify checksum       | Yes  | Debian/Ubuntu   |
 | Panel & Console | `clpctl-manager.sh`      | Manage CloudPanel via `clpctl`: sites, db, users, certs, vhosts   | Yes  | CloudPanel      |
@@ -329,6 +332,15 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/runtime/setup-pm2-app.sh |
 - **Anti-lockout**: opens the new port in `ufw` before restarting, validates with
   `sshd -t`, and refuses to disable password auth when no `authorized_keys` exists.
 - Asks before restarting and before removing the old port-22 rule.
+
+### manage-users.sh
+
+- Interactive Linux user manager for server and SSH users.
+- Creates and deletes users, changes passwords, locks/unlocks accounts, and
+  changes login shells.
+- Grants or removes sudo/wheel access depending on the distro group that exists.
+- Manages SSH public keys under `~/.ssh/authorized_keys` and can show per-user
+  status (sudo, locked, SSH keys).
 
 ### generate-ssh-key.sh
 
