@@ -18,13 +18,14 @@ __LIB="https://scripts.wanforge.asia/script/linux/lib.sh"
 __d="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
 if [ -r "${__d}/../lib.sh" ]; then . "${__d}/../lib.sh"
 else if command -v curl >/dev/null 2>&1; then . <(curl -fsSL "${__LIB}"); else . <(wget -qO- "${__LIB}"); fi; fi
+cfg_load
 
 # ---- run ----------------------------------------------------------------
 banner
 command -v ssh-keygen >/dev/null 2>&1 || { err "ssh-keygen not found. Install openssh-client first."; exit 1; }
 
-KEYFILE="$(ask "Key file path:" "${HOME}/.ssh/id_ed25519")"
-COMMENT="$(ask "Key comment:" "wanforge-asia@$(hostname 2>/dev/null || echo wanforge-app)")"
+KEYFILE="$(ask_cfg CFG_SSH_KEYFILE "Key file path:" "${HOME}/.ssh/id_ed25519")"
+COMMENT="$(ask_cfg CFG_SSH_COMMENT "Key comment:" "wanforge-asia@$(hostname 2>/dev/null || echo wanforge-app)")"
 
 # passphrase (optional)
 PASS=""

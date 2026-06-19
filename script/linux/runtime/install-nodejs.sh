@@ -18,6 +18,7 @@ __LIB="https://scripts.wanforge.asia/script/linux/lib.sh"
 __d="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
 if [ -r "${__d}/../lib.sh" ]; then . "${__d}/../lib.sh"
 else if command -v curl >/dev/null 2>&1; then . <(curl -fsSL "${__LIB}"); else . <(wget -qO- "${__LIB}"); fi; fi
+cfg_load
 
 # run as a target user (e.g. a CloudPanel site user) when invoked as root
 maybe_switch_user "https://scripts.wanforge.asia/script/linux/runtime/install-nodejs.sh"
@@ -41,7 +42,7 @@ fi
 # shellcheck disable=SC1091
 . "${NVM_DIR}/nvm.sh"
 
-NODE_VER="$(ask "Node version to install? (e.g. 18, 20, lts, latest):" "18")"
+NODE_VER="$(ask_cfg CFG_NODEJS_VER "Node version to install? (e.g. 18, 20, lts, latest):" "18")"
 case "${NODE_VER}" in
   lts|LTS) NODE_VER="--lts" ;;
   latest)  NODE_VER="node" ;;
@@ -58,7 +59,7 @@ nvm alias stable default >/dev/null 2>&1 || true
 ok "Node $(node -v) / npm $(npm -v) (default: ${RESOLVED})"
 
 # PM2 (installed into the nvm-managed prefix — still no sudo)
-PM2_ANS="$(ask "Install PM2 process manager + pm2-logrotate? [Y/n]:" "y")"
+PM2_ANS="$(ask_cfg CFG_NODEJS_PM2 "Install PM2 process manager + pm2-logrotate? [Y/n]:" "y")"
 case "${PM2_ANS}" in
   n|N|no) info "Skipped PM2." ;;
   *)
@@ -66,7 +67,7 @@ case "${PM2_ANS}" in
     npm install -g pm2
     pm2 install pm2-logrotate || warn "pm2-logrotate install failed."
     pm2 save || true
-    STARTUP_ANS="$(ask "Enable PM2 on boot? (systemd — needs sudo) [y/N]:" "n")"
+    STARTUP_ANS="$(ask_cfg CFG_NODEJS_PM2_BOOT "Enable PM2 on boot? (systemd — needs sudo) [y/N]:" "n")"
     case "${STARTUP_ANS}" in
       y|Y|yes)
         if command -v sudo >/dev/null 2>&1 && [ "$(id -u)" -ne 0 ]; then

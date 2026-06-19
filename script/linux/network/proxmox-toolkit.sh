@@ -19,6 +19,7 @@ __LIB="https://scripts.wanforge.asia/script/linux/lib.sh"
 __d="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
 if [ -r "${__d}/../lib.sh" ]; then . "${__d}/../lib.sh"
 else if command -v curl >/dev/null 2>&1; then . <(curl -fsSL "${__LIB}"); else . <(wget -qO- "${__LIB}"); fi; fi
+cfg_load
 
 have() { command -v "$1" >/dev/null 2>&1; }
 NODE="$(hostname 2>/dev/null || echo localhost)"
@@ -68,7 +69,7 @@ a_vm_manage() {
     stop) run ${SUDO} qm stop "$id" ;;
     reboot) run ${SUDO} qm reboot "$id" ;;
     config) ${SUDO} qm config "$id" >&2 ;;
-    backup) local st; st="$(ask 'Storage for backup:' 'local')"; run ${SUDO} vzdump "$id" --storage "$st" --mode snapshot ;;
+    backup) local st; st="$(ask_cfg CFG_PVE_VM_STORAGE 'Storage for backup:' 'local')"; run ${SUDO} vzdump "$id" --storage "$st" --mode snapshot ;;
   esac
 }
 a_ct_manage() {
@@ -83,7 +84,7 @@ a_ct_manage() {
     stop) run ${SUDO} pct stop "$id" ;;
     reboot) run ${SUDO} pct reboot "$id" ;;
     config) ${SUDO} pct config "$id" >&2 ;;
-    backup) local st; st="$(ask 'Storage for backup:' 'local')"; run ${SUDO} vzdump "$id" --storage "$st" --mode snapshot ;;
+    backup) local st; st="$(ask_cfg CFG_PVE_CT_STORAGE 'Storage for backup:' 'local')"; run ${SUDO} vzdump "$id" --storage "$st" --mode snapshot ;;
   esac
 }
 
@@ -101,7 +102,7 @@ pvm_render() {
   hd "Guests"; printf "VMs running: %s/%s    Containers running: %s/%s\n" "${vrun}" "${vtot}" "${crun}" "${ctot}" >&2
 }
 a_watch() {
-  local iv; iv="$(ask "Refresh interval (seconds):" "2")"; [[ "$iv" =~ ^[0-9]+$ ]] || iv=2
+  local iv; iv="$(ask_cfg CFG_PVE_WATCH_IV "Refresh interval (seconds):" "2")"; [[ "$iv" =~ ^[0-9]+$ ]] || iv=2
   printf '\033[2J\033[?25l' >&2
   trap 'printf "\033[?25h\n" >&2; return 0' INT
   while true; do
@@ -134,6 +135,7 @@ MENU=(
   "Guests|vm_manage|Manage a VM (start/stop/backup…)"
   "Guests|ct_manage|Manage a container"
   "Realtime|watch|Live resource dashboard"
+  "Config|clear_cfg|Clear saved config (storage, interval)"
 )
 
 # ---- run ----------------------------------------------------------------
@@ -154,6 +156,7 @@ while true; do
     top) a_top ;;          io) a_io ;;
     vms) a_vms ;;          cts) a_cts ;;        vm_manage) a_vm_manage ;;  ct_manage) a_ct_manage ;;
     watch) a_watch ;;
+    clear_cfg) cfg_clear && ok "Saved config cleared." ;;
   esac
 done
 

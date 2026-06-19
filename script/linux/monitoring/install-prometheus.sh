@@ -18,6 +18,7 @@ __LIB="https://scripts.wanforge.asia/script/linux/lib.sh"
 __d="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
 if [ -r "${__d}/../lib.sh" ]; then . "${__d}/../lib.sh"
 else if command -v curl >/dev/null 2>&1; then . <(curl -fsSL "${__LIB}"); else . <(wget -qO- "${__LIB}"); fi; fi
+cfg_load
 
 svc() { run ${SUDO} systemctl enable --now "$1" 2>/dev/null || warn "Could not enable ${1}."; }
 ufw_allow() {  # ufw_allow <port> <cidr>
@@ -71,7 +72,7 @@ fi
 # firewall
 if has_key firewall; then
   step "Firewall"
-  CIDR="$(ask "Allow from which source CIDR? ('0.0.0.0/0'=anywhere):" "0.0.0.0/0")"
+  CIDR="$(ask_cfg CFG_PROM_CIDR "Allow from which source CIDR? ('0.0.0.0/0'=anywhere):" "0.0.0.0/0")"
   has_key prometheus   && ufw_allow 9090 "${CIDR}"
   has_key node         && ufw_allow 9100 "${CIDR}"
   has_key alertmanager && ufw_allow 9093 "${CIDR}"

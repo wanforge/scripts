@@ -18,6 +18,7 @@ __LIB="https://scripts.wanforge.asia/script/linux/lib.sh"
 __d="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
 if [ -r "${__d}/../lib.sh" ]; then . "${__d}/../lib.sh"
 else if command -v curl >/dev/null 2>&1; then . <(curl -fsSL "${__LIB}"); else . <(wget -qO- "${__LIB}"); fi; fi
+cfg_load
 
 # ---- run ----------------------------------------------------------------
 banner
@@ -35,7 +36,7 @@ fi
 [ -z "${CONF}" ] && { err "Could not find a MySQL/MariaDB config file."; exit 1; }
 info "Config file: ${CONF}"
 
-CIDR="$(ask "Allowed source CIDR (e.g. 10.0.0.0/8; '0.0.0.0/0'=anywhere, NOT recommended):" "0.0.0.0/0")"
+CIDR="$(ask_cfg CFG_MYSQL_REMOTE_CIDR "Allowed source CIDR (e.g. 10.0.0.0/8; '0.0.0.0/0'=anywhere, NOT recommended):" "0.0.0.0/0")"
 
 PROCEED="$(ask "Set bind-address = 0.0.0.0 in ${CONF}? [y/N]:" "n")"
 case "${PROCEED}" in
@@ -72,7 +73,7 @@ case "${ADDU}" in
     # admin connection: try root socket auth via sudo, else ask root password
     MYSQL=(${SUDO} mysql)
     if ! ${SUDO} mysql -e 'SELECT 1' >/dev/null 2>&1; then
-      RPW="$(asks 'MySQL/MariaDB root password:')"
+      RPW="$(asks_cfg CFG_MYSQL_ROOT_PW 'MySQL/MariaDB root password:')"
       MYSQL=(mysql -uroot -p"${RPW}")
     fi
     if ! "${MYSQL[@]}" -e 'SELECT 1' >/dev/null 2>&1; then
@@ -83,8 +84,8 @@ case "${ADDU}" in
         DU="$(ask 'New DB username:')"
         if ! [[ "${DU}" =~ ^[a-zA-Z0-9_]+$ ]]; then warn "Invalid username (letters/digits/underscore)."; continue; fi
         DPW="$(asks "Password for ${DU}:")"; [ -z "${DPW}" ] && { warn "Empty password; skipping."; continue; }
-        HOSTP="$(ask "Allowed host ('%'=any, or a specific client IP):" '%')"
-        DBN="$(ask "Grant on database ('*'=all databases):" '*')"
+        HOSTP="$(ask_cfg CFG_MYSQL_USER_HOST "Allowed host ('%'=any, or a specific client IP):" '%')"
+        DBN="$(ask_cfg CFG_MYSQL_USER_DB "Grant on database ('*'=all databases):" '*')"
         DPW_ESC="${DPW//\'/\'\'}"   # escape single quotes for the SQL literal
         if [ "${DBN}" = "*" ]; then GRANTOBJ='*.*'; else GRANTOBJ="\`${DBN}\`.*"; fi
         SQL="CREATE USER IF NOT EXISTS '${DU}'@'${HOSTP}' IDENTIFIED BY '${DPW_ESC}'; GRANT ALL PRIVILEGES ON ${GRANTOBJ} TO '${DU}'@'${HOSTP}'; FLUSH PRIVILEGES;"

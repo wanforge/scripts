@@ -18,6 +18,7 @@ __LIB="https://scripts.wanforge.asia/script/linux/lib.sh"
 __d="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
 if [ -r "${__d}/../lib.sh" ]; then . "${__d}/../lib.sh"
 else if command -v curl >/dev/null 2>&1; then . <(curl -fsSL "${__LIB}"); else . <(wget -qO- "${__LIB}"); fi; fi
+cfg_load
 
 pm_install() {
   local pm; for pm in apt-get dnf yum pacman zypper apk; do command -v "$pm" >/dev/null 2>&1 && break; done
@@ -88,7 +89,7 @@ fi
 INTERVAL="${INTERVAL:-2}"
 
 if [ "${WATCH}" = "1" ]; then
-  IV="$(ask "Refresh interval (seconds):" "${INTERVAL}")"; [[ "${IV}" =~ ^[0-9]+$ ]] && INTERVAL="${IV}"
+  IV="$(ask_cfg CFG_MON_INTERVAL "Refresh interval (seconds):" "${INTERVAL}")"; [[ "${IV}" =~ ^[0-9]+$ ]] && INTERVAL="${IV}"
   has_key bigdirs && warn "bigdirs is skipped in watch mode (run a one-shot snapshot for it)."
   # in-place refresh: home cursor + overwrite each line (clear-to-EOL), no
   # full-screen clear → values update in place without flicker / "reload".
@@ -111,7 +112,7 @@ fi
 
 # one-shot
 if has_key bigdirs; then
-  P="$(ask "Path to scan for largest dirs:" "/var")"
+  P="$(ask_cfg CFG_MON_BIGDIR_PATH "Path to scan for largest dirs:" "/var")"
   hd "Largest directories in ${P}"
   ${SUDO} du -h --max-depth=1 "${P}" 2>/dev/null | sort -h | tail -15 >&2 || warn "du failed for ${P}"
 fi

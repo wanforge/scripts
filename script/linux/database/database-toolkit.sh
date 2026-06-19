@@ -18,13 +18,14 @@ __LIB="https://scripts.wanforge.asia/script/linux/lib.sh"
 __d="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
 if [ -r "${__d}/../lib.sh" ]; then . "${__d}/../lib.sh"
 else if command -v curl >/dev/null 2>&1; then . <(curl -fsSL "${__LIB}"); else . <(wget -qO- "${__LIB}"); fi; fi
+cfg_load
 
 # ---- connection helpers -------------------------------------------------
 MYSQL_CMD=(); MYCHK_CMD=(); PSQL_CMD=()
 connect_mysql() {
   MYSQL_CMD=(${SUDO} mysql); MYCHK_CMD=(${SUDO} mysqlcheck)
   if ! "${MYSQL_CMD[@]}" -e 'SELECT 1' >/dev/null 2>&1; then
-    local pw; pw="$(asks 'MySQL/MariaDB root password:')"
+    local pw; pw="$(asks_cfg CFG_MYSQL_ROOT_PW 'MySQL/MariaDB root password:')"
     MYSQL_CMD=(mysql -uroot -p"${pw}"); MYCHK_CMD=(mysqlcheck -uroot -p"${pw}")
   fi
   "${MYSQL_CMD[@]}" -e 'SELECT 1' >/dev/null 2>&1
@@ -60,7 +61,7 @@ my_slowlog() {
   myq "SHOW GLOBAL STATUS LIKE 'Slow_queries';"
 }
 my_optimize() {
-  local db; db="$(ask "Database to optimize ('all' for every DB):" "all")"
+  local db; db="$(ask_cfg CFG_MYSQL_OPT_DB "Database to optimize ('all' for every DB):" "all")"
   hd "Optimizing ${db}"
   if [ "${db}" = "all" ]; then "${MYCHK_CMD[@]}" -o --all-databases >&2 || warn "optimize failed"
   else "${MYCHK_CMD[@]}" -o --databases "${db}" >&2 || warn "optimize failed"; fi
@@ -107,7 +108,7 @@ pg_cache() {
   pgq "SELECT sum(blks_hit)*100.0/NULLIF(sum(blks_hit+blks_read),0) AS cache_hit_pct FROM pg_stat_database;"
 }
 pg_optimize() {
-  local db; db="$(ask "Database to VACUUM ANALYZE:" "postgres")"
+  local db; db="$(ask_cfg CFG_PG_VACUUM_DB "Database to VACUUM ANALYZE:" "postgres")"
   hd "VACUUM ANALYZE ${db}"
   run ${SUDO} -u postgres psql -d "${db}" -c "VACUUM (ANALYZE, VERBOSE);" >&2 || warn "vacuum failed"
   local rx; rx="$(ask "Also REINDEX database ${db}? [y/N]:" "n")"

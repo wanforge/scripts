@@ -18,6 +18,7 @@ __LIB="https://scripts.wanforge.asia/script/linux/lib.sh"
 __d="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
 if [ -r "${__d}/../lib.sh" ]; then . "${__d}/../lib.sh"
 else if command -v curl >/dev/null 2>&1; then . <(curl -fsSL "${__LIB}"); else . <(wget -qO- "${__LIB}"); fi; fi
+cfg_load
 
 psql_super() { ${SUDO} -u postgres psql -v ON_ERROR_STOP=1 "$@"; }
 
@@ -82,11 +83,11 @@ while true; do
 done
 
 # ---- remote access (optional, security-sensitive) -----------------------
-REMOTE="$(ask "Enable remote access (network listen + pg_hba)? [y/N]:" "n")"
+REMOTE="$(ask_cfg CFG_PG_REMOTE "Enable remote access (network listen + pg_hba)? [y/N]:" "n")"
 case "${REMOTE}" in
   y|Y|yes)
     warn "Exposing PostgreSQL to the network. Restrict the source range whenever possible."
-    CIDR="$(ask "Allowed source CIDR (e.g. 10.0.0.0/8; '0.0.0.0/0'=anywhere, NOT recommended):" "0.0.0.0/0")"
+    CIDR="$(ask_cfg CFG_PG_CIDR "Allowed source CIDR (e.g. 10.0.0.0/8; '0.0.0.0/0'=anywhere, NOT recommended):" "0.0.0.0/0")"
     PG_HBA="$(psql_super -tAc 'SHOW hba_file;')"
     PG_CONF="$(psql_super -tAc 'SHOW config_file;')"
     info "hba_file:    ${PG_HBA}"

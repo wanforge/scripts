@@ -19,6 +19,7 @@ __LIB="https://scripts.wanforge.asia/script/linux/lib.sh"
 __d="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
 if [ -r "${__d}/../lib.sh" ]; then . "${__d}/../lib.sh"
 else if command -v curl >/dev/null 2>&1; then . <(curl -fsSL "${__LIB}"); else . <(wget -qO- "${__LIB}"); fi; fi
+cfg_load
 DEFAULT_PORT="22"
 
 SSHD_MAIN="/etc/ssh/sshd_config"
@@ -43,15 +44,15 @@ warn "Changing the SSH port and disabling password auth can LOCK YOU OUT."
 warn "Keep your CURRENT session open. Only close it after logging in on the new port."
 
 # port
-PORT="$(ask "New SSH port:" "${DEFAULT_PORT}")"
+PORT="$(ask_cfg CFG_SSH_PORT "New SSH port:" "${DEFAULT_PORT}")"
 if ! [[ "${PORT}" =~ ^[0-9]+$ ]] || [ "${PORT}" -lt 1 ] || [ "${PORT}" -gt 65535 ]; then
   err "Invalid port: ${PORT}"; exit 1
 fi
 
 # policy choices
-ROOT_ANS="$(ask "Disable root login (PermitRootLogin no)? [Y/n]:" "y")"
-PUBKEY_ANS="$(ask "Enable pubkey auth (PubkeyAuthentication yes)? [Y/n]:" "y")"
-PWAUTH_ANS="$(ask "Disable password auth (key-only login)? [y/N]:" "n")"
+ROOT_ANS="$(ask_cfg CFG_SSH_ROOT_LOGIN "Disable root login (PermitRootLogin no)? [Y/n]:" "y")"
+PUBKEY_ANS="$(ask_cfg CFG_SSH_PUBKEY "Enable pubkey auth (PubkeyAuthentication yes)? [Y/n]:" "y")"
+PWAUTH_ANS="$(ask_cfg CFG_SSH_PWAUTH "Disable password auth (key-only login)? [y/N]:" "n")"
 
 # safety: if disabling passwords, make sure a key is present
 if [[ "${PWAUTH_ANS}" =~ ^(y|Y|yes)$ ]]; then

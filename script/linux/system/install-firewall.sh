@@ -17,6 +17,7 @@ __LIB="https://scripts.wanforge.asia/script/linux/lib.sh"
 __d="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
 if [ -r "${__d}/../lib.sh" ]; then . "${__d}/../lib.sh"
 else if command -v curl >/dev/null 2>&1; then . <(curl -fsSL "${__LIB}"); else . <(wget -qO- "${__LIB}"); fi; fi
+cfg_load
 
 detect_pm() { for pm in apt-get dnf yum pacman zypper apk; do command -v "$pm" >/dev/null 2>&1 && { echo "$pm"; return 0; }; done; return 1; }
 pm_install() {
@@ -41,14 +42,14 @@ ${SUDO} ufw allow OpenSSH 2>/dev/null || ${SUDO} ufw allow 22/tcp
 ${SUDO} ufw allow http  2>/dev/null || ${SUDO} ufw allow 80/tcp
 ${SUDO} ufw allow https 2>/dev/null || ${SUDO} ufw allow 443/tcp
 
-PORTS_ANS="$(ask "Extra ports to allow? (e.g. '8443/tcp 3000/tcp', Enter to skip):" "")"
+PORTS_ANS="$(ask_cfg CFG_UFW_EXTRA_PORTS "Extra ports to allow? (e.g. '8443/tcp 3000/tcp', Enter to skip):" "")"
 if [ -n "${PORTS_ANS}" ]; then
   for p in ${PORTS_ANS//,/ }; do
     info "Allowing ${p}"; ${SUDO} ufw allow "${p}" || warn "Failed to allow ${p}"
   done
 fi
 
-ENABLE_ANS="$(ask "Enable firewall now? [Y/n]:" "y")"
+ENABLE_ANS="$(ask_cfg CFG_UFW_ENABLE "Enable firewall now? [Y/n]:" "y")"
 case "${ENABLE_ANS}" in
   n|N|no) info "Rules added but firewall left disabled." ;;
   *) info "Enabling firewall..."; ${SUDO} ufw --force enable; ${SUDO} ufw status verbose || true ;;

@@ -18,6 +18,7 @@ __LIB="https://scripts.wanforge.asia/script/linux/lib.sh"
 __d="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
 if [ -r "${__d}/../lib.sh" ]; then . "${__d}/../lib.sh"
 else if command -v curl >/dev/null 2>&1; then . <(curl -fsSL "${__LIB}"); else . <(wget -qO- "${__LIB}"); fi; fi
+cfg_load
 step() { printf "\n%b==> %s%b\n" "${C_BOLD}${C_CYAN}" "$1" "${C_RESET}" >&2; }
 
 # ---- run ----------------------------------------------------------------
@@ -28,7 +29,7 @@ command -v apt-get >/dev/null 2>&1 || { err "This script targets Debian/Ubuntu (
 OS_ID="${ID:-ubuntu}"; OS_VER="${VERSION_ID:-}"
 [ "${OS_ID}" = "debian" ] && OS_VER="${OS_VER%%.*}"   # debian uses the major number
 
-ZVER="$(ask "Zabbix version:" "7.0")"
+ZVER="$(ask_cfg CFG_ZABBIX_VER "Zabbix version:" "7.0")"
 REL="zabbix-release_latest_${ZVER}+${OS_ID}${OS_VER}_all.deb"
 RELURL="https://repo.zabbix.com/zabbix/${ZVER}/${OS_ID}/pool/main/z/zabbix-release/${REL}"
 
@@ -50,8 +51,8 @@ ROLE="${MENU_KEY}"
 if [ "${ROLE}" = "agent" ]; then
   step "Install Zabbix agent 2"
   run ${SUDO} apt-get install -y zabbix-agent2 zabbix-agent2-plugin-*
-  SRV="$(ask "Zabbix server IP/hostname (the server that will poll this host):" "127.0.0.1")"
-  HN="$(ask "This host's Hostname (as shown in Zabbix):" "$(hostname 2>/dev/null || echo host)")"
+  SRV="$(ask_cfg CFG_ZABBIX_SERVER "Zabbix server IP/hostname (the server that will poll this host):" "127.0.0.1")"
+  HN="$(ask_cfg CFG_ZABBIX_HN "This host's Hostname (as shown in Zabbix):" "$(hostname 2>/dev/null || echo host)")"
   CONF="/etc/zabbix/zabbix_agent2.conf"
   run ${SUDO} sed -i "s/^Server=.*/Server=${SRV}/" "${CONF}"
   run ${SUDO} sed -i "s/^ServerActive=.*/ServerActive=${SRV}/" "${CONF}"
@@ -75,7 +76,7 @@ if ! command -v mysql >/dev/null 2>&1; then
   esac
 fi
 
-DBPASS="$(asks 'Set a password for the zabbix DB user:')"
+DBPASS="$(asks_cfg CFG_ZABBIX_DBPASS 'Set a password for the zabbix DB user:')"
 [ -n "${DBPASS}" ] || { err "DB password required."; exit 1; }
 DBPASS_ESC="${DBPASS//\'/\'\'}"
 

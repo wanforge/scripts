@@ -19,6 +19,7 @@ __LIB="https://scripts.wanforge.asia/script/linux/lib.sh"
 __d="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
 if [ -r "${__d}/../lib.sh" ]; then . "${__d}/../lib.sh"
 else if command -v curl >/dev/null 2>&1; then . <(curl -fsSL "${__LIB}"); else . <(wget -qO- "${__LIB}"); fi; fi
+cfg_load
 step() { printf "\n%b==> %s%b\n" "${C_BOLD}${C_CYAN}" "$1" "${C_RESET}" >&2; }
 
 # ---- run ----------------------------------------------------------------
@@ -39,11 +40,11 @@ run ${SUDO} systemctl enable --now grafana-server || warn "Could not start grafa
 ok "Grafana installed."
 
 # optional: provision Prometheus data source
-DS="$(ask "Auto-add a Prometheus data source? [Y/n]:" "y")"
+DS="$(ask_cfg CFG_GRAFANA_DS "Auto-add a Prometheus data source? [Y/n]:" "y")"
 case "${DS}" in
   n|N|no) info "Skipped data source." ;;
   *)
-    PURL="$(ask "Prometheus URL:" "http://localhost:9090")"
+    PURL="$(ask_cfg CFG_GRAFANA_PURL "Prometheus URL:" "http://localhost:9090")"
     run ${SUDO} mkdir -p /etc/grafana/provisioning/datasources
     printf 'apiVersion: 1\ndatasources:\n  - name: Prometheus\n    type: prometheus\n    access: proxy\n    url: %s\n    isDefault: true\n' "${PURL}" \
       | run ${SUDO} tee /etc/grafana/provisioning/datasources/prometheus.yml >/dev/null
@@ -54,10 +55,10 @@ esac
 
 # firewall
 if command -v ufw >/dev/null 2>&1; then
-  case "$(ask "Open port 3000 in ufw? [Y/n]:" "y")" in
+  case "$(ask_cfg CFG_GRAFANA_UFW "Open port 3000 in ufw? [Y/n]:" "y")" in
     n|N|no) info "Firewall unchanged." ;;
     *)
-      CIDR="$(ask "Allow from which source CIDR? ('0.0.0.0/0'=anywhere):" "0.0.0.0/0")"
+      CIDR="$(ask_cfg CFG_GRAFANA_CIDR "Allow from which source CIDR? ('0.0.0.0/0'=anywhere):" "0.0.0.0/0")"
       if [ "${CIDR}" = "0.0.0.0/0" ]; then run ${SUDO} ufw allow 3000/tcp
       else run ${SUDO} ufw allow from "${CIDR}" to any port 3000 proto tcp; fi ;;
   esac

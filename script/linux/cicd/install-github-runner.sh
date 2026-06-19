@@ -45,6 +45,7 @@ if [ -r "${__d}/../lib.sh" ]; then . "${__d}/../lib.sh"
 else if command -v curl >/dev/null 2>&1; then . <(curl -fsSL "${__LIB}"); else . <(wget -qO- "${__LIB}"); fi; fi
 
 have() { command -v "$1" >/dev/null 2>&1; }
+cfg_load  # restore saved runner config (scope, name, labels, etc.)
 
 # Where runners are installed. Each runner gets its own subdir: $RUNNER_ROOT/<name>.
 RUNNER_ROOT="${RUNNER_ROOT:-/opt/actions-runner}"
@@ -115,26 +116,27 @@ a_install() {
 
   # scope + target
   local SCOPE GH_PATH GH_URL
-  SCOPE="$(ask "Scope — [r]epo or [o]rg? [r/o]:" "r")"
+  SCOPE="$(ask_cfg CFG_RUNNER_SCOPE "Scope — [r]epo or [o]rg? [r/o]:" "r")"
   case "${SCOPE}" in o|O|org) SCOPE="org" ;; *) SCOPE="repo" ;; esac
   if [ "${SCOPE}" = "repo" ]; then
-    GH_PATH="$(ask "Repo (owner/name), e.g. wanforge/scripts:" "")"
+    GH_PATH="$(ask_cfg CFG_RUNNER_GH_PATH "Repo (owner/name), e.g. wanforge/scripts:" "")"
   else
-    GH_PATH="$(ask "Org name, e.g. wanforge:" "")"
+    GH_PATH="$(ask_cfg CFG_RUNNER_GH_PATH "Org name, e.g. wanforge:" "")"
   fi
   [ -n "${GH_PATH}" ] || { err "Target is required."; return 1; }
   GH_URL="https://github.com/${GH_PATH}"
 
+  # Registration token is short-lived — never cached
   local TOKEN; TOKEN="$(asks "Registration token (Settings → Actions → Runners → New runner):")"
   [ -n "${TOKEN}" ] || { err "Registration token is required."; return 1; }
 
   local NAME LABELS GROUP WORKDIR EPHEMERAL RUNNER_USER DIR
-  NAME="$(ask "Runner name:" "$(hostname)-runner")"
-  LABELS="$(ask "Extra labels (comma-separated):" "self-hosted")"
-  GROUP="$(ask "Runner group:" "Default")"
-  WORKDIR="$(ask "Work directory (job checkout root):" "_work")"
-  EPHEMERAL="$(ask "Ephemeral? (auto-unregister after one job) [y/N]:" "n")"
-  RUNNER_USER="$(ask "System user to own/run the runner (NOT root):" "github-runner")"
+  NAME="$(ask_cfg CFG_RUNNER_NAME  "Runner name:" "$(hostname)-runner")"
+  LABELS="$(ask_cfg CFG_RUNNER_LABELS  "Extra labels (comma-separated):" "self-hosted")"
+  GROUP="$(ask_cfg CFG_RUNNER_GROUP  "Runner group:" "Default")"
+  WORKDIR="$(ask_cfg CFG_RUNNER_WORKDIR  "Work directory (job checkout root):" "_work")"
+  EPHEMERAL="$(ask_cfg CFG_RUNNER_EPHEMERAL  "Ephemeral? (auto-unregister after one job) [y/N]:" "n")"
+  RUNNER_USER="$(ask_cfg CFG_RUNNER_USER  "System user to own/run the runner (NOT root):" "github-runner")"
   DIR="${RUNNER_ROOT}/${NAME}"
 
   # version
@@ -277,6 +279,7 @@ MENU=(
   "Manage|stop|Stop a runner service"
   "Manage|restart|Restart a runner service"
   "Manage|remove|Unregister & remove a runner"
+  "Config|clear_cfg|Clear saved config (scope, name, labels, etc.)"
 )
 
 # ---- run ----------------------------------------------------------------
@@ -294,6 +297,7 @@ while true; do
     status) a_status ;;    logs) a_logs ;;
     start) a_start ;;      stop) a_stop ;;   restart) a_restart ;;
     remove) a_remove ;;
+    clear_cfg) cfg_clear && ok "Saved config cleared." ;;
   esac
 done
 

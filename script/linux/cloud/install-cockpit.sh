@@ -19,6 +19,7 @@ __LIB="https://scripts.wanforge.asia/script/linux/lib.sh"
 __d="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
 if [ -r "${__d}/../lib.sh" ]; then . "${__d}/../lib.sh"
 else if command -v curl >/dev/null 2>&1; then . <(curl -fsSL "${__LIB}"); else . <(wget -qO- "${__LIB}"); fi; fi
+cfg_load
 
 svc_enable_start() { local s="$1"; run ${SUDO} systemctl enable "$s" >/dev/null 2>&1 || true; run ${SUDO} systemctl start "$s" || true; }
 
@@ -52,7 +53,7 @@ fi
 
 # reverse-proxy config
 if has_key cockpit-conf; then
-  ORIGIN="$(ask "Allowed origin domain (e.g. cockpit.domain.id, Enter to skip):" "")"
+  ORIGIN="$(ask_cfg CFG_COCKPIT_ORIGIN "Allowed origin domain (e.g. cockpit.domain.id, Enter to skip):" "")"
   ORIGIN="${ORIGIN#http://}"; ORIGIN="${ORIGIN#https://}"
   if [ -n "${ORIGIN}" ]; then
     warn "AllowUnencrypted=true is only safe behind a TLS-terminating proxy."

@@ -21,6 +21,7 @@ __LIB="https://scripts.wanforge.asia/script/linux/lib.sh"
 __d="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
 if [ -r "${__d}/../lib.sh" ]; then . "${__d}/../lib.sh"
 else if command -v curl >/dev/null 2>&1; then . <(curl -fsSL "${__LIB}"); else . <(wget -qO- "${__LIB}"); fi; fi
+cfg_load
 
 # ---- helpers ------------------------------------------------------------
 # DRY_RUN + run() come from lib.sh (global to all scripts).
@@ -54,11 +55,11 @@ a_reload()   { uw reload; }
 a_reset()    { warn "Reset DELETES ALL rules and disables ufw."; local c; c="$(ask "Type 'yes' to reset:" "no")"; [ "$c" = "yes" ] && uw --force reset || info "Aborted."; }
 a_default()  {
   local dir pol
-  dir="$(ask "Direction [incoming/outgoing/routed]:" "incoming")"
-  pol="$(ask "Policy [allow/deny/reject]:" "deny")"
+  dir="$(ask_cfg CFG_FW_DEFAULT_DIR "Direction [incoming/outgoing/routed]:" "incoming")"
+  pol="$(ask_cfg CFG_FW_DEFAULT_POL "Policy [allow/deny/reject]:" "deny")"
   uw default "$pol" "$dir"
 }
-a_logging()  { local lv; lv="$(ask "Logging level [on/off/low/medium/high/full]:" "low")"; uw logging "$lv"; }
+a_logging()  { local lv; lv="$(ask_cfg CFG_FW_LOGLEVEL "Logging level [on/off/low/medium/high/full]:" "low")"; uw logging "$lv"; }
 
 a_allow_port() { local p pr; p="$(ask "Port (e.g. 8080 or 8000:8010):" "")"; req_nonempty "$p" || return; pr="$(ask_proto)"; [ -n "$pr" ] && uw allow "${p}/${pr}" || uw allow "${p}"; }
 a_deny_port()  { local p pr; p="$(ask "Port to deny:" "")"; req_nonempty "$p" || return; pr="$(ask_proto)"; [ -n "$pr" ] && uw deny "${p}/${pr}" || uw deny "${p}"; }
@@ -106,6 +107,7 @@ MENU=(
   "IP / subnet|deny_ip_port|deny IP → port"
   "Apps & rules|apps|app profiles"
   "Apps & rules|delete|delete rule"
+  "Config|clear_cfg|Clear saved config (default policy, logging)"
 )
 
 # ---- run ----------------------------------------------------------------
@@ -133,6 +135,7 @@ while true; do
     limit_port) a_limit_port ;; allow_ip) a_allow_ip ;;  deny_ip) a_deny_ip ;;
     allow_many) a_allow_many ;; deny_many) a_deny_many ;; allow_ip_port) a_allow_ip_port ;;
     deny_ip_port) a_deny_ip_port ;; apps) a_apps ;;   delete) a_delete ;;
+    clear_cfg) cfg_clear && ok "Saved config cleared." ;;
   esac
 done
 

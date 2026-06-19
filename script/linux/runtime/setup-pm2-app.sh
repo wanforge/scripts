@@ -18,6 +18,7 @@ __LIB="https://scripts.wanforge.asia/script/linux/lib.sh"
 __d="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
 if [ -r "${__d}/../lib.sh" ]; then . "${__d}/../lib.sh"
 else if command -v curl >/dev/null 2>&1; then . <(curl -fsSL "${__LIB}"); else . <(wget -qO- "${__LIB}"); fi; fi
+cfg_load
 
 # run as a target user (e.g. a CloudPanel site user) when invoked as root
 maybe_switch_user "https://scripts.wanforge.asia/script/linux/runtime/setup-pm2-app.sh"
@@ -36,14 +37,14 @@ fi
 info "Using $(pm2 -v 2>/dev/null && echo "pm2 $(pm2 -v)" || echo pm2)"
 
 # ---- pm2-logrotate config (optional) ------------------------------------
-LR_ANS="$(ask "Configure pm2-logrotate (size/retention/compress)? [Y/n]:" "y")"
+LR_ANS="$(ask_cfg CFG_PM2_LOGROTATE "Configure pm2-logrotate (size/retention/compress)? [Y/n]:" "y")"
 case "${LR_ANS}" in
   n|N|no) info "Skipped logrotate config." ;;
   *)
     pm2 install pm2-logrotate >/dev/null 2>&1 || true
-    MAXSIZE="$(ask "Max log size before rotate:" "10M")"
-    RETAIN="$(ask "Number of rotated files to keep:" "30")"
-    COMPRESS="$(ask "Compress rotated logs? [Y/n]:" "y")"
+    MAXSIZE="$(ask_cfg CFG_PM2_LR_MAXSIZE "Max log size before rotate:" "10M")"
+    RETAIN="$(ask_cfg CFG_PM2_LR_RETAIN "Number of rotated files to keep:" "30")"
+    COMPRESS="$(ask_cfg CFG_PM2_LR_COMPRESS "Compress rotated logs? [Y/n]:" "y")"
     [[ "${COMPRESS}" =~ ^(n|N|no)$ ]] && COMPRESS="false" || COMPRESS="true"
     pm2 set pm2-logrotate:max_size "${MAXSIZE}"
     pm2 set pm2-logrotate:retain "${RETAIN}"
@@ -59,15 +60,15 @@ case "${APP_ANS}" in
   n|N|no) info "No app registered."; pm2 save || true; exit 0 ;;
 esac
 
-APP_NAME="$(ask "App name:" "my-app")"
-APP_CWD="$(ask "Working directory (project path):" "$(pwd)")"
+APP_NAME="$(ask_cfg CFG_PM2_APP_NAME "App name:" "my-app")"
+APP_CWD="$(ask_cfg CFG_PM2_APP_CWD "Working directory (project path):" "$(pwd)")"
 if [ ! -d "${APP_CWD}" ]; then err "Directory not found: ${APP_CWD}"; exit 1; fi
-APP_SCRIPT="$(ask "Entry script or command (e.g. app.js, dist/main.js, npm):" "app.js")"
-APP_ARGS="$(ask "Arguments (e.g. 'run start' for npm, empty otherwise):" "")"
-APP_INSTANCES="$(ask "Instances (1, a number, or 'max' for cluster):" "1")"
+APP_SCRIPT="$(ask_cfg CFG_PM2_APP_SCRIPT "Entry script or command (e.g. app.js, dist/main.js, npm):" "app.js")"
+APP_ARGS="$(ask_cfg CFG_PM2_APP_ARGS "Arguments (e.g. 'run start' for npm, empty otherwise):" "")"
+APP_INSTANCES="$(ask_cfg CFG_PM2_APP_INSTANCES "Instances (1, a number, or 'max' for cluster):" "1")"
 if [ "${APP_INSTANCES}" = "1" ]; then EXEC_MODE="fork"; else EXEC_MODE="cluster"; fi
-APP_NODE_ENV="$(ask "NODE_ENV:" "production")"
-APP_MEM="$(ask "Restart if memory exceeds:" "300M")"
+APP_NODE_ENV="$(ask_cfg CFG_PM2_APP_NODE_ENV "NODE_ENV:" "production")"
+APP_MEM="$(ask_cfg CFG_PM2_APP_MEM "Restart if memory exceeds:" "300M")"
 
 ECOSYS="${APP_CWD}/ecosystem.config.js"
 if [ -f "${ECOSYS}" ]; then

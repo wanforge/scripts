@@ -111,6 +111,89 @@ if ! { [ -e /dev/tty ] && exec 3</dev/tty; } 2>/dev/null; then exec 3<&0; fi
 ask()  { local p="$1" d="${2:-}" a; if [ "${ASSUME_YES:-0}" = "1" ]; then echo "${d}"; return 0; fi; if [ -n "${d}" ]; then printf "%b?%b %s %b[%s]%b " "${C_YELLOW}" "${C_RESET}" "${p}" "${C_DIM}" "${d}" "${C_RESET}" >&2; else printf "%b?%b %s " "${C_YELLOW}" "${C_RESET}" "${p}" >&2; fi; read -r a <&3 || a=""; echo "${a:-$d}"; }
 asks() { local p="$1" a; printf "%b?%b %s " "${C_YELLOW}" "${C_RESET}" "${p}" >&2; read -rs a <&3 || a=""; printf "\n" >&2; echo "${a}"; }
 
+# ---- config persistence -------------------------------------------------
+# Per-script config saved at ~/.config/wanforge-scripts/<TASK>.conf (chmod 600).
+# Secrets and plain values share the same file; the file itself is the guard.
+#
+# Usage pattern in a script (after sourcing lib.sh):
+#   cfg_load                            # restore prior session values
+#   VAR="$(ask_cfg  KEY "prompt" def)"  # plain value — saved default on re-run
+#   VAR="$(asks_cfg KEY "prompt")"      # secret  — hidden; Enter = keep saved
+#   cfg_clear                           # wipe saved config for this script
+#
+# Direct helpers:
+#   cfg_set KEY VALUE    write one key
+#   cfg_del KEY          remove one key
+
+CFG_DIR="${XDG_CONFIG_HOME:-${HOME:-/root}/.config}/wanforge-scripts"
+CFG_FILE=""
+
+cfg_init() {
+  local name="${1:-${TASK:-unnamed}}"
+  CFG_FILE="${CFG_DIR}/${name}.conf"
+}
+
+cfg_load() {
+  [ -n "${CFG_FILE}" ] || cfg_init
+  [ -f "${CFG_FILE}" ] || return 0
+  dbg "Loading saved config: ${CFG_FILE}"
+  # shellcheck source=/dev/null
+  . "${CFG_FILE}"
+}
+
+cfg_set() {
+  [ -n "${CFG_FILE}" ] || cfg_init
+  local key="$1" val="$2" tmp
+  mkdir -p "${CFG_DIR}" && chmod 700 "${CFG_DIR}"
+  [ -f "${CFG_FILE}" ] || { touch "${CFG_FILE}" && chmod 600 "${CFG_FILE}"; }
+  tmp="$(mktemp)"
+  grep -v "^${key}=" "${CFG_FILE}" > "${tmp}" 2>/dev/null || true
+  printf '%s=%q\n' "${key}" "${val}" >> "${tmp}"
+  mv "${tmp}" "${CFG_FILE}" && chmod 600 "${CFG_FILE}"
+}
+
+cfg_del() {
+  [ -n "${CFG_FILE}" ] || cfg_init
+  [ -f "${CFG_FILE}" ] || return 0
+  local tmp; tmp="$(mktemp)"
+  grep -v "^${1}=" "${CFG_FILE}" > "${tmp}" 2>/dev/null || true
+  mv "${tmp}" "${CFG_FILE}" && chmod 600 "${CFG_FILE}"
+}
+
+cfg_clear() {
+  [ -n "${CFG_FILE}" ] || cfg_init
+  [ -f "${CFG_FILE}" ] && rm -f "${CFG_FILE}"
+  return 0
+}
+
+# ask_cfg KEY "prompt" [default]  — show saved value as default; save on answer
+ask_cfg() {
+  local key="$1" prompt="$2" default="${3:-}"
+  local saved; saved="${!key:-}"
+  local val; val="$(ask "${prompt}" "${saved:-${default}}")"
+  cfg_set "${key}" "${val}"
+  printf '%s\n' "${val}"
+}
+
+# asks_cfg KEY "prompt"  — hidden input; press Enter to keep the saved secret
+asks_cfg() {
+  local key="$1" prompt="$2"
+  local saved; saved="${!key:-}"
+  if [ -n "${saved}" ]; then
+    info "${C_DIM}${key}: saved value on file — press Enter to keep, or type to replace${C_RESET}"
+    local val; val="$(asks "${prompt}")"
+    if [ -n "${val}" ]; then cfg_set "${key}" "${val}"; printf '%s\n' "${val}"
+    else printf '%s\n' "${saved}"; fi
+  else
+    local val; val="$(asks "${prompt}")"
+    [ -n "${val}" ] && cfg_set "${key}" "${val}"
+    printf '%s\n' "${val}"
+  fi
+}
+
+# auto-init when lib.sh is sourced (TASK must be set before sourcing)
+[ -n "${TASK:-}" ] && cfg_init
+
 # ---- privilege ----------------------------------------------------------
 if [ "$(id -u)" -eq 0 ]; then SUDO=""; else SUDO="sudo"; fi
 

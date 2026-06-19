@@ -19,6 +19,7 @@ __LIB="https://scripts.wanforge.asia/script/linux/lib.sh"
 __d="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
 if [ -r "${__d}/../lib.sh" ]; then . "${__d}/../lib.sh"
 else if command -v curl >/dev/null 2>&1; then . <(curl -fsSL "${__LIB}"); else . <(wget -qO- "${__LIB}"); fi; fi
+cfg_load
 
 STEP=0; TOTAL=3
 step() { STEP=$((STEP + 1)); printf "\n%b==> [%d/%d] %s%b\n" "${C_BOLD}${C_CYAN}" "${STEP}" "${TOTAL}" "$1" "${C_RESET}" >&2; }
@@ -80,7 +81,7 @@ for e in "${ENGINES[@]}"; do
   printf "    %b%d%b) %s\n" "${C_YELLOW}" "${idx}" "${C_RESET}" "${e}" >&2
   idx=$((idx + 1))
 done
-DB_CHOICE="$(ask "Select DB engine [1-${#ENGINES[@]}] (default 1 = ${ENGINES[0]}):" "1")"
+DB_CHOICE="$(ask_cfg CFG_DB_ENGINE_CHOICE "Select DB engine [1-${#ENGINES[@]}] (default 1 = ${ENGINES[0]}):" "1")"
 if ! [[ "${DB_CHOICE}" =~ ^[0-9]+$ ]] || [ "${DB_CHOICE}" -lt 1 ] || [ "${DB_CHOICE}" -gt "${#ENGINES[@]}" ]; then
   warn "Invalid choice; using default ${ENGINES[0]}."
   DB_CHOICE=1

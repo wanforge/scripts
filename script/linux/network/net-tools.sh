@@ -18,6 +18,7 @@ __LIB="https://scripts.wanforge.asia/script/linux/lib.sh"
 __d="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
 if [ -r "${__d}/../lib.sh" ]; then . "${__d}/../lib.sh"
 else if command -v curl >/dev/null 2>&1; then . <(curl -fsSL "${__LIB}"); else . <(wget -qO- "${__LIB}"); fi; fi
+cfg_load
 
 pm_install() {
   local pm; for pm in apt-get dnf yum pacman zypper apk; do command -v "$pm" >/dev/null 2>&1 && break; done
@@ -61,16 +62,16 @@ a_portcheck_local() {
   else warn "Port ${p} is not listening locally."; fi
 }
 a_portcheck_remote() {
-  local h p; h="$(ask "Host:" "")"; p="$(ask "Port:" "")"; [ -n "$h" ] && [ -n "$p" ] || { err "Host and port required."; return; }
+  local h p; h="$(ask_cfg CFG_NT_RHOST "Host:" "")"; p="$(ask_cfg CFG_NT_RPORT "Port:" "")"; [ -n "$h" ] && [ -n "$p" ] || { err "Host and port required."; return; }
   hd "Reach ${h}:${p}"
   if have nc; then nc -zv -w5 "$h" "$p" >&2 2>&1 && ok "Reachable." || warn "Closed/filtered."
   elif timeout 5 bash -c "echo > /dev/tcp/${h}/${p}" 2>/dev/null; then ok "${h}:${p} reachable."
   else warn "${h}:${p} closed/unreachable."; fi
 }
 a_portscan() {
-  local h ports; h="$(ask "Host to scan:" "127.0.0.1")"
+  local h ports; h="$(ask_cfg CFG_NT_SCAN_HOST "Host to scan:" "127.0.0.1")"
   if have nmap; then
-    ports="$(ask "Ports/range (e.g. 1-1024 or 22,80,443):" "1-1024")"
+    ports="$(ask_cfg CFG_NT_SCAN_PORTS "Ports/range (e.g. 1-1024 or 22,80,443):" "1-1024")"
     hd "nmap ${h} (${ports})"; nmap -p "${ports}" "${h}" >&2 || true
   else
     hd "Quick scan of common ports on ${h} (nmap not installed)"
@@ -82,11 +83,11 @@ a_portscan() {
 }
 
 # ---- Diagnostics --------------------------------------------------------
-a_ping()    { local h; h="$(ask "Host to ping:" "1.1.1.1")"; hd "ping ${h}"; ping -c 4 "$h" >&2 || true; }
-a_trace()   { local h; h="$(ask "Host to trace:" "1.1.1.1")"; hd "traceroute ${h}"; if have mtr; then ${SUDO} mtr -rwc 5 "$h" >&2 || true; elif have traceroute; then traceroute "$h" >&2 || true; else warn "Install mtr or traceroute."; fi; }
-a_dig()     { local h; h="$(ask "Domain to resolve:" "wanforge.asia")"; hd "DNS lookup ${h}"; if have dig; then dig +short "$h" A "$h" AAAA "$h" MX >&2; dig "$h" >&2 2>&1 | sed -n '/ANSWER SECTION/,/^$/p' >&2; elif have host; then host "$h" >&2; else nslookup "$h" >&2 || warn "Install dnsutils/bind-utils."; fi; }
-a_whois()   { local h; h="$(ask "Domain/IP for whois:" "")"; [ -n "$h" ] || { err "Required."; return; }; hd "whois ${h}"; if have whois; then whois "$h" >&2 || true; else warn "Install whois."; fi; }
-a_http()    { local u; u="$(ask "URL for HTTP headers:" "https://wanforge.asia")"; hd "HTTP headers ${u}"; curl -fsSIL --max-time 10 "$u" >&2 || warn "request failed"; }
+a_ping()    { local h; h="$(ask_cfg CFG_NT_PING_HOST "Host to ping:" "1.1.1.1")"; hd "ping ${h}"; ping -c 4 "$h" >&2 || true; }
+a_trace()   { local h; h="$(ask_cfg CFG_NT_TRACE_HOST "Host to trace:" "1.1.1.1")"; hd "traceroute ${h}"; if have mtr; then ${SUDO} mtr -rwc 5 "$h" >&2 || true; elif have traceroute; then traceroute "$h" >&2 || true; else warn "Install mtr or traceroute."; fi; }
+a_dig()     { local h; h="$(ask_cfg CFG_NT_DIG_HOST "Domain to resolve:" "wanforge.asia")"; hd "DNS lookup ${h}"; if have dig; then dig +short "$h" A "$h" AAAA "$h" MX >&2; dig "$h" >&2 2>&1 | sed -n '/ANSWER SECTION/,/^$/p' >&2; elif have host; then host "$h" >&2; else nslookup "$h" >&2 || warn "Install dnsutils/bind-utils."; fi; }
+a_whois()   { local h; h="$(ask_cfg CFG_NT_WHOIS_HOST "Domain/IP for whois:" "")"; [ -n "$h" ] || { err "Required."; return; }; hd "whois ${h}"; if have whois; then whois "$h" >&2 || true; else warn "Install whois."; fi; }
+a_http()    { local u; u="$(ask_cfg CFG_NT_HTTP_URL "URL for HTTP headers:" "https://wanforge.asia")"; hd "HTTP headers ${u}"; curl -fsSIL --max-time 10 "$u" >&2 || warn "request failed"; }
 a_ifstats() { hd "Interface traffic"; ip -s -h link 2>/dev/null >&2 || ip -s link >&2 || true; }
 
 # ---- Speed --------------------------------------------------------------
@@ -130,6 +131,7 @@ MENU=(
   "Diagnostics|ifstats|Interface traffic stats"
   "Speed|speedtest|Internet speed test"
   "Tools|install|Install network tools"
+  "Config|clear_cfg|Clear saved config (hosts, URLs, ports)"
 )
 
 # ---- run ----------------------------------------------------------------
@@ -145,6 +147,7 @@ while true; do
     ping) a_ping ;;          trace) a_trace ;;          dig) a_dig ;;
     whois) a_whois ;;        http) a_http ;;            ifstats) a_ifstats ;;
     speedtest) a_speedtest ;; install) a_install ;;
+    clear_cfg) cfg_clear && ok "Saved config cleared." ;;
   esac
 done
 

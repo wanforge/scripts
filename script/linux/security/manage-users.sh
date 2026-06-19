@@ -19,6 +19,7 @@ __LIB="https://scripts.wanforge.asia/script/linux/lib.sh"
 __d="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
 if [ -r "${__d}/../lib.sh" ]; then . "${__d}/../lib.sh"
 else if command -v curl >/dev/null 2>&1; then . <(curl -fsSL "${__LIB}"); else . <(wget -qO- "${__LIB}"); fi; fi
+cfg_load
 
 [ "$(id -u)" -eq 0 ] || command -v sudo >/dev/null 2>&1 || { err "sudo is required when not running as root."; exit 1; }
 
@@ -132,10 +133,10 @@ a_user_add() {
   req "$u" username || return 1
   user_exists "$u" && { err "User '${u}' already exists."; return 1; }
   gecos="$(ask 'Full name / comment:' "$u")"
-  shell="$(ask 'Login shell:' '/bin/bash')"
+  shell="$(ask_cfg CFG_MU_SHELL 'Login shell:' '/bin/bash')"
   home_yn="$(ask 'Create home directory? [Y/n]:' 'y')"
   pass="$(asks 'Initial password (blank = no password):')"
-  sudo_yn="$(ask 'Grant sudo access? [y/N]:' 'n')"
+  sudo_yn="$(ask_cfg CFG_MU_SUDO 'Grant sudo access? [y/N]:' 'n')"
   ssh_yn="$(ask 'Add SSH public key now? [y/N]:' 'n')"
 
   case "$ssh_yn" in y|Y|yes)
@@ -222,6 +223,7 @@ MENU=(
   "SSH|ssh_add|add SSH public key"
   "SSH|ssh_clear|remove SSH keys"
   "Info|view|show user details"
+  "Config|clear_cfg|Clear saved config (shell default, sudo default)"
 )
 
 # ---- run ----------------------------------------------------------------
@@ -242,6 +244,7 @@ while true; do
     ssh_add) a_ssh_add ;;
     ssh_clear) a_ssh_clear ;;
     view) a_view ;;
+    clear_cfg) cfg_clear && ok "Saved config cleared." ;;
   esac
 done
 
