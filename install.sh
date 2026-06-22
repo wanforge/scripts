@@ -41,6 +41,7 @@ REPO_BRANCH="main"
 SCRIPTS=(
   "System|install-packages|script/linux/system/install-packages.sh|Update system + install base essentials (micro, curl, wget, git)"
   "System|set-timezone|script/linux/system/set-timezone.sh|Set timezone (UTC recommended for servers)"
+  "System|backup-tools|script/linux/system/backup-tools.sh|Backup manager: S3 / FTP / SFTP — named profiles, cron, dry-run"
   "Security|install-firewall|script/linux/system/install-firewall.sh|Install & configure ufw firewall"
   "Security|firewall-manager|script/linux/security/firewall-manager.sh|Full ufw manager: allow/deny IP/port, multiple, rate-limit"
   "Security|install-fail2ban|script/linux/security/install-fail2ban.sh|Install & enable Fail2Ban"

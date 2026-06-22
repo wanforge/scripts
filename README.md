@@ -1,6 +1,6 @@
 # wanforge/scripts
 
-Interactive Linux server automation toolkit — one launcher, 25 scripts across
+Interactive Linux server automation toolkit — one launcher, 26 scripts across
 8 categories: system setup, security hardening, cloud panels, databases, app
 runtimes, monitoring & observability, CI/CD, and network & Proxmox tooling.
 
@@ -83,6 +83,7 @@ Select scripts to run:  ↑/↓ move · SPACE toggle · A all · ENTER run · Q 
 ── System ──
 ❯ [ ] install-packages     Update system + base essentials (micro, curl, wget, git)
   [ ] set-timezone         Set timezone (UTC recommended for servers)
+  [ ] backup-tools         Backup manager: S3 / FTP / SFTP — named profiles, cron, dry-run
 ── Security ──
   [ ] install-firewall     Install & configure ufw firewall
   [ ] firewall-manager     Full ufw manager: allow/deny IP/port, multiple, rate-limit
@@ -197,6 +198,7 @@ Each script can also be run directly without the launcher.
 curl -fsSL https://scripts.wanforge.asia/script/linux/system/install-packages.sh | bash
 curl -fsSL https://scripts.wanforge.asia/script/linux/system/set-timezone.sh | bash
 curl -fsSL https://scripts.wanforge.asia/script/linux/system/install-firewall.sh | bash
+curl -fsSL https://scripts.wanforge.asia/script/linux/system/backup-tools.sh | bash
 
 # Security
 curl -fsSL https://scripts.wanforge.asia/script/linux/security/firewall-manager.sh | bash
@@ -244,6 +246,7 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/runtime/setup-pm2-app.sh |
 | —               | `install.sh`             | Grouped checkbox launcher that runs the other scripts             | —    | Any             |
 | System          | `install-packages.sh`    | Update/upgrade system, install base essentials (micro/curl/wget/git) | Yes | Multi        |
 | System          | `set-timezone.sh`        | Set timezone via `timedatectl` (default `Asia/Jakarta`)           | Yes  | Any (systemd)   |
+| System          | `backup-tools.sh`        | Backup manager: S3 / FTP / SFTP — named profiles, cron, dry-run  | No   | Any             |
 | System          | `install-firewall.sh`    | Install `ufw`, open SSH/http/https, add custom ports, enable      | Yes  | Mainly Deb/Ubu  |
 | Security        | `firewall-manager.sh`    | Full ufw manager: allow/deny IP & port, multi-IP, rate-limit      | Yes  | Any (ufw)       |
 | Security        | `install-fail2ban.sh`    | Install and enable the Fail2Ban service                           | Yes  | Multi           |
@@ -293,6 +296,36 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/runtime/setup-pm2-app.sh |
   time in the application.
 - Databases follow the same rule — `database-toolkit.sh`'s *date/time* action
   reminds you to run MySQL/PostgreSQL in UTC.
+
+### backup-tools.sh
+
+- Multi-destination backup manager. Manages **named profiles** (each a `~/.config/wanforge-scripts/backup-profiles/<name>.conf`, chmod 600). Pick a profile to add, run, test, or schedule — no global config, no cronjob clutter.
+- **Destination types** and their required tools:
+
+  | Type | Tool | Notes |
+  | ---- | ---- | ----- |
+  | `s3` | `aws` CLI (`pip3 install awscli`) | Custom `--endpoint-url` → AWS, IDCloudHost, MinIO, Backblaze B2, etc. |
+  | `ftp` | `lftp` (`apt install lftp`) | `lftp mirror -R` with optional SSL: off / explicit TLS / implicit TLS (FTPS) |
+  | `sftp` | `rsync` (`apt install rsync`) | `rsync -avz -e ssh`; SSH key path or agent; `--delete` optional |
+
+- **TUI menu** (arrow-key, loops until Q):
+  - **Add profile** — wizard: name, source dir, sync-delete toggle, type, then type-specific credentials (secrets via masked input, saved securely).
+  - **List** — shows every profile with type tag and `source → target` summary.
+  - **Delete** — with confirmation.
+  - **Run** — real transfer for one chosen profile.
+  - **Run all** — runs every profile in sequence, reports succeeded/failed count.
+  - **Dry-run** — simulates the transfer (no bytes moved) to verify config.
+  - **Cron** — injects a `crontab` entry for a specific profile; runs non-interactively via `--run`.
+- **Wizard defaults** are remembered (endpoint, host, username, etc.) so adding a second profile to the same server skips re-typing.
+- **Non-interactive / cron mode**: `bash backup-tools.sh --run <profile>` — no banner, exits with the transfer's exit code.
+
+  ```bash
+  # run manually
+  curl -fsSL https://scripts.wanforge.asia/script/linux/system/backup-tools.sh | bash
+
+  # cron (script must be saved locally first)
+  0 2 * * * bash /opt/scripts/backup-tools.sh --run web-daily >> /var/log/backup-web-daily.log 2>&1
+  ```
 
 ### install-firewall.sh
 
