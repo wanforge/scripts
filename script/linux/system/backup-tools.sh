@@ -10,7 +10,7 @@
 #   bash backup-tools.sh --run <profile>   # non-interactive run (for cron)
 #
 # Requirements by type:
-#   S3   — aws CLI  (pip3 install awscli)
+#   S3   — aws CLI  (apt install awscli)
 #   FTP  — lftp     (apt install lftp)
 #   SFTP — rsync    (apt install rsync)
 #
@@ -112,7 +112,7 @@ _try_install() {
   have "$cmd" || { err "'${cmd}' not in PATH after install. Try: hash -r"; return 1; }
   ok "'${cmd}' installed."
 }
-_need_aws()       { _try_install aws       pip3 install awscli; }
+_need_aws()       { _try_install aws       apt install -y awscli; }
 _need_lftp()      { _try_install lftp      apt install -y lftp; }
 _need_rsync()     { _try_install rsync     apt install -y rsync; }
 _need_mysqldump() { _try_install mysqldump apt install -y mysql-client; }
