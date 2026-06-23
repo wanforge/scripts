@@ -843,30 +843,47 @@ a_status() {
 }
 
 a_cron() {
-  BT_PICKED=""; _bt_pick || return 0
-  local p="${BT_PICKED}"
-  hd "Cron schedule — ${p}"
-  local existing; existing="$(crontab -l 2>/dev/null | grep "backup-tools.*${p}" || true)"
-  if [ -n "$existing" ]; then
-    info "Existing: ${existing}"
-    local r; r="$(ask "Replace existing entry? [y/N]:" "n")"
-    [[ "$r" =~ ^[Yy] ]] || return 0
-    crontab -l 2>/dev/null | grep -v "backup-tools.*${p}" | crontab - 2>/dev/null || true
-  fi
+  hd "Cron schedule — select profiles"
+  local names=() n
+  while IFS= read -r n; do names+=("$n"); done < <(_bt_list)
+  [ ${#names[@]} -gt 0 ] || { warn "No profiles configured."; return 0; }
+
+  MENU=()
+  for n in "${names[@]}"; do
+    local _desc
+    _desc="$(
+      _bt_load "${n}" 2>/dev/null || true
+      case "${BT_TYPE:-}" in
+        s3)   printf '[s3]   %s → s3://%s' "${BT_SOURCE:-?}" "${BT_S3_BUCKET:-?}" ;;
+        ftp)  printf '[ftp]  %s → %s' "${BT_SOURCE:-?}" "${BT_FTP_HOST:-?}" ;;
+        sftp) printf '[sftp] %s → %s@%s' "${BT_SOURCE:-?}" "${BT_SFTP_USER:-?}" "${BT_SFTP_HOST:-?}" ;;
+        *)    printf '[?] %s' "${BT_SOURCE:-?}" ;;
+      esac
+    )"
+    MENU+=("Profile|${n}|${_desc}")
+  done
+
+  checkbox "Select profiles to schedule:" 1 || { info "Cancelled."; return 0; }
+  [ "${#CHOSEN_KEYS[@]}" -eq 0 ] && { info "Nothing selected."; return 0; }
+
   local hour; hour="$(ask "Backup hour 0-23 [2]:" "2")"; hour="${hour:-2}"
-  # Logs go to the standard WF_LOG_DIR (set by wf_log_init in lib.sh)
   local log_dir="${WF_DATA_DIR}/logs/backup-tools"
   mkdir -p "$log_dir"
   local this; this="$(realpath "${BASH_SOURCE[0]:-$0}" 2>/dev/null || echo "/path/to/backup-tools.sh")"
-  local entry="0 ${hour} * * * bash '${this}' --run '${p}' >> '${log_dir}/${p}_\$(date +\%Y\%m\%d).log' 2>&1"
-  if (crontab -l 2>/dev/null; echo "$entry") | crontab -; then
-    ok "Cron added — daily at ${hour}:00 for '${p}'"
-    info "Log dir : ${log_dir}"
-    info "${entry}"
-  else
-    err "crontab update failed. Add manually:"
-    printf "  %b%s%b\n" "${C_YELLOW}" "$entry" "${C_RESET}" >&2
-  fi
+
+  for p in "${CHOSEN_KEYS[@]}"; do
+    local existing; existing="$(crontab -l 2>/dev/null | grep "backup-tools.*${p}" || true)"
+    if [ -n "$existing" ]; then
+      crontab -l 2>/dev/null | grep -v "backup-tools.*${p}" | crontab - 2>/dev/null || true
+    fi
+    local entry="0 ${hour} * * * bash '${this}' --run '${p}' >> '${log_dir}/${p}_\$(date +\%Y\%m\%d).log' 2>&1"
+    if (crontab -l 2>/dev/null; echo "$entry") | crontab -; then
+      ok "Cron added — daily at ${hour}:00 for '${p}'"
+    else
+      err "crontab update failed for '${p}'. Add manually: ${entry}"
+    fi
+  done
+  info "Log dir: ${log_dir}"
 }
 
 # --- non-interactive mode (cron / scripted) -------------------------------
