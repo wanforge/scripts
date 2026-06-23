@@ -93,6 +93,13 @@ _bt_pick() {
   BT_PICKED="${names[$((ch-1))]}"
 }
 
+# list /home/* dirs (and /root) as backup source candidates
+_bt_home_users() {
+  local _d
+  for _d in /home/*/; do [ -d "${_d}" ] && printf '%s\n' "${_d%/}"; done
+  [ -d /root ] && printf '/root\n'
+}
+
 # --- tool checks ----------------------------------------------------------
 have()        { command -v "$1" >/dev/null 2>&1; }
 _need_aws()   { have aws   || { err "'aws' CLI required. Install: pip3 install awscli"; return 1; }; }
@@ -232,74 +239,132 @@ _run_one() {
 # --- actions --------------------------------------------------------------
 
 a_add() {
-  hd "Add backup profile"
-  local name; name="$(ask "Profile name (e.g. web-daily):" "")"
-  name="${name//[^a-zA-Z0-9_-]/}"
-  [ -n "$name" ] || { err "Profile name required."; return 1; }
+  hd "Add backup profile(s)"
 
-  local file; file="$(_bt_file "$name")"
-  if [ -f "$file" ]; then
-    local ow; ow="$(ask "Profile '${name}' exists. Overwrite? [y/N]:" "n")"
-    [[ "$ow" =~ ^[Yy] ]] || return 0
+  # --- step 1: select source(s) via checkbox ---
+  local _hdir _homes=()
+  while IFS= read -r _hdir; do _homes+=("$_hdir"); done < <(_bt_home_users)
+
+  # sources array: interleaved (name, path) pairs
+  local _sources=()
+
+  if [ ${#_homes[@]} -gt 0 ]; then
+    MENU=()
+    local _hi
+    for _hi in "${!_homes[@]}"; do
+      local _uname="${_homes[$_hi]##*/}"
+      MENU+=("User|${_uname}|${_homes[$_hi]}")
+    done
+    MENU+=("User|__custom__|enter custom path")
+
+    checkbox "Select users / home directories to backup:" || { info "Cancelled."; return 0; }
+    [ "${#CHOSEN_KEYS[@]}" -eq 0 ] && { info "Nothing selected."; return 0; }
+
+    local _sfx
+    _sfx="$(ask "Profile name suffix (e.g. 'daily' → alice-daily) [backup]:" "backup")"
+    _sfx="${_sfx:-backup}"
+
+    local _key
+    for _key in "${CHOSEN_KEYS[@]}"; do
+      if [ "${_key}" = "__custom__" ]; then
+        local _cn _cp
+        _cn="$(ask "Custom profile name:" "")"; _cn="${_cn//[^a-zA-Z0-9_-]/}"
+        [ -n "${_cn}" ] || { warn "Skipping: empty profile name."; continue; }
+        _cp="$(ask_cfg CFG_BT_SOURCE "Custom source path:" "/home")"
+        _sources+=("${_cn}" "${_cp}")
+      else
+        local _src=""
+        for _hdir in "${_homes[@]}"; do
+          [ "${_hdir##*/}" = "${_key}" ] && _src="${_hdir}" && break
+        done
+        _sources+=("${_key}-${_sfx}" "${_src}")
+      fi
+    done
+  else
+    local _n _p
+    _n="$(ask "Profile name (e.g. web-daily):" "")"; _n="${_n//[^a-zA-Z0-9_-]/}"
+    [ -n "${_n}" ] || { err "Profile name required."; return 1; }
+    _p="$(ask_cfg CFG_BT_SOURCE "Source directory to backup:" "/home")"
+    _sources+=("${_n}" "${_p}")
   fi
 
-  local source; source="$(ask_cfg CFG_BT_SOURCE "Source directory to backup:" "/home")"
-  local del; del="$(ask "Delete dest files missing from source? [y/N]:" "n")"
-  local do_del=0; [[ "$del" =~ ^[Yy] ]] && do_del=1
+  [ "${#_sources[@]}" -eq 0 ] && { warn "No sources selected."; return 0; }
 
-  hd "Destination type"
+  # --- step 2: common options ---
+  local del do_del=0
+  del="$(ask "Delete dest files missing from source? [y/N]:" "n")"
+  [[ "$del" =~ ^[Yy] ]] && do_del=1
+
+  # --- step 3: destination (asked once, applied to all profiles) ---
+  hd "Destination type (applies to all selected users)"
   printf "  %b1)%b S3 / S3-compatible (AWS, IDCloudHost, MinIO…)\n" "${C_CYAN}" "${C_RESET}" >&2
   printf "  %b2)%b FTP / FTPS\n"                                     "${C_CYAN}" "${C_RESET}" >&2
   printf "  %b3)%b SFTP (SSH + rsync)\n"                             "${C_CYAN}" "${C_RESET}" >&2
   local tc; tc="$(ask "Type [1]:" "1")"; tc="${tc:-1}"
 
+  local ep ak sk bkt pfx_base host port user pass dest ssl_c ssl key
   case "$tc" in
     1)
-      local ep ak sk bkt pfx
-      ep="$(ask_cfg  CFG_BT_S3_ENDPOINT   "S3 Endpoint URL:"   "https://is3.cloudhost.id")"
-      ak="$(ask_cfg  CFG_BT_S3_ACCESS_KEY "S3 Access Key:"     "")"
+      ep="$(ask_cfg  CFG_BT_S3_ENDPOINT   "S3 Endpoint URL:"                        "https://is3.cloudhost.id")"
+      ak="$(ask_cfg  CFG_BT_S3_ACCESS_KEY "S3 Access Key:"                          "")"
       sk="$(asks_cfg CFG_BT_S3_SECRET_KEY "S3 Secret Key:")"
-      bkt="$(ask_cfg CFG_BT_S3_BUCKET     "S3 Bucket name:"    "")"
-      pfx="$(ask_cfg CFG_BT_S3_PREFIX     "S3 Prefix:"         "${HOSTNAME_S}/${name}")"
-      _bt_save "$name" \
-        BT_NAME "$name"  BT_TYPE "s3"    BT_SOURCE "$source" BT_DELETE "$do_del" \
-        BT_S3_ENDPOINT "$ep"  BT_S3_ACCESS_KEY "$ak"  BT_S3_SECRET_KEY "$sk" \
-        BT_S3_BUCKET "$bkt"   BT_S3_PREFIX "$pfx"
+      bkt="$(ask_cfg CFG_BT_S3_BUCKET     "S3 Bucket name:"                         "")"
+      pfx_base="$(ask_cfg CFG_BT_S3_PREFIX "S3 Prefix base (profile name appended):" "${HOSTNAME_S}")"
       ;;
     2)
-      local host port user pass dest ssl_c ssl
-      host="$(ask_cfg  CFG_BT_FTP_HOST "FTP Host:"      "")"
-      port="$(ask_cfg  CFG_BT_FTP_PORT "FTP Port:"      "21")"
-      user="$(ask_cfg  CFG_BT_FTP_USER "FTP Username:"  "")"
+      host="$(ask_cfg  CFG_BT_FTP_HOST "FTP Host:"                                  "")"
+      port="$(ask_cfg  CFG_BT_FTP_PORT "FTP Port:"                                  "21")"
+      user="$(ask_cfg  CFG_BT_FTP_USER "FTP Username:"                              "")"
       pass="$(asks_cfg CFG_BT_FTP_PASS "FTP Password:")"
-      dest="$(ask_cfg  CFG_BT_FTP_DEST "Remote path:"   "/backups")"
+      dest="$(ask_cfg  CFG_BT_FTP_DEST "Remote base path (profile name appended):"  "/backups")"
       printf "  %b1)%b No SSL   %b2)%b Explicit TLS   %b3)%b Implicit TLS\n" \
         "${C_CYAN}" "${C_RESET}" "${C_CYAN}" "${C_RESET}" "${C_CYAN}" "${C_RESET}" >&2
       ssl_c="$(ask "SSL mode [1]:" "1")"; ssl_c="${ssl_c:-1}"
       case "$ssl_c" in 2) ssl="explicit" ;; 3) ssl="implicit" ;; *) ssl="off" ;; esac
-      _bt_save "$name" \
-        BT_NAME "$name"   BT_TYPE "ftp"   BT_SOURCE "$source"  BT_DELETE "$do_del" \
-        BT_FTP_HOST "$host"  BT_FTP_PORT "$port"  BT_FTP_USER "$user" \
-        BT_FTP_PASS "$pass"  BT_FTP_DEST "$dest"  BT_FTP_SSL  "$ssl"
       ;;
     3)
-      local host port user key dest
-      host="$(ask_cfg  CFG_BT_SFTP_HOST "SFTP Host:"                  "")"
-      port="$(ask_cfg  CFG_BT_SFTP_PORT "SFTP Port:"                  "22")"
-      user="$(ask_cfg  CFG_BT_SFTP_USER "SFTP Username:"              "")"
-      key="$(ask_cfg   CFG_BT_SFTP_KEY  "SSH key path (blank=agent):" "")"
-      dest="$(ask_cfg  CFG_BT_SFTP_DEST "Remote destination path:"    "/backups")"
-      _bt_save "$name" \
-        BT_NAME "$name"    BT_TYPE "sftp"  BT_SOURCE "$source"  BT_DELETE "$do_del" \
-        BT_SFTP_HOST "$host"  BT_SFTP_PORT "$port"  BT_SFTP_USER "$user" \
-        BT_SFTP_KEY  "$key"   BT_SFTP_DEST "$dest"
+      host="$(ask_cfg  CFG_BT_SFTP_HOST "SFTP Host:"                                "")"
+      port="$(ask_cfg  CFG_BT_SFTP_PORT "SFTP Port:"                                "22")"
+      user="$(ask_cfg  CFG_BT_SFTP_USER "SFTP Username:"                            "")"
+      key="$(ask_cfg   CFG_BT_SFTP_KEY  "SSH key path (blank=agent):"               "")"
+      dest="$(ask_cfg  CFG_BT_SFTP_DEST "Remote base path (profile name appended):" "/backups")"
       ;;
-    *)
-      err "Invalid type choice."; return 1 ;;
+    *) err "Invalid type choice."; return 1 ;;
   esac
 
-  local tr; tr="$(ask "Run dry-run test now? [y/N]:" "n")"
-  [[ "$tr" =~ ^[Yy] ]] && _run_one "$name" "dry"
+  # --- step 4: create one profile per source ---
+  local _name _src _i=0
+  while [ "${_i}" -lt "${#_sources[@]}" ]; do
+    _name="${_sources[$_i]}"; _src="${_sources[$((_i+1))]}"; _i=$((_i+2))
+    local _file; _file="$(_bt_file "${_name}")"
+    if [ -f "${_file}" ]; then
+      local _ow; _ow="$(ask "Profile '${_name}' exists. Overwrite? [y/N]:" "n")"
+      [[ "${_ow}" =~ ^[Yy] ]] || { info "Skipping ${_name}."; continue; }
+    fi
+    case "$tc" in
+      1) _bt_save "${_name}" \
+           BT_NAME "${_name}" BT_TYPE "s3"   BT_SOURCE "${_src}" BT_DELETE "${do_del}" \
+           BT_S3_ENDPOINT "${ep}" BT_S3_ACCESS_KEY "${ak}" BT_S3_SECRET_KEY "${sk}" \
+           BT_S3_BUCKET "${bkt}" BT_S3_PREFIX "${pfx_base}/${_name}" ;;
+      2) _bt_save "${_name}" \
+           BT_NAME "${_name}" BT_TYPE "ftp"  BT_SOURCE "${_src}" BT_DELETE "${do_del}" \
+           BT_FTP_HOST "${host}" BT_FTP_PORT "${port}" BT_FTP_USER "${user}" \
+           BT_FTP_PASS "${pass}" BT_FTP_DEST "${dest}/${_name}" BT_FTP_SSL "${ssl}" ;;
+      3) _bt_save "${_name}" \
+           BT_NAME "${_name}" BT_TYPE "sftp" BT_SOURCE "${_src}" BT_DELETE "${do_del}" \
+           BT_SFTP_HOST "${host}" BT_SFTP_PORT "${port}" BT_SFTP_USER "${user}" \
+           BT_SFTP_KEY "${key}" BT_SFTP_DEST "${dest}/${_name}" ;;
+    esac
+  done
+
+  local tr; tr="$(ask "Run dry-run test for all created profiles? [y/N]:" "n")"
+  if [[ "$tr" =~ ^[Yy] ]]; then
+    _i=0
+    while [ "${_i}" -lt "${#_sources[@]}" ]; do
+      _name="${_sources[$_i]}"; _i=$((_i+2))
+      [ -f "$(_bt_file "${_name}")" ] && _run_one "${_name}" "dry"
+    done
+  fi
 }
 
 a_list() {
@@ -328,12 +393,37 @@ a_list() {
 }
 
 a_delete() {
-  BT_PICKED=""
-  _bt_pick || return 0
-  local cf; cf="$(ask "Delete profile '${BT_PICKED}'? [y/N]:" "n")"
+  hd "Delete backup profile(s)"
+  local names=() n
+  while IFS= read -r n; do names+=("$n"); done < <(_bt_list)
+  [ ${#names[@]} -gt 0 ] || { warn "No profiles configured."; return 0; }
+
+  MENU=()
+  for n in "${names[@]}"; do
+    local _desc
+    _desc="$(
+      _bt_load "${n}" 2>/dev/null || true
+      case "${BT_TYPE:-}" in
+        s3)   printf '[s3]   %s → s3://%s' "${BT_SOURCE:-?}" "${BT_S3_BUCKET:-?}" ;;
+        ftp)  printf '[ftp]  %s → %s' "${BT_SOURCE:-?}" "${BT_FTP_HOST:-?}" ;;
+        sftp) printf '[sftp] %s → %s@%s' "${BT_SOURCE:-?}" "${BT_SFTP_USER:-?}" "${BT_SFTP_HOST:-?}" ;;
+        *)    printf '[?] %s' "${BT_SOURCE:-?}" ;;
+      esac
+    )"
+    MENU+=("Profile|${n}|${_desc}")
+  done
+
+  checkbox "Select profiles to delete:" || { info "Cancelled."; return 0; }
+  [ "${#CHOSEN_KEYS[@]}" -eq 0 ] && { info "Nothing selected."; return 0; }
+
+  warn "Will permanently delete ${#CHOSEN_KEYS[@]} profile(s): ${CHOSEN_KEYS[*]}"
+  local cf; cf="$(ask "Confirm? [y/N]:" "n")"
   [[ "$cf" =~ ^[Yy] ]] || { info "Cancelled."; return 0; }
-  rm -f "$(_bt_file "${BT_PICKED}")"
-  ok "Profile '${BT_PICKED}' deleted."
+
+  for n in "${CHOSEN_KEYS[@]}"; do
+    rm -f "$(_bt_file "${n}")"
+    ok "Deleted: ${n}"
+  done
 }
 
 a_run()  { BT_PICKED=""; _bt_pick || return 0; _run_one "${BT_PICKED}"; }
@@ -449,14 +539,15 @@ case "${1:-}" in
     fi
     exit 0 ;;
   --delete)
-    [ -n "${2:-}" ] || { printf "Usage: %s --delete <profile>\n" "$0" >&2; exit 1; }
-    hd "Delete profile — ${2}"
-    warn "This removes profile '${2}' permanently."
-    BT_DEL_YN="$(ask "Delete '${2}'? [y/N]:" "n")"
-    case "${BT_DEL_YN}" in
-      y|Y|yes) rm -f "$(_bt_file "${2}")"; ok "Profile '${2}' deleted." ;;
-      *)       info "Cancelled." ;;
-    esac
+    [ -n "${2:-}" ] || { printf "Usage: %s --delete <profile> [profile2 ...]\n" "$0" >&2; exit 1; }
+    hd "Delete profile(s)"
+    for _dp in "${@:2}"; do
+      if [ -f "$(_bt_file "${_dp}")" ]; then
+        rm -f "$(_bt_file "${_dp}")"; ok "Deleted: ${_dp}"
+      else
+        warn "Profile not found: ${_dp}"
+      fi
+    done
     exit 0 ;;
 esac
 
