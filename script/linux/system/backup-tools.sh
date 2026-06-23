@@ -147,6 +147,15 @@ _need_pg_dump()   { _try_install pg_dump   apt install -y postgresql-client; }
 _need_sqlite3()   { _try_install sqlite3   apt install -y sqlite3; }
 _need_mongodump() { have mongodump || { err "'mongodump' required. See: mongodb.com/try/download/database-tools"; return 1; }; }
 _need_openssl()   { _try_install openssl   apt install -y openssl; }
+_need_rclone() {
+  have rclone && return 0
+  warn "'rclone' not found."
+  local ans; ans="$(ask "Install rclone now? [Y/n]:" "y")"
+  [[ "${ans,,}" =~ ^n ]] && return 1
+  curl -fsSL https://rclone.org/install.sh | bash || { err "rclone install failed."; return 1; }
+  have rclone || { err "'rclone' not in PATH."; return 1; }
+  ok "rclone installed."
+}
 
 # --- DB dump / encrypt -------------------------------------------------------
 _bt_db_dump() {
@@ -365,6 +374,30 @@ _run_s3() {
   local args=()
   [ "${BT_DELETE:-0}" = "1" ] && args+=("--delete")
   [ -n "$dry" ] && args+=("--dryrun")
+  # rclone preferred — no chunked-upload issues with S3-compatible endpoints
+  _need_rclone 2>/dev/null || true
+  if have rclone; then
+    info "Engine  : rclone sync"
+    local _rc_cfg; _rc_cfg="$(mktemp)"
+    cat > "${_rc_cfg}" <<EOF
+[bt_s3]
+type = s3
+provider = Other
+access_key_id = ${BT_S3_ACCESS_KEY}
+secret_access_key = ${BT_S3_SECRET_KEY}
+endpoint = ${BT_S3_ENDPOINT}
+acl = private
+EOF
+    local rargs=("--config=${_rc_cfg}" "--no-update-modtime" "-v")
+    [ "${BT_DELETE:-0}" = "1" ] && rargs+=("--delete-during") || rargs+=("--ignore-existing")
+    [ -n "$dry" ] && rargs+=("--dry-run")
+    rclone sync "${BT_SOURCE}/" "bt_s3:${BT_S3_BUCKET}/${prefix}" "${rargs[@]}"
+    local _rc=$?
+    rm -f "${_rc_cfg}"
+    return $_rc
+  fi
+
+  # fallback: aws cli — force path-style + disable payload signing for S3-compat
   local _aws_cfg; _aws_cfg="$(mktemp)"
   cat > "${_aws_cfg}" <<'_AWSCFG'
 [default]
@@ -373,10 +406,12 @@ s3 =
   multipart_threshold = 256MB
   multipart_chunksize = 64MB
   max_concurrent_requests = 4
+  addressing_style = path
 _AWSCFG
   AWS_CONFIG_FILE="${_aws_cfg}" \
   AWS_ACCESS_KEY_ID="${BT_S3_ACCESS_KEY}" \
   AWS_SECRET_ACCESS_KEY="${BT_S3_SECRET_KEY}" \
+  AWS_DEFAULT_REGION="${BT_S3_REGION:-us-east-1}" \
     aws s3 sync "${BT_SOURCE}/" "s3://${BT_S3_BUCKET}/${prefix}" \
       --endpoint-url "${BT_S3_ENDPOINT}" \
       --no-progress \
