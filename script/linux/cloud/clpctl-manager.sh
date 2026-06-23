@@ -82,8 +82,8 @@ MENU=(
   "Sites|site_php|add PHP site"
   "Sites|site_nodejs|add Node.js site"
   "Sites|site_python|add Python site"
-  "Sites|site_static|add Static site"
-  "Sites|site_proxy|add Reverse Proxy"
+  "Sites|site_static|add static site"
+  "Sites|site_proxy|add reverse proxy"
   "Sites|site_delete|delete site"
   "Users|user_add|add user"
   "Users|user_delete|delete user"
@@ -97,7 +97,7 @@ MENU=(
   "vHost Templates|vht_view|view"
   "System|perms_reset|reset permissions"
   "System|varnish_purge|purge varnish cache"
-  "Config|clear_cfg|Clear saved config (domains, versions, paths)"
+  "Config|clear_cfg|clear saved config (domains, versions, paths)"
 )
 
 # ---- run ----------------------------------------------------------------

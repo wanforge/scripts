@@ -33,16 +33,16 @@ pm_install() {
 
 # ---- menu ---------------------------------------------------------------
 MENU=(
-  "Overview|uptime|Uptime, load average, logged-in users"
+  "Overview|uptime|uptime, load average, logged-in users"
   "CPU|cpu|CPU model, cores, current load"
   "Memory|memory|RAM and swap usage"
-  "Storage|disk|Disk usage + inodes"
-  "Storage|bigdirs|Largest directories under a path"
-  "Processes|topcpu|Top processes by CPU"
-  "Processes|topmem|Top processes by memory"
-  "Network|net|Interfaces and listening sockets"
-  "Sensors|temp|Temperatures (needs lm-sensors)"
-  "Tools|tools|Install htop, btop, ncdu, glances, iotop"
+  "Storage|disk|disk usage + inodes"
+  "Storage|bigdirs|largest directories under a path"
+  "Processes|topcpu|top processes by CPU"
+  "Processes|topmem|top processes by memory"
+  "Network|net|interfaces and listening sockets"
+  "Sensors|temp|temperatures (needs lm-sensors)"
+  "Tools|tools|install htop, btop, ncdu, glances, iotop"
 )
 
 # render the live sections (used once, or repeatedly in watch mode)

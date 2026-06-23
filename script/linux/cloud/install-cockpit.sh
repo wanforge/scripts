@@ -26,17 +26,17 @@ svc_enable_start() { local s="$1"; run ${SUDO} systemctl enable "$s" >/dev/null 
 
 # ---- menu ---------------------------------------------------------------
 MENU=(
-  "Core|cockpit|Web console: install, enable, start"
-  "Core|ufw-9090|Open port 9090 in ufw (skip if proxied by CloudPanel)"
-  "Proxy|cockpit-conf|Reverse-proxy config (AllowOrigins, X-Forwarded-Proto)"
-  "Network|networkmanager|Install NetworkManager + netplan renderer (risky)"
-  "Plugins|cockpit-networkmanager|Networking management"
-  "Plugins|cockpit-storaged|Storage management"
-  "Plugins|cockpit-sosreport|Diagnostic reports"
-  "Plugins|cockpit-pcp|Performance metrics (PCP)"
+  "Core|cockpit|web console: install, enable, start"
+  "Core|ufw-9090|open port 9090 in ufw (skip if proxied by CloudPanel)"
+  "Proxy|cockpit-conf|reverse-proxy config (AllowOrigins, X-Forwarded-Proto)"
+  "Network|networkmanager|install NetworkManager + netplan renderer (risky)"
+  "Plugins|cockpit-networkmanager|networking management"
+  "Plugins|cockpit-storaged|storage management"
+  "Plugins|cockpit-sosreport|diagnostic reports"
+  "Plugins|cockpit-pcp|performance metrics (PCP)"
   "Plugins|cockpit-machines|KVM / libvirt virtual machines"
-  "Plugins|cockpit-podman|Podman containers"
-  "Metrics|pmcd-pmlogger|Enable pmcd + pmlogger services"
+  "Plugins|cockpit-podman|podman containers"
+  "Metrics|pmcd-pmlogger|enable pmcd + pmlogger services"
 )
 
 a_uninstall() {

@@ -35,13 +35,13 @@ pkg_name() { case "$1" in micro|curl|wget|git) echo "$1" ;; esac; }
 # ---- menu ---------------------------------------------------------------
 # Base essentials only. Python lives in install-python.sh; speedtest in net-tools.
 MENU=(
-  "System|update|Refresh package index"
-  "System|upgrade|Upgrade installed packages"
-  "System|cleanup|Autoremove + clean cache"
-  "Editor|micro|Modern terminal text editor"
-  "Network|curl|Transfer data / fetch URLs"
-  "Network|wget|Download files over HTTP/FTP"
-  "VCS|git|Distributed version control"
+  "System|update|refresh package index"
+  "System|upgrade|upgrade installed packages"
+  "System|cleanup|autoremove + clean cache"
+  "Editor|micro|modern terminal text editor"
+  "Network|curl|transfer data / fetch URLs"
+  "Network|wget|download files over HTTP/FTP"
+  "VCS|git|distributed version control"
 )
 
 # ---- run ----------------------------------------------------------------

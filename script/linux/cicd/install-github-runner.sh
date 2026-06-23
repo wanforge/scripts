@@ -272,15 +272,15 @@ a_remove() {
 
 # ---- menu (single-select TUI) -------------------------------------------
 MENU=(
-  "Runners|install|Install a new self-hosted runner"
-  "Runners|list|List runners on this host"
-  "Manage|status|Status of a runner"
-  "Manage|logs|View logs (journald) of a runner"
-  "Manage|start|Start a runner service"
-  "Manage|stop|Stop a runner service"
-  "Manage|restart|Restart a runner service"
-  "Manage|remove|Unregister & remove a runner"
-  "Config|clear_cfg|Clear saved config (scope, name, labels, etc.)"
+  "Runners|install|install a new self-hosted runner"
+  "Runners|list|list runners on this host"
+  "Manage|status|status of a runner"
+  "Manage|logs|view logs (journald) of a runner"
+  "Manage|start|start a runner service"
+  "Manage|stop|stop a runner service"
+  "Manage|restart|restart a runner service"
+  "Manage|remove|unregister & remove a runner"
+  "Config|clear_cfg|clear saved config (scope, name, labels, etc.)"
 )
 
 # ---- run ----------------------------------------------------------------

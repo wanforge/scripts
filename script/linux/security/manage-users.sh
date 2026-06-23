@@ -105,8 +105,8 @@ clear_ssh_keys() {
   local u="$1" file ans
   file="$(ssh_key_file "$u")"
   [ -e "$file" ] || { info "No authorized_keys file for ${u}."; return 0; }
-  ans="$(ask "Delete all SSH keys for ${u}? [y/N]:" "n")"
-  case "$ans" in y|Y|yes) run ${SUDO} rm -f "$file"; ok "SSH keys removed for ${u}." ;; *) info "Cancelled." ;; esac
+  confirm_critical "delete all SSH keys for ${u} (${file})" || return 0
+  run ${SUDO} rm -f "$file"; ok "SSH keys removed for ${u}."
 }
 
 list_users() {
@@ -224,7 +224,7 @@ MENU=(
   "SSH|ssh_add|add SSH public key"
   "SSH|ssh_clear|remove SSH keys"
   "Info|view|show user details"
-  "Config|clear_cfg|Clear saved config (shell default, sudo default)"
+  "Config|clear_cfg|clear saved config (shell default, sudo default)"
 )
 
 # ---- run ----------------------------------------------------------------

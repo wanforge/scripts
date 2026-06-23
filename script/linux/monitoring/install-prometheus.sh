@@ -61,7 +61,7 @@ MENU=(
   "Prometheus|prometheus|Prometheus server (port 9090)"
   "Exporters|node|Node exporter — host CPU/RAM/disk metrics (port 9100)"
   "Alerting|alertmanager|Alertmanager — routes alerts (port 9093)"
-  "Firewall|firewall|Open the selected ports in ufw"
+  "Firewall|firewall|open selected ports in ufw"
 )
 checkbox "Select Prometheus components:" || { warn "Cancelled."; exit 0; }
 [ "${#CHOSEN_KEYS[@]}" -eq 0 ] && { warn "Nothing selected."; exit 0; }

@@ -85,14 +85,12 @@ _bt_pick() {
   while IFS= read -r n; do names+=("$n"); done < <(_bt_list)
   [ ${#names[@]} -gt 0 ] || { warn "No profiles. Add one first."; return 1; }
   if [ ${#names[@]} -eq 1 ]; then BT_PICKED="${names[0]}"; return 0; fi
-  hd "Select profile"
+  MENU=()
   local i; for i in "${!names[@]}"; do
-    printf "  %b%d)%b %s\n" "${C_CYAN}" "$((i+1))" "${C_RESET}" "${names[$i]}" >&2
+    MENU+=("Profiles|${names[$i]}|${names[$i]}")
   done
-  local ch; ch="$(ask "Profile number [1]:" "1")"; ch="${ch:-1}"
-  [[ "$ch" =~ ^[0-9]+$ ]] && [ "$ch" -ge 1 ] && [ "$ch" -le "${#names[@]}" ] \
-    || { err "Invalid selection."; return 1; }
-  BT_PICKED="${names[$((ch-1))]}"
+  menu_select "Select profile:" || return 1
+  BT_PICKED="${MENU_KEY}"
 }
 
 # list /home/* dirs (and /root) as backup source candidates
@@ -428,26 +426,18 @@ _a_add_db() {
     [[ "${ow}" =~ ^[Yy] ]] || return 0
   fi
 
-  hd "Database type"
-  printf "  %b1)%b MySQL / MariaDB\n" "${C_CYAN}" "${C_RESET}" >&2
-  printf "  %b2)%b PostgreSQL\n"       "${C_CYAN}" "${C_RESET}" >&2
-  printf "  %b3)%b SQLite\n"           "${C_CYAN}" "${C_RESET}" >&2
-  printf "  %b4)%b MongoDB\n"          "${C_CYAN}" "${C_RESET}" >&2
-  printf "  %b5)%b Redis\n"            "${C_CYAN}" "${C_RESET}" >&2
-  local dbt; dbt="$(ask "Type [1]:" "1")"; dbt="${dbt:-1}"
+  MENU=(
+    "DB|mysql|MySQL / MariaDB — mysqldump, all DBs or single"
+    "DB|postgresql|PostgreSQL — pg_dump / pg_dumpall"
+    "DB|sqlite|SQLite — .dump to SQL"
+    "DB|mongodb|MongoDB — mongodump (tar.gz)"
+    "DB|redis|Redis — BGSAVE + RDB copy"
+  )
+  menu_select "Database type:" || return 0
 
-  local db_type db_host="" db_port="" db_user="" db_pass="" db_name="" db_socket=""
-  case "$dbt" in
-    1) db_type="mysql" ;;
-    2) db_type="postgresql" ;;
-    3) db_type="sqlite" ;;
-    4) db_type="mongodb" ;;
-    5) db_type="redis" ;;
-    *) err "Invalid DB type."; return 1 ;;
-  esac
-
-  case "$dbt" in
-    1)
+  local db_type="${MENU_KEY}" db_host="" db_port="" db_user="" db_pass="" db_name="" db_socket=""
+  case "$db_type" in
+    mysql)
       db_host="$(ask_cfg   CFG_BT_DB_HOST   "DB Host:"                        "localhost")"
       db_port="$(ask_cfg   CFG_BT_DB_PORT   "DB Port:"                        "3306")"
       db_user="$(ask_cfg   CFG_BT_DB_USER   "DB Username:"                    "root")"
@@ -455,25 +445,25 @@ _a_add_db() {
       db_socket="$(ask_cfg CFG_BT_DB_SOCK   "MySQL socket (blank=use tcp):"   "")"
       db_name="$(ask_cfg   CFG_BT_DB_NAME   "Database name ('all'=all DBs):"  "all")"
       ;;
-    2)
+    postgresql)
       db_host="$(ask_cfg  CFG_BT_DB_HOST   "DB Host:"                         "localhost")"
       db_port="$(ask_cfg  CFG_BT_DB_PORT   "DB Port:"                         "5432")"
       db_user="$(ask_cfg  CFG_BT_DB_USER   "DB Username:"                     "postgres")"
       db_pass="$(asks_cfg CFG_BT_DB_PASS   "DB Password:")"
       db_name="$(ask_cfg  CFG_BT_DB_NAME   "Database name ('all'=dump all DBs, requires admin):" "all")"
       ;;
-    3)
+    sqlite)
       info "Provide the full path to the .db / .sqlite file on this server."
       db_name="$(ask_cfg  CFG_BT_DB_NAME   "SQLite file path:"                "")"
       ;;
-    4)
+    mongodb)
       db_host="$(ask_cfg  CFG_BT_DB_HOST   "DB Host:"                         "localhost")"
       db_port="$(ask_cfg  CFG_BT_DB_PORT   "DB Port:"                         "27017")"
       db_user="$(ask_cfg  CFG_BT_DB_USER   "DB Username (blank=no auth):"     "")"
       db_pass="$(asks_cfg CFG_BT_DB_PASS   "DB Password:")"
       db_name="$(ask_cfg  CFG_BT_DB_NAME   "Database name ('all'=all DBs):"   "all")"
       ;;
-    5)
+    redis)
       db_host="$(ask_cfg  CFG_BT_DB_HOST   "Redis Host:"                      "127.0.0.1")"
       db_port="$(ask_cfg  CFG_BT_DB_PORT   "Redis Port:"                      "6379")"
       db_pass="$(asks_cfg CFG_BT_DB_PASS   "Redis Password (blank=none):")"
@@ -483,44 +473,50 @@ _a_add_db() {
   hd "Encryption"
   info "Dump is encrypted before upload. Passphrase stored in profile (chmod 600)."
   info "Encrypted filename: <profile>_<timestamp>.sql.gz.enc  (decrypt: openssl enc -d -aes-256-cbc -pbkdf2)"
-  printf "  %b1)%b None — store dump as-is\n"                      "${C_CYAN}" "${C_RESET}" >&2
-  printf "  %b2)%b AES-256-CBC (openssl pbkdf2, passphrase-based)\n" "${C_CYAN}" "${C_RESET}" >&2
-  local enc_c; enc_c="$(ask "Choose [1]:" "1")"; enc_c="${enc_c:-1}"
+  MENU=(
+    "Encryption|none|None — store dump as-is"
+    "Encryption|aes|AES-256-CBC (openssl pbkdf2, passphrase-based)"
+  )
+  menu_select "Encryption:" || return 0
   local do_enc=0 enc_pass=""
-  if [ "${enc_c}" = "2" ]; then
+  if [ "${MENU_KEY}" = "aes" ]; then
     do_enc=1; enc_pass="$(asks_cfg CFG_BT_ENCRYPT_PASS "Encryption passphrase:")"
   fi
 
-  hd "Destination type"
-  printf "  %b1)%b S3 / S3-compatible (AWS, IDCloudHost, MinIO…)\n" "${C_CYAN}" "${C_RESET}" >&2
-  printf "  %b2)%b FTP / FTPS\n"                                     "${C_CYAN}" "${C_RESET}" >&2
-  printf "  %b3)%b SFTP (SSH + rsync)\n"                             "${C_CYAN}" "${C_RESET}" >&2
-  local tc; tc="$(ask "Type [1]:" "1")"; tc="${tc:-1}"
+  MENU=(
+    "Destination|s3|S3 / S3-compatible (AWS, IDCloudHost, MinIO…)"
+    "Destination|ftp|FTP / FTPS"
+    "Destination|sftp|SFTP (SSH + rsync)"
+  )
+  menu_select "Destination type:" || return 0
+  local tc="${MENU_KEY}"
 
-  local ep ak sk bkt pfx host port user pass dest ssl_c ssl key
+  local ep ak sk bkt pfx host port user pass dest ssl key
   case "$tc" in
-    1)
+    s3)
       ep="$(ask_cfg  CFG_BT_S3_ENDPOINT   "S3 Endpoint URL:"   "https://is3.cloudhost.id")"
       ak="$(ask_cfg  CFG_BT_S3_ACCESS_KEY "S3 Access Key:"     "")"
       sk="$(asks_cfg CFG_BT_S3_SECRET_KEY "S3 Secret Key:")"
       bkt="$(ask_cfg CFG_BT_S3_BUCKET     "S3 Bucket name:"    "")"
       pfx="$(ask_cfg CFG_BT_S3_PREFIX     "S3 Prefix:"         "${HOSTNAME_S}/${name}")"
       ;;
-    2)
+    ftp)
       host="$(ask_cfg  CFG_BT_FTP_HOST "FTP Host:"      "")"; port="$(ask_cfg CFG_BT_FTP_PORT "FTP Port:" "21")"
       user="$(ask_cfg  CFG_BT_FTP_USER "FTP Username:"  "")"; pass="$(asks_cfg CFG_BT_FTP_PASS "FTP Password:")"
       dest="$(ask_cfg  CFG_BT_FTP_DEST "Remote path:"   "/backups")"
-      printf "  %b1)%b No SSL   %b2)%b Explicit TLS   %b3)%b Implicit TLS\n" \
-        "${C_CYAN}" "${C_RESET}" "${C_CYAN}" "${C_RESET}" "${C_CYAN}" "${C_RESET}" >&2
-      ssl_c="$(ask "SSL mode [1]:" "1")"; ssl_c="${ssl_c:-1}"
-      case "$ssl_c" in 2) ssl="explicit" ;; 3) ssl="implicit" ;; *) ssl="off" ;; esac
+      MENU=(
+        "SSL|off|No SSL"
+        "SSL|explicit|Explicit TLS (STARTTLS)"
+        "SSL|implicit|Implicit TLS (port 990)"
+      )
+      menu_select "FTP SSL mode:" || return 0
+      ssl="${MENU_KEY}"
       ;;
-    3)
+    sftp)
       host="$(ask_cfg  CFG_BT_SFTP_HOST "SFTP Host:"                  "")"; port="$(ask_cfg CFG_BT_SFTP_PORT "SFTP Port:" "22")"
       user="$(ask_cfg  CFG_BT_SFTP_USER "SFTP Username:"              "")"; key="$(ask_cfg CFG_BT_SFTP_KEY "SSH key (blank=agent):" "")"
       dest="$(ask_cfg  CFG_BT_SFTP_DEST "Remote destination path:"    "/backups")"
       ;;
-    *) err "Invalid destination type."; return 1 ;;
   esac
 
   local bt_src
@@ -534,21 +530,21 @@ _a_add_db() {
   esac
 
   case "$tc" in
-    1) _bt_save "${name}" \
+    s3) _bt_save "${name}" \
          BT_NAME "${name}" BT_TYPE "s3"   BT_SOURCE_TYPE "db" BT_SOURCE "${bt_src}" BT_DELETE "0" \
          BT_DB_TYPE "${db_type}" BT_DB_HOST "${db_host}" BT_DB_PORT "${db_port}" \
          BT_DB_USER "${db_user}" BT_DB_PASS "${db_pass}" BT_DB_NAME "${db_name}" BT_DB_SOCKET "${db_socket}" \
          BT_ENCRYPT "${do_enc}" BT_ENCRYPT_PASS "${enc_pass}" \
          BT_S3_ENDPOINT "${ep}" BT_S3_ACCESS_KEY "${ak}" BT_S3_SECRET_KEY "${sk}" \
          BT_S3_BUCKET "${bkt}" BT_S3_PREFIX "${pfx}" ;;
-    2) _bt_save "${name}" \
+    ftp) _bt_save "${name}" \
          BT_NAME "${name}" BT_TYPE "ftp"  BT_SOURCE_TYPE "db" BT_SOURCE "${bt_src}" BT_DELETE "0" \
          BT_DB_TYPE "${db_type}" BT_DB_HOST "${db_host}" BT_DB_PORT "${db_port}" \
          BT_DB_USER "${db_user}" BT_DB_PASS "${db_pass}" BT_DB_NAME "${db_name}" BT_DB_SOCKET "${db_socket}" \
          BT_ENCRYPT "${do_enc}" BT_ENCRYPT_PASS "${enc_pass}" \
          BT_FTP_HOST "${host}" BT_FTP_PORT "${port}" BT_FTP_USER "${user}" \
          BT_FTP_PASS "${pass}" BT_FTP_DEST "${dest}" BT_FTP_SSL "${ssl:-off}" ;;
-    3) _bt_save "${name}" \
+    sftp) _bt_save "${name}" \
          BT_NAME "${name}" BT_TYPE "sftp" BT_SOURCE_TYPE "db" BT_SOURCE "${bt_src}" BT_DELETE "0" \
          BT_DB_TYPE "${db_type}" BT_DB_HOST "${db_host}" BT_DB_PORT "${db_port}" \
          BT_DB_USER "${db_user}" BT_DB_PASS "${db_pass}" BT_DB_NAME "${db_name}" BT_DB_SOCKET "${db_socket}" \
@@ -565,11 +561,12 @@ a_add() {
   hd "Add backup profile(s)"
 
   # --- step 0: source type ---
-  hd "Source type"
-  printf "  %b1)%b Directory / files\n" "${C_CYAN}" "${C_RESET}" >&2
-  printf "  %b2)%b Database (MySQL, MariaDB, PostgreSQL, SQLite, MongoDB, Redis)\n" "${C_CYAN}" "${C_RESET}" >&2
-  local _st; _st="$(ask "Choose [1]:" "1")"; _st="${_st:-1}"
-  if [ "${_st}" = "2" ]; then _a_add_db; return $?; fi
+  MENU=(
+    "Source|dir|Directory / files — sync a folder to S3/FTP/SFTP"
+    "Source|db|Database — dump MySQL, MariaDB, PostgreSQL, SQLite, MongoDB, or Redis"
+  )
+  menu_select "What do you want to back up?" || return 0
+  if [ "${MENU_KEY}" = "db" ]; then _a_add_db; return $?; fi
 
   # --- step 1: select source(s) via checkbox ---
   local _hdir _homes=()
@@ -630,40 +627,44 @@ a_add() {
   [[ "$del" =~ ^[Yy] ]] && do_del=1
 
   # --- step 3: destination (asked once, applied to all profiles) ---
-  hd "Destination type (applies to all selected users)"
-  printf "  %b1)%b S3 / S3-compatible (AWS, IDCloudHost, MinIO…)\n" "${C_CYAN}" "${C_RESET}" >&2
-  printf "  %b2)%b FTP / FTPS\n"                                     "${C_CYAN}" "${C_RESET}" >&2
-  printf "  %b3)%b SFTP (SSH + rsync)\n"                             "${C_CYAN}" "${C_RESET}" >&2
-  local tc; tc="$(ask "Type [1]:" "1")"; tc="${tc:-1}"
+  MENU=(
+    "Destination|s3|S3 / S3-compatible (AWS, IDCloudHost, MinIO…)"
+    "Destination|ftp|FTP / FTPS"
+    "Destination|sftp|SFTP (SSH + rsync)"
+  )
+  menu_select "Destination type (applies to all selected profiles):" || return 0
+  local tc="${MENU_KEY}"
 
-  local ep ak sk bkt pfx_base host port user pass dest ssl_c ssl key
+  local ep ak sk bkt pfx_base host port user pass dest ssl key
   case "$tc" in
-    1)
+    s3)
       ep="$(ask_cfg  CFG_BT_S3_ENDPOINT   "S3 Endpoint URL:"                        "https://is3.cloudhost.id")"
       ak="$(ask_cfg  CFG_BT_S3_ACCESS_KEY "S3 Access Key:"                          "")"
       sk="$(asks_cfg CFG_BT_S3_SECRET_KEY "S3 Secret Key:")"
       bkt="$(ask_cfg CFG_BT_S3_BUCKET     "S3 Bucket name:"                         "")"
       pfx_base="$(ask_cfg CFG_BT_S3_PREFIX "S3 Prefix base (profile name appended):" "${HOSTNAME_S}")"
       ;;
-    2)
+    ftp)
       host="$(ask_cfg  CFG_BT_FTP_HOST "FTP Host:"                                  "")"
       port="$(ask_cfg  CFG_BT_FTP_PORT "FTP Port:"                                  "21")"
       user="$(ask_cfg  CFG_BT_FTP_USER "FTP Username:"                              "")"
       pass="$(asks_cfg CFG_BT_FTP_PASS "FTP Password:")"
       dest="$(ask_cfg  CFG_BT_FTP_DEST "Remote base path (profile name appended):"  "/backups")"
-      printf "  %b1)%b No SSL   %b2)%b Explicit TLS   %b3)%b Implicit TLS\n" \
-        "${C_CYAN}" "${C_RESET}" "${C_CYAN}" "${C_RESET}" "${C_CYAN}" "${C_RESET}" >&2
-      ssl_c="$(ask "SSL mode [1]:" "1")"; ssl_c="${ssl_c:-1}"
-      case "$ssl_c" in 2) ssl="explicit" ;; 3) ssl="implicit" ;; *) ssl="off" ;; esac
+      MENU=(
+        "SSL|off|No SSL"
+        "SSL|explicit|Explicit TLS (STARTTLS)"
+        "SSL|implicit|Implicit TLS (port 990)"
+      )
+      menu_select "FTP SSL mode:" || return 0
+      ssl="${MENU_KEY}"
       ;;
-    3)
+    sftp)
       host="$(ask_cfg  CFG_BT_SFTP_HOST "SFTP Host:"                                "")"
       port="$(ask_cfg  CFG_BT_SFTP_PORT "SFTP Port:"                                "22")"
       user="$(ask_cfg  CFG_BT_SFTP_USER "SFTP Username:"                            "")"
       key="$(ask_cfg   CFG_BT_SFTP_KEY  "SSH key path (blank=agent):"               "")"
       dest="$(ask_cfg  CFG_BT_SFTP_DEST "Remote base path (profile name appended):" "/backups")"
       ;;
-    *) err "Invalid type choice."; return 1 ;;
   esac
 
   # --- step 4: create one profile per source ---
@@ -676,15 +677,15 @@ a_add() {
       [[ "${_ow}" =~ ^[Yy] ]] || { info "Skipping ${_name}."; continue; }
     fi
     case "$tc" in
-      1) _bt_save "${_name}" \
+      s3) _bt_save "${_name}" \
            BT_NAME "${_name}" BT_TYPE "s3"   BT_SOURCE "${_src}" BT_DELETE "${do_del}" \
            BT_S3_ENDPOINT "${ep}" BT_S3_ACCESS_KEY "${ak}" BT_S3_SECRET_KEY "${sk}" \
            BT_S3_BUCKET "${bkt}" BT_S3_PREFIX "${pfx_base}/${_name}" ;;
-      2) _bt_save "${_name}" \
+      ftp) _bt_save "${_name}" \
            BT_NAME "${_name}" BT_TYPE "ftp"  BT_SOURCE "${_src}" BT_DELETE "${do_del}" \
            BT_FTP_HOST "${host}" BT_FTP_PORT "${port}" BT_FTP_USER "${user}" \
            BT_FTP_PASS "${pass}" BT_FTP_DEST "${dest}/${_name}" BT_FTP_SSL "${ssl}" ;;
-      3) _bt_save "${_name}" \
+      sftp) _bt_save "${_name}" \
            BT_NAME "${_name}" BT_TYPE "sftp" BT_SOURCE "${_src}" BT_DELETE "${do_del}" \
            BT_SFTP_HOST "${host}" BT_SFTP_PORT "${port}" BT_SFTP_USER "${user}" \
            BT_SFTP_KEY "${key}" BT_SFTP_DEST "${dest}/${_name}" ;;

@@ -100,17 +100,12 @@ case "${OS_ID}:${OS_VER}" in
   debian:11)    ENGINES=(MARIADB_10.6 MYSQL_8.0 MYSQL_5.7) ;;
   *)            ENGINES=(MARIADB_11.4 MARIADB_10.11 MYSQL_8.4 MYSQL_8.0) ;;
 esac
-idx=1
+MENU=()
 for e in "${ENGINES[@]}"; do
-  printf "    %b%d%b) %s\n" "${C_YELLOW}" "${idx}" "${C_RESET}" "${e}" >&2
-  idx=$((idx + 1))
+  MENU+=("DB Engine|${e}|${e}")
 done
-DB_CHOICE="$(ask_cfg CFG_DB_ENGINE_CHOICE "Select DB engine [1-${#ENGINES[@]}] (default 1 = ${ENGINES[0]}):" "1")"
-if ! [[ "${DB_CHOICE}" =~ ^[0-9]+$ ]] || [ "${DB_CHOICE}" -lt 1 ] || [ "${DB_CHOICE}" -gt "${#ENGINES[@]}" ]; then
-  warn "Invalid choice; using default ${ENGINES[0]}."
-  DB_CHOICE=1
-fi
-DB_ENGINE="${ENGINES[$((DB_CHOICE - 1))]}"
+menu_select "Select database engine:" || exit 0
+DB_ENGINE="${MENU_KEY}"
 ok "Database engine: ${DB_ENGINE}"
 
 # ---- step 3: download, verify checksum, install -------------------------

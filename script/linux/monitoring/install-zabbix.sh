@@ -77,7 +77,7 @@ else
   exit 1
 fi
 
-MENU=("Role|agent|Agent only (monitored host, port 10050)" "Role|server|Server + web frontend + database (full monitoring server)")
+MENU=("Role|agent|agent only (monitored host, port 10050)" "Role|server|server + web frontend + database (full stack)")
 menu_select "What to install?" || exit 0
 ROLE="${MENU_KEY}"
 

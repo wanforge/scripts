@@ -42,7 +42,7 @@ MENU=(
   "Python|python3|Python 3 interpreter"
   "Python|pip|pip — package manager"
   "Python|venv|venv / virtualenv — isolated environments"
-  "Python|dev|Dev headers (build C extensions)"
+  "Python|dev|dev headers (build C extensions)"
   "Python|pipx|pipx — install Python CLI apps in isolation"
 )
 

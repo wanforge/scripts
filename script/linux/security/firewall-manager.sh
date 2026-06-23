@@ -53,7 +53,7 @@ a_status()   { hd "Status (verbose)"; ufw_run status verbose >&2 || true; hd "Nu
 a_enable()   { uw --force enable; }
 a_disable()  { local c; c="$(ask "Disable the firewall? [y/N]:" "n")"; [[ "$c" =~ ^(y|Y|yes)$ ]] && uw disable || info "Kept enabled."; }
 a_reload()   { uw reload; }
-a_reset()    { warn "Reset DELETES ALL rules and disables ufw."; local c; c="$(ask "Type 'yes' to reset:" "no")"; [ "$c" = "yes" ] && uw --force reset || info "Aborted."; }
+a_reset()    { confirm_critical "reset ALL ufw rules and disable firewall" || return 0; uw --force reset; }
 a_default()  {
   local dir pol
   dir="$(ask_cfg CFG_FW_DEFAULT_DIR "Direction [incoming/outgoing/routed]:" "incoming")"
@@ -108,7 +108,7 @@ MENU=(
   "IP / subnet|deny_ip_port|deny IP → port"
   "Apps & rules|apps|app profiles"
   "Apps & rules|delete|delete rule"
-  "Config|clear_cfg|Clear saved config (default policy, logging)"
+  "Config|clear_cfg|clear saved config (default policy, logging)"
 )
 
 # ---- run ----------------------------------------------------------------
