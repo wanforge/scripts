@@ -189,6 +189,54 @@ curl -fsSL .../script/linux/runtime/install-nodejs.sh | TARGET_USER=john bash
 All menus (launcher and the `clpctl` / database / firewall managers) are
 arrow-key TUIs — `↑/↓` to move, `ENTER` to select, `Q` to go back.
 
+### Uninstall / rollback
+
+Install scripts support sub-commands for granular lifecycle control.
+Download the script first (pipe discards `$1`), then run with a flag:
+
+```bash
+curl -fsSL .../install-grafana.sh -o install-grafana.sh
+bash install-grafana.sh --stop        # stop service only
+bash install-grafana.sh --disable     # stop + disable autostart
+bash install-grafana.sh --enable      # enable + start
+bash install-grafana.sh --restart     # restart
+bash install-grafana.sh --status      # systemctl status (no-pager)
+bash install-grafana.sh --remove-cron # remove related cron entries
+bash install-grafana.sh --uninstall   # full removal (packages, repo, firewall rules)
+```
+
+**Available flags per script:**
+
+| Script                        |                   stop                   |   start    | restart |   enable   |   disable   | status | remove-cron |     uninstall      |
+| ----------------------------- | :--------------------------------------: | :--------: | :-----: | :--------: | :---------: | :----: | :---------: | :----------------: |
+| `install-fail2ban.sh`         |                    ✓                     |     ✓      |    ✓    |     ✓      |      ✓      |   ✓    |      ✓      |         ✓          |
+| `install-grafana.sh`          |                    ✓                     |     ✓      |    ✓    |     ✓      |      ✓      |   ✓    |      ✓      |         ✓          |
+| `install-prometheus.sh`       |                    ✓                     |     ✓      |    ✓    |     ✓      |      ✓      |   ✓    |      ✓      |         ✓          |
+| `install-zabbix.sh`           |                    ✓                     |     ✓      |    ✓    |     ✓      |      ✓      |   ✓    |      ✓      |         ✓          |
+| `install-cockpit.sh`          |                    ✓                     |     ✓      |    ✓    |     ✓      |      ✓      |   ✓    |      ✓      |         ✓          |
+| `install-postgresql.sh`       |                    ✓                     |     ✓      |    ✓    |     ✓      |      ✓      |   ✓    |      ✓      |        ✓ ⚠         |
+| `install-firewall.sh`         |               `--disable`                | `--enable` |    —    | `--enable` | `--disable` |   ✓    |      ✓      |         ✓          |
+| `install-firewall.sh` (extra) | `--reload` · `--reset` (wipes all rules) |            |         |            |             |        |             |                    |
+| `setup-pm2-app.sh`            |                    ✓                     |     ✓      |    ✓    |     —      |      —      |   ✓    |      ✓      |         ✓          |
+| `setup-pm2-app.sh` (extra)    |         `--logs` (tail app logs)         |            |         |            |             |        |             |                    |
+| `install-nodejs.sh`           |                    —                     |     —      |    —    |     —      |      —      |   —    |      ✓      |         ✓          |
+| `install-composer.sh`         |                    —                     |     —      |    —    |     —      |      —      |   —    |      —      |         ✓          |
+| `install-python.sh`           |                    —                     |     —      |    —    |     —      |      —      |   —    |      —      |         ✓          |
+| `enable-mysql-remote.sh`      |                    —                     |     —      |    —    |     —      |      —      |   —    |      —      |    ✓ (rollback)    |
+| `secure-ssh.sh`               |                    —                     |     —      |    —    |     —      |      —      |   —    |      —      | ✓ (restore backup) |
+| `generate-ssh-key.sh`         |                    —                     |     —      |    —    |     —      |      —      |   —    |      —      |         ✓          |
+| `install-cloudpanel.sh`       |                    —                     |     —      |    —    |     —      |      —      |   —    |      —      |  ✓ (manual steps)  |
+
+Service scripts (`--stop/start/restart/enable/disable/status`) use `systemctl` and
+operate on all services the script manages (e.g. prometheus also controls
+`prometheus-node-exporter` and `prometheus-alertmanager`).
+
+`--remove-cron` scans both the current user's and root's crontab for entries
+matching the service name and removes them.
+
+> **PostgreSQL `--uninstall`:** prompts twice — once for package removal, once for
+> `/var/lib/postgresql` data deletion. Answer carefully.
+
 ## Run a Single Script
 
 Each script can also be run directly without the launcher.
@@ -241,35 +289,35 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/runtime/setup-pm2-app.sh |
 
 ## Scripts Overview
 
-| Group           | Script                   | Purpose                                                           | Sudo | Distro          |
-| --------------- | ------------------------ | ----------------------------------------------------------------- | ---- | --------------- |
-| —               | `install.sh`             | Grouped checkbox launcher that runs the other scripts             | —    | Any             |
-| System          | `install-packages.sh`    | Update/upgrade system, install base essentials (micro/curl/wget/git) | Yes | Multi        |
-| System          | `set-timezone.sh`        | Set timezone via `timedatectl` (default `Asia/Jakarta`)           | Yes  | Any (systemd)   |
-| System          | `backup-tools.sh`        | Backup manager: S3 / FTP / SFTP — named profiles, cron, dry-run  | No   | Any             |
-| System          | `install-firewall.sh`    | Install `ufw`, open SSH/http/https, add custom ports, enable      | Yes  | Mainly Deb/Ubu  |
-| Security        | `firewall-manager.sh`    | Full ufw manager: allow/deny IP & port, multi-IP, rate-limit      | Yes  | Any (ufw)       |
-| Security        | `install-fail2ban.sh`    | Install and enable the Fail2Ban service                           | Yes  | Multi           |
-| Security        | `secure-ssh.sh`          | Change SSH port, disable root/password login, enable pubkey       | Yes  | Any (OpenSSH)   |
-| Security        | `manage-users.sh`        | Manage Linux users, sudo access, passwords, shells, and SSH keys  | Yes | Any             |
-| Security        | `generate-ssh-key.sh`    | Generate an ed25519 SSH key, fix perms, print public key          | No   | Any             |
-| Panel & Console | `install-cloudpanel.sh`  | Install CloudPanel CE v2, choose DB engine, verify checksum       | Yes  | Debian/Ubuntu   |
-| Panel & Console | `clpctl-manager.sh`      | Manage CloudPanel via `clpctl`: sites, db, users, certs, vhosts   | Yes  | CloudPanel      |
-| Panel & Console | `install-cockpit.sh`     | Install Cockpit + modules, reverse-proxy config, open port 9090   | Yes  | Debian/Ubuntu   |
-| Database        | `install-postgresql.sh`  | Install latest PostgreSQL (PGDG), create roles, remote access     | Yes  | Debian/Ubuntu   |
-| Database        | `enable-mysql-remote.sh` | Remote MySQL/MariaDB: bind-address, firewall, create users        | Yes  | Debian/Ubuntu   |
-| Database        | `database-toolkit.sh`    | Monitor / optimize / config / datetime — MySQL & PostgreSQL       | Yes  | Any (DB client) |
-| App Runtime     | `install-nodejs.sh`      | Install Node.js via nvm (user-local), choose version, PM2         | No   | Any             |
-| App Runtime     | `install-python.sh`      | Python 3 + pip, venv/virtualenv, dev headers, pipx (multi-distro) | Yes  | Multi           |
-| App Runtime     | `install-composer.sh`    | Install Composer to `~/.local/bin`, verify signature              | No   | Any (needs PHP) |
-| App Runtime     | `setup-pm2-app.sh`       | Configure pm2-logrotate + register an app (ecosystem.config.js)   | No   | Any             |
-| Monitoring      | `monitor-system.sh`      | CPU/RAM/storage/processes/network — snapshot or realtime watch    | Some | Any             |
-| Network         | `net-tools.sh`           | Local/public IP, ports, speedtest, ping/traceroute/dig/whois/scan | Some | Any             |
-| Proxmox         | `proxmox-toolkit.sh`     | PVE node/VM/CT resources, storage, cluster, realtime dashboard    | Yes  | Proxmox VE      |
+| Group           | Script                     | Purpose                                                                       | Sudo | Distro          |
+| --------------- | -------------------------- | ----------------------------------------------------------------------------- | ---- | --------------- |
+| —               | `install.sh`               | Grouped checkbox launcher that runs the other scripts                         | —    | Any             |
+| System          | `install-packages.sh`      | Update/upgrade system, install base essentials (micro/curl/wget/git)          | Yes  | Multi           |
+| System          | `set-timezone.sh`          | Set timezone via `timedatectl` (default `Asia/Jakarta`)                       | Yes  | Any (systemd)   |
+| System          | `backup-tools.sh`          | Backup manager: S3 / FTP / SFTP — named profiles, cron, dry-run               | No   | Any             |
+| System          | `install-firewall.sh`      | Install `ufw`, open SSH/http/https, add custom ports, enable                  | Yes  | Mainly Deb/Ubu  |
+| Security        | `firewall-manager.sh`      | Full ufw manager: allow/deny IP & port, multi-IP, rate-limit                  | Yes  | Any (ufw)       |
+| Security        | `install-fail2ban.sh`      | Install and enable the Fail2Ban service                                       | Yes  | Multi           |
+| Security        | `secure-ssh.sh`            | Change SSH port, disable root/password login, enable pubkey                   | Yes  | Any (OpenSSH)   |
+| Security        | `manage-users.sh`          | Manage Linux users, sudo access, passwords, shells, and SSH keys              | Yes  | Any             |
+| Security        | `generate-ssh-key.sh`      | Generate an ed25519 SSH key, fix perms, print public key                      | No   | Any             |
+| Panel & Console | `install-cloudpanel.sh`    | Install CloudPanel CE v2, choose DB engine, verify checksum                   | Yes  | Debian/Ubuntu   |
+| Panel & Console | `clpctl-manager.sh`        | Manage CloudPanel via `clpctl`: sites, db, users, certs, vhosts               | Yes  | CloudPanel      |
+| Panel & Console | `install-cockpit.sh`       | Install Cockpit + modules, reverse-proxy config, open port 9090               | Yes  | Debian/Ubuntu   |
+| Database        | `install-postgresql.sh`    | Install latest PostgreSQL (PGDG), create roles, remote access                 | Yes  | Debian/Ubuntu   |
+| Database        | `enable-mysql-remote.sh`   | Remote MySQL/MariaDB: bind-address, firewall, create users                    | Yes  | Debian/Ubuntu   |
+| Database        | `database-toolkit.sh`      | Monitor / optimize / config / datetime — MySQL & PostgreSQL                   | Yes  | Any (DB client) |
+| App Runtime     | `install-nodejs.sh`        | Install Node.js via nvm (user-local), choose version, PM2                     | No   | Any             |
+| App Runtime     | `install-python.sh`        | Python 3 + pip, venv/virtualenv, dev headers, pipx (multi-distro)             | Yes  | Multi           |
+| App Runtime     | `install-composer.sh`      | Install Composer to `~/.local/bin`, verify signature                          | No   | Any (needs PHP) |
+| App Runtime     | `setup-pm2-app.sh`         | Configure pm2-logrotate + register an app (ecosystem.config.js)               | No   | Any             |
+| Monitoring      | `monitor-system.sh`        | CPU/RAM/storage/processes/network — snapshot or realtime watch                | Some | Any             |
+| Network         | `net-tools.sh`             | Local/public IP, ports, speedtest, ping/traceroute/dig/whois/scan             | Some | Any             |
+| Proxmox         | `proxmox-toolkit.sh`       | PVE node/VM/CT resources, storage, cluster, realtime dashboard                | Yes  | Proxmox VE      |
 | CI/CD           | `install-github-runner.sh` | GitHub Actions self-hosted runner as a systemd service (avoid billed minutes) | Yes  | Linux           |
-| Observability   | `install-prometheus.sh`  | Prometheus + node_exporter + optional Alertmanager, scrape config | Yes  | Debian/Ubuntu   |
-| Observability   | `install-grafana.sh`     | Grafana (official repo) + auto Prometheus data source             | Yes  | Debian/Ubuntu   |
-| Observability   | `install-zabbix.sh`      | Zabbix agent or full server (frontend + MySQL schema)             | Yes  | Debian/Ubuntu   |
+| Observability   | `install-prometheus.sh`    | Prometheus + node_exporter + optional Alertmanager, scrape config             | Yes  | Debian/Ubuntu   |
+| Observability   | `install-grafana.sh`       | Grafana (official repo) + auto Prometheus data source                         | Yes  | Debian/Ubuntu   |
+| Observability   | `install-zabbix.sh`        | Zabbix agent or full server (frontend + MySQL schema)                         | Yes  | Debian/Ubuntu   |
 
 ## Script Details
 
@@ -302,11 +350,11 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/runtime/setup-pm2-app.sh |
 - Multi-destination backup manager. Manages **named profiles** (each a `~/.config/wanforge-scripts/backup-profiles/<name>.conf`, chmod 600). Pick a profile to add, run, test, or schedule — no global config, no cronjob clutter.
 - **Destination types** and their required tools:
 
-  | Type | Tool | Notes |
-  | ---- | ---- | ----- |
-  | `s3` | `aws` CLI (`pip3 install awscli`) | Custom `--endpoint-url` → AWS, IDCloudHost, MinIO, Backblaze B2, etc. |
-  | `ftp` | `lftp` (`apt install lftp`) | `lftp mirror -R` with optional SSL: off / explicit TLS / implicit TLS (FTPS) |
-  | `sftp` | `rsync` (`apt install rsync`) | `rsync -avz -e ssh`; SSH key path or agent; `--delete` optional |
+  | Type   | Tool                              | Notes                                                                        |
+  | ------ | --------------------------------- | ---------------------------------------------------------------------------- |
+  | `s3`   | `aws` CLI (`pip3 install awscli`) | Custom `--endpoint-url` → AWS, IDCloudHost, MinIO, Backblaze B2, etc.        |
+  | `ftp`  | `lftp` (`apt install lftp`)       | `lftp mirror -R` with optional SSL: off / explicit TLS / implicit TLS (FTPS) |
+  | `sftp` | `rsync` (`apt install rsync`)     | `rsync -avz -e ssh`; SSH key path or agent; `--delete` optional              |
 
 - **TUI menu** (arrow-key, loops until Q):
   - **Add profile** — wizard: name, source dir, sync-delete toggle, type, then type-specific credentials (secrets via masked input, saved securely).

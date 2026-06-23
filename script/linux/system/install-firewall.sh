@@ -29,8 +29,74 @@ pm_install() {
   esac
 }
 
+a_uninstall() {
+  hd "Uninstall UFW"
+  warn "This will disable UFW, reset all rules, and remove the package."
+  local yn; yn="$(ask "Remove ufw? [y/N]:" "n")"
+  case "${yn}" in y|Y|yes) ;; *) info "Cancelled."; return 0 ;; esac
+  run ${SUDO} ufw --force disable 2>/dev/null || true
+  run ${SUDO} ufw --force reset 2>/dev/null || true
+  local pm; pm="$(detect_pm)" || { err "No supported package manager."; return 1; }
+  case "${pm}" in
+    apt-get) run ${SUDO} apt-get purge -y ufw; run ${SUDO} apt-get autoremove -y ;;
+    dnf|yum) run ${SUDO} "${pm}" -y remove ufw ;;
+    pacman)  run ${SUDO} pacman -Rns --noconfirm ufw ;;
+    zypper)  run ${SUDO} zypper --non-interactive remove ufw ;;
+    apk)     run ${SUDO} apk del ufw ;;
+  esac
+  ok "UFW removed."
+}
+
 # ---- run ----------------------------------------------------------------
+case "${1:-}" in
+  --stop|--disable)
+    hd "Disable UFW"; run ${SUDO} ufw --force disable; ok "UFW disabled."; exit 0 ;;
+  --start|--enable)
+    hd "Enable UFW";  run ${SUDO} ufw --force enable;  ok "UFW enabled.";  exit 0 ;;
+  --reload)
+    hd "Reload UFW";  run ${SUDO} ufw reload;           ok "Reloaded.";    exit 0 ;;
+  --status)
+    hd "UFW Status";  ${SUDO} ufw status verbose 2>/dev/null || true;      exit 0 ;;
+  --reset)
+    hd "Reset UFW Rules"
+    warn "This will remove all custom UFW rules."
+    RST_YN="$(ask "Reset all rules? [y/N]:" "n")"
+    case "${RST_YN}" in
+      y|Y|yes) run ${SUDO} ufw --force reset; ok "Rules reset." ;;
+      *)       info "Cancelled." ;;
+    esac; exit 0 ;;
+  --remove-cron) hd "Remove Cron"; wf_cron_remove "ufw|firewall"; exit 0 ;;
+  --uninstall)   a_uninstall; exit $? ;;
+esac
 banner
+if [ -z "${1:-}" ]; then
+  MENU=(
+    "Manage|install|install / configure UFW"
+    "Manage|enable|enable firewall"
+    "Manage|disable|disable firewall"
+    "Manage|reload|reload rules"
+    "Manage|reset|reset all rules (dangerous)"
+    "Manage|status|show firewall status"
+    "Manage|remove_cron|remove related cron entries"
+    "Manage|uninstall|uninstall UFW"
+  )
+  menu_select "UFW Firewall — choose action:" || exit 0
+  case "${MENU_KEY}" in
+    enable)      hd "Enable UFW";  run ${SUDO} ufw --force enable;  ok "UFW enabled.";  exit 0 ;;
+    disable)     hd "Disable UFW"; run ${SUDO} ufw --force disable; ok "UFW disabled."; exit 0 ;;
+    reload)      hd "Reload UFW";  run ${SUDO} ufw reload;          ok "Reloaded.";     exit 0 ;;
+    status)      hd "UFW Status";  ${SUDO} ufw status verbose 2>/dev/null || true;      exit 0 ;;
+    reset)
+      hd "Reset UFW Rules"
+      warn "This will remove all custom UFW rules."
+      RST_YN="$(ask "Reset all rules? [y/N]:" "n")"
+      case "${RST_YN}" in y|Y|yes) run ${SUDO} ufw --force reset; ok "Rules reset." ;; *) info "Cancelled." ;; esac
+      exit 0 ;;
+    remove_cron) wf_cron_remove "ufw|firewall"; exit 0 ;;
+    uninstall)   a_uninstall; exit $? ;;
+    install|*)   ;;
+  esac
+fi
 PM="$(detect_pm)" || { err "No supported package manager found."; exit 1; }
 
 if ! command -v ufw >/dev/null 2>&1; then

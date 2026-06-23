@@ -23,8 +23,29 @@ cfg_load
 wf_log_init
 step() { printf "\n%b==> %s%b\n" "${C_BOLD}${C_CYAN}" "$1" "${C_RESET}" >&2; }
 
+a_uninstall() {
+  hd "Uninstall Grafana"
+  warn "This will stop Grafana, remove the package, APT repo, and keyring."
+  local yn; yn="$(ask "Remove Grafana? [y/N]:" "n")"
+  case "${yn}" in y|Y|yes) ;; *) info "Cancelled."; return 0 ;; esac
+  run ${SUDO} systemctl stop grafana-server 2>/dev/null || true
+  run ${SUDO} systemctl disable grafana-server 2>/dev/null || true
+  run ${SUDO} apt-get purge -y grafana 2>/dev/null || true
+  run ${SUDO} apt-get autoremove -y
+  run ${SUDO} rm -f /etc/apt/sources.list.d/grafana.list /etc/apt/keyrings/grafana.gpg
+  run ${SUDO} apt-get update 2>/dev/null || true
+  command -v ufw >/dev/null 2>&1 && { run ${SUDO} ufw delete allow 3000/tcp 2>/dev/null || true; }
+  ok "Grafana removed."
+}
+
 # ---- run ----------------------------------------------------------------
+wf_svc_dispatch "${1:-}" "Grafana" "grafana" grafana-server && exit $?
+[ "${1:-}" = "--uninstall" ] && { a_uninstall; exit $?; }
 banner
+if [ -z "${1:-}" ]; then
+  _WF_RC=0; wf_svc_menu "Grafana" "grafana" grafana-server || _WF_RC=$?
+  [ "${_WF_RC}" -eq 99 ] && { a_uninstall; exit $?; }
+fi
 command -v apt-get >/dev/null 2>&1 || { err "This script targets Debian/Ubuntu (apt)."; exit 1; }
 
 step "Add Grafana APT repository"

@@ -28,8 +28,33 @@ ufw_allow() {  # ufw_allow <port> <cidr>
   else run ${SUDO} ufw allow from "${2}" to any port "${1}" proto tcp; fi
 }
 
+a_uninstall() {
+  hd "Uninstall Prometheus Stack"
+  warn "This will stop and remove Prometheus, node_exporter, and Alertmanager."
+  local yn; yn="$(ask "Remove Prometheus components? [y/N]:" "n")"
+  case "${yn}" in y|Y|yes) ;; *) info "Cancelled."; return 0 ;; esac
+  for svc in prometheus prometheus-node-exporter prometheus-alertmanager; do
+    run ${SUDO} systemctl stop "${svc}" 2>/dev/null || true
+    run ${SUDO} systemctl disable "${svc}" 2>/dev/null || true
+  done
+  run ${SUDO} apt-get purge -y prometheus prometheus-node-exporter prometheus-alertmanager 2>/dev/null || true
+  run ${SUDO} apt-get autoremove -y
+  command -v ufw >/dev/null 2>&1 && {
+    for port in 9090 9100 9093; do
+      run ${SUDO} ufw delete allow "${port}/tcp" 2>/dev/null || true
+    done
+  }
+  ok "Prometheus stack removed."
+}
+
 # ---- run ----------------------------------------------------------------
+wf_svc_dispatch "${1:-}" "Prometheus" "prometheus" prometheus prometheus-node-exporter prometheus-alertmanager && exit $?
+[ "${1:-}" = "--uninstall" ] && { a_uninstall; exit $?; }
 banner
+if [ -z "${1:-}" ]; then
+  _WF_RC=0; wf_svc_menu "Prometheus" "prometheus" prometheus prometheus-node-exporter prometheus-alertmanager || _WF_RC=$?
+  [ "${_WF_RC}" -eq 99 ] && { a_uninstall; exit $?; }
+fi
 command -v apt-get >/dev/null 2>&1 || { err "This script targets Debian/Ubuntu (apt)."; exit 1; }
 
 MENU=(

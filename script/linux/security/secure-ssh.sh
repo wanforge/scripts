@@ -37,8 +37,41 @@ set_opt() {
   fi
 }
 
+a_uninstall() {
+  hd "Restore SSH Config"
+  local backup
+  backup="$(ls -t "${SSHD_MAIN}.bak."* 2>/dev/null | head -1 || true)"
+  if [ -z "${backup}" ] && [ ! -f "${DROPIN}" ]; then
+    info "No wanforge SSH backup or drop-in found. Nothing to restore."; return 0
+  fi
+  [ -n "${backup}" ] && warn "Will restore ${SSHD_MAIN} from: ${backup##*/}"
+  [ -f "${DROPIN}" ]  && warn "Will remove drop-in: ${DROPIN}"
+  local yn; yn="$(ask "Restore original SSH config? [y/N]:" "n")"
+  case "${yn}" in y|Y|yes) ;; *) info "Cancelled."; return 0 ;; esac
+  [ -n "${backup}" ] && run ${SUDO} cp "${backup}" "${SSHD_MAIN}"
+  [ -f "${DROPIN}" ]  && run ${SUDO} rm -f "${DROPIN}"
+  if ${SUDO} sshd -t; then
+    run ${SUDO} systemctl restart ssh 2>/dev/null || run ${SUDO} systemctl restart sshd 2>/dev/null || true
+    ok "SSH config restored. Test your connection before closing this session."
+  else
+    err "sshd config test FAILED after restore. Check ${SSHD_MAIN} manually."; return 1
+  fi
+}
+
 # ---- run ----------------------------------------------------------------
+[ "${1:-}" = "--uninstall" ] && { a_uninstall; exit $?; }
 banner
+if [ -z "${1:-}" ]; then
+  MENU=(
+    "Manage|configure|harden SSH configuration"
+    "Manage|rollback|restore original sshd_config from backup"
+  )
+  menu_select "SSH Hardening — choose action:" || exit 0
+  case "${MENU_KEY}" in
+    rollback)    a_uninstall; exit $? ;;
+    configure|*) ;;
+  esac
+fi
 [ -f "${SSHD_MAIN}" ] || { err "${SSHD_MAIN} not found. Is OpenSSH server installed?"; exit 1; }
 
 warn "Changing the SSH port and disabling password auth can LOCK YOU OUT."

@@ -311,3 +311,113 @@ maybe_switch_user() {  # maybe_switch_user "<self raw url>"
     "export MODE='${MODE:-}' DRY_RUN='${DRY_RUN:-0}' VERBOSE='${VERBOSE:-0}' QUIET='${QUIET:-0}' ASSUME_YES='${ASSUME_YES:-0}'; curl -fsSL '${self}' | bash"
 }
 home_of() { getent passwd "${1:-${TARGET_USER}}" 2>/dev/null | cut -d: -f6; }
+
+# ---- service / cron management helpers -----------------------------------
+# wf_svc_dispatch <cmd> <title> <cron_pat> <svc...>
+# Handles --stop|--start|--restart|--enable|--disable|--status|--remove-cron
+# for systemd-based services. Returns 0 if cmd was handled (call `&& exit $?`
+# after), returns 1 if cmd is unknown (script continues to normal install).
+#
+# Example in install-*.sh (placed before banner):
+#   wf_svc_dispatch "${1:-}" "Grafana" "grafana" grafana-server && exit $?
+#   [ "${1:-}" = "--uninstall" ] && { a_uninstall; exit $?; }
+wf_svc_dispatch() {
+  local cmd="$1" title="$2" cron_pat="$3"; shift 3
+  case "${cmd}" in
+    --stop)
+      hd "Stop — ${title}"
+      for s in "$@"; do info "stop ${s}"; run ${SUDO} systemctl stop    "${s}" 2>/dev/null || true; done
+      ok "Stopped."; return 0 ;;
+    --start)
+      hd "Start — ${title}"
+      for s in "$@"; do info "start ${s}"; run ${SUDO} systemctl start   "${s}" 2>/dev/null || true; done
+      ok "Started."; return 0 ;;
+    --restart)
+      hd "Restart — ${title}"
+      for s in "$@"; do info "restart ${s}"; run ${SUDO} systemctl restart "${s}" 2>/dev/null || true; done
+      ok "Restarted."; return 0 ;;
+    --enable)
+      hd "Enable — ${title}"
+      for s in "$@"; do info "enable ${s}"; run ${SUDO} systemctl enable --now "${s}" 2>/dev/null || true; done
+      ok "Enabled and started."; return 0 ;;
+    --disable)
+      hd "Disable — ${title}"
+      for s in "$@"; do
+        info "disable ${s}"
+        run ${SUDO} systemctl stop    "${s}" 2>/dev/null || true
+        run ${SUDO} systemctl disable "${s}" 2>/dev/null || true
+      done
+      ok "Stopped and disabled."; return 0 ;;
+    --status)
+      hd "Status — ${title}"
+      for s in "$@"; do
+        ${SUDO} systemctl status "${s}" --no-pager 2>/dev/null \
+          || warn "${s}: not found or inactive"
+      done; return 0 ;;
+    --remove-cron)
+      hd "Remove Cron — ${title}"
+      wf_cron_remove "${cron_pat}"; return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# wf_cron_remove <grep-E pattern> — remove matching lines from crontab.
+# Checks both the current user's crontab and root's crontab (via sudo).
+wf_cron_remove() {
+  local pat="$1" found=0 tmp
+  tmp="$(mktemp)"
+  if crontab -l 2>/dev/null | grep -qE "${pat}"; then
+    found=1
+    crontab -l 2>/dev/null | grep -vE "${pat}" > "${tmp}" || true
+    crontab "${tmp}" 2>/dev/null && info "Removed cron entries ($(id -un)) matching: ${pat}"
+  else
+    info "No cron entries for $(id -un) matching: ${pat}"
+  fi
+  if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
+    if sudo crontab -l 2>/dev/null | grep -qE "${pat}"; then
+      found=1
+      sudo crontab -l 2>/dev/null | grep -vE "${pat}" > "${tmp}" || true
+      sudo crontab "${tmp}" 2>/dev/null && info "Removed cron entries (root) matching: ${pat}"
+    else
+      info "No cron entries for root matching: ${pat}"
+    fi
+  fi
+  rm -f "${tmp}"
+  [ "${found}" -eq 1 ] && ok "Cron cleanup done." || info "No matching cron entries found."
+}
+
+# wf_svc_menu <title> <cron_pat> <svc...>
+# Interactive management menu for systemd-based install scripts.
+# Call after banner, gated by [ -z "${1:-}" ].
+#   Returns 0   → proceed with install flow.
+#   Returns 99  → caller must run a_uninstall.
+#   (exits directly for stop/start/restart/enable/disable/status/remove_cron)
+#
+# Typical usage:
+#   if [ -z "${1:-}" ]; then
+#     _WF_RC=0; wf_svc_menu "Grafana" "grafana" grafana-server || _WF_RC=$?
+#     [ "${_WF_RC}" -eq 99 ] && { a_uninstall; exit $?; }
+#   fi
+wf_svc_menu() {
+  local title="$1" cron_pat="$2"; shift 2
+  local _svcs=("$@")
+  MENU=(
+    "Manage|install|install / configure ${title}"
+    "Manage|stop|stop ${title}"
+    "Manage|start|start ${title}"
+    "Manage|restart|restart ${title}"
+    "Manage|enable|enable ${title} (autostart on boot)"
+    "Manage|disable|disable ${title}"
+    "Manage|status|show service status"
+    "Manage|remove_cron|remove related cron entries"
+    "Manage|uninstall|uninstall / remove ${title}"
+  )
+  menu_select "${title} — choose action:" || exit 0
+  case "${MENU_KEY}" in
+    stop|start|restart|enable|disable|status)
+      wf_svc_dispatch "--${MENU_KEY}" "${title}" "${cron_pat}" "${_svcs[@]}"; exit $? ;;
+    remove_cron) wf_cron_remove "${cron_pat}"; exit 0 ;;
+    uninstall)   return 99 ;;
+    install|*)   return 0 ;;
+  esac
+}

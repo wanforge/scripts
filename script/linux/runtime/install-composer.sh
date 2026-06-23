@@ -22,8 +22,33 @@ else if command -v curl >/dev/null 2>&1; then . <(curl -fsSL "${__LIB}"); else .
 # run as a target user (e.g. a CloudPanel site user) when invoked as root
 maybe_switch_user "https://scripts.wanforge.asia/script/linux/runtime/install-composer.sh"
 
+a_uninstall() {
+  hd "Uninstall Composer"
+  local bin_dir="${HOME}/.local/bin"
+  if [ ! -f "${bin_dir}/composer" ]; then
+    info "Composer not found at ${bin_dir}/composer."; return 0
+  fi
+  warn "Will remove ${bin_dir}/composer."
+  local yn; yn="$(ask "Remove composer? [y/N]:" "n")"
+  case "${yn}" in y|Y|yes) ;; *) info "Cancelled."; return 0 ;; esac
+  rm -f "${bin_dir}/composer"
+  ok "Composer removed."
+}
+
 # ---- run ----------------------------------------------------------------
+[ "${1:-}" = "--uninstall" ] && { a_uninstall; exit $?; }
 banner
+if [ -z "${1:-}" ]; then
+  MENU=(
+    "Manage|install|install Composer"
+    "Manage|uninstall|remove Composer"
+  )
+  menu_select "Composer — choose action:" || exit 0
+  case "${MENU_KEY}" in
+    uninstall) a_uninstall; exit $? ;;
+    install|*) ;;
+  esac
+fi
 command -v php >/dev/null 2>&1 || { err "PHP is required for Composer. Install PHP first."; exit 1; }
 
 BIN_DIR="${HOME}/.local/bin"

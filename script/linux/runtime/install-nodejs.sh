@@ -25,8 +25,41 @@ wf_log_init
 maybe_switch_user "https://scripts.wanforge.asia/script/linux/runtime/install-nodejs.sh"
 NVM_VERSION="v0.40.1"   # pinned nvm release; bump as needed
 
+a_uninstall() {
+  hd "Uninstall Node.js / nvm"
+  local nvm_dir="${HOME}/.nvm"
+  if [ ! -d "${nvm_dir}" ]; then
+    info "nvm not found at ${nvm_dir}."; return 0
+  fi
+  warn "This will remove ${nvm_dir} and all installed Node.js versions."
+  local yn; yn="$(ask "Remove nvm + Node.js? [y/N]:" "n")"
+  case "${yn}" in y|Y|yes) ;; *) info "Cancelled."; return 0 ;; esac
+  rm -rf "${nvm_dir}"
+  for f in "${HOME}/.bashrc" "${HOME}/.bash_profile" "${HOME}/.profile" "${HOME}/.zshrc"; do
+    [ -f "$f" ] && sed -i '/NVM_DIR\|nvm\.sh\|bash_completion/d' "$f" 2>/dev/null || true
+  done
+  ok "nvm and Node.js removed. Open a new shell to apply."
+}
+
 # ---- run ----------------------------------------------------------------
+case "${1:-}" in
+  --remove-cron) hd "Remove Cron"; wf_cron_remove "nvm|node|npm|pm2"; exit 0 ;;
+  --uninstall)   a_uninstall; exit $? ;;
+esac
 banner
+if [ -z "${1:-}" ]; then
+  MENU=(
+    "Manage|install|install Node.js via nvm"
+    "Manage|remove_cron|remove related cron entries"
+    "Manage|uninstall|uninstall nvm and Node.js"
+  )
+  menu_select "Node.js / nvm — choose action:" || exit 0
+  case "${MENU_KEY}" in
+    remove_cron) wf_cron_remove "nvm|node|npm|pm2"; exit 0 ;;
+    uninstall)   a_uninstall; exit $? ;;
+    install|*)   ;;
+  esac
+fi
 if [ "$(id -u)" -eq 0 ]; then
   warn "Running as root — Node will install under /root. Run as a normal user for a user-local install."
 fi

@@ -46,8 +46,36 @@ MENU=(
   "Python|pipx|pipx — install Python CLI apps in isolation"
 )
 
+a_uninstall() {
+  hd "Uninstall Python components"
+  warn "This removes pip, venv, dev headers, and pipx (not the python3 interpreter itself)."
+  local yn; yn="$(ask "Remove Python optional packages? [y/N]:" "n")"
+  case "${yn}" in y|Y|yes) ;; *) info "Cancelled."; return 0 ;; esac
+  case "${PM}" in
+    apt-get) run ${SUDO} apt-get purge -y python3-pip python3-venv python3-dev python3-virtualenv pipx 2>/dev/null || true
+             run ${SUDO} apt-get autoremove -y ;;
+    dnf|yum) run ${SUDO} "${PM}" -y remove python3-pip python3-virtualenv python3-devel pipx 2>/dev/null || true ;;
+    pacman)  run ${SUDO} pacman -Rns --noconfirm python-pip python-virtualenv python-pipx 2>/dev/null || true ;;
+    zypper)  run ${SUDO} zypper --non-interactive remove python3-pip python3-virtualenv python3-devel python3-pipx 2>/dev/null || true ;;
+    apk)     run ${SUDO} apk del py3-pip py3-virtualenv python3-dev 2>/dev/null || true ;;
+  esac
+  ok "Python optional packages removed."
+}
+
 # ---- run ----------------------------------------------------------------
+[ "${1:-}" = "--uninstall" ] && { a_uninstall; exit $?; }
 banner
+if [ -z "${1:-}" ]; then
+  MENU=(
+    "Manage|install|install Python tools (pip, venv, dev)"
+    "Manage|uninstall|remove Python pip / venv tools"
+  )
+  menu_select "Python — choose action:" || exit 0
+  case "${MENU_KEY}" in
+    uninstall) a_uninstall; exit $? ;;
+    install|*) ;;
+  esac
+fi
 info "Package manager: ${C_BOLD}${PM}${C_RESET}"
 checkbox "Select Python components:" || { warn "Cancelled."; exit 0; }
 [ "${#CHOSEN_KEYS[@]}" -eq 0 ] && { warn "Nothing selected."; exit 0; }

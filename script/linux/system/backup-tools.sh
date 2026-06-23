@@ -399,14 +399,65 @@ a_cron() {
 }
 
 # --- non-interactive mode (cron / scripted) -------------------------------
+#
+# Flags:
+#   --run       <profile>       run backup for one profile
+#   --run-all                   run all profiles
+#   --test      <profile>       dry-run for one profile
+#   --list                      list all configured profiles
+#   --status    [profile]       show engine status (all or one profile)
+#   --cron      <profile> [h]   register daily cron entry (hour h, default 2)
+#   --remove-cron [profile]     remove matching cron entries from crontab
+#   --delete    <profile>       delete a profile (with confirmation)
 case "${1:-}" in
   --run)
     [ -n "${2:-}" ] || { printf "Usage: %s --run <profile>\n" "$0" >&2; exit 1; }
     _run_one "$2"; exit $? ;;
+  --run-all)
+    a_run_all; exit $? ;;
+  --test)
+    [ -n "${2:-}" ] || { printf "Usage: %s --test <profile>\n" "$0" >&2; exit 1; }
+    _run_one "$2" "dry"; exit $? ;;
+  --list)
+    a_list; exit 0 ;;
   --status)
-    # print engine status for one profile (used by a_status)
-    [ -n "${2:-}" ] || { printf "Usage: %s --status <profile>\n" "$0" >&2; exit 1; }
-    _bt_load "$2" && _run_engine --status; exit $? ;;
+    if [ -n "${2:-}" ]; then
+      _bt_load "$2" && _run_engine --status; exit $?
+    else
+      a_status; exit 0
+    fi ;;
+  --cron)
+    [ -n "${2:-}" ] || { printf "Usage: %s --cron <profile> [hour 0-23]\n" "$0" >&2; exit 1; }
+    BT_CRON_PROF="$2"; BT_CRON_HOUR="${3:-2}"
+    hd "Cron schedule — ${BT_CRON_PROF}"
+    _bt_load "${BT_CRON_PROF}" || exit 1
+    crontab -l 2>/dev/null | grep -v "backup-tools.*${BT_CRON_PROF}" | crontab - 2>/dev/null || true
+    BT_CRON_LOGDIR="${WF_DATA_DIR}/logs/backup-tools"
+    mkdir -p "${BT_CRON_LOGDIR}"
+    BT_CRON_THIS="$(realpath "${BASH_SOURCE[0]:-$0}" 2>/dev/null || echo "$0")"
+    BT_CRON_ENTRY="0 ${BT_CRON_HOUR} * * * bash '${BT_CRON_THIS}' --run '${BT_CRON_PROF}' >> '${BT_CRON_LOGDIR}/${BT_CRON_PROF}_\$(date +\%Y\%m\%d).log' 2>&1"
+    (crontab -l 2>/dev/null; echo "${BT_CRON_ENTRY}") | crontab -
+    ok "Cron set: daily at ${BT_CRON_HOUR}:00 for '${BT_CRON_PROF}'"
+    info "${BT_CRON_ENTRY}"
+    exit 0 ;;
+  --remove-cron)
+    hd "Remove Cron — Backup"
+    if [ -n "${2:-}" ]; then
+      wf_cron_remove "backup-tools.*${2}"
+    else
+      wf_cron_remove "backup-tools"
+    fi
+    exit 0 ;;
+  --delete)
+    [ -n "${2:-}" ] || { printf "Usage: %s --delete <profile>\n" "$0" >&2; exit 1; }
+    hd "Delete profile — ${2}"
+    warn "This removes profile '${2}' permanently."
+    BT_DEL_YN="$(ask "Delete '${2}'? [y/N]:" "n")"
+    case "${BT_DEL_YN}" in
+      y|Y|yes) rm -f "$(_bt_file "${2}")"; ok "Profile '${2}' deleted." ;;
+      *)       info "Cancelled." ;;
+    esac
+    exit 0 ;;
 esac
 
 # --- menu -----------------------------------------------------------------
@@ -419,6 +470,7 @@ MENU=(
   "Run|test|dry-run — no actual transfer"
   "Run|status|show upload progress (engine mode)"
   "Schedule|cron|setup daily cron job for a profile"
+  "Schedule|remove_cron|remove backup cron entries"
   "Config|clear_cfg|clear saved wizard defaults"
 )
 
@@ -434,8 +486,9 @@ while true; do
     run_all)   a_run_all ;;
     test)      a_test ;;
     status)    a_status ;;
-    cron)      a_cron ;;
-    clear_cfg) cfg_clear && ok "Saved defaults cleared." ;;
+    cron)        a_cron ;;
+    remove_cron) wf_cron_remove "backup-tools" ;;
+    clear_cfg)   cfg_clear && ok "Saved defaults cleared." ;;
   esac
 done
 

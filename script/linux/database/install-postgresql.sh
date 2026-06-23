@@ -23,8 +23,36 @@ wf_log_init
 
 psql_super() { ${SUDO} -u postgres psql -v ON_ERROR_STOP=1 "$@"; }
 
+a_uninstall() {
+  hd "Uninstall PostgreSQL"
+  warn "WARNING: This will PERMANENTLY DESTROY PostgreSQL and all its databases!"
+  warn "Back up all data before continuing."
+  local yn; yn="$(ask "Type 'yes' to confirm removal:" "no")"
+  [ "${yn}" = "yes" ] || { info "Cancelled."; return 0; }
+  run ${SUDO} systemctl stop postgresql 2>/dev/null || true
+  run ${SUDO} systemctl disable postgresql 2>/dev/null || true
+  run ${SUDO} apt-get purge -y 'postgresql*' postgresql-client-common postgresql-common 2>/dev/null || true
+  run ${SUDO} apt-get autoremove -y
+  local data_yn; data_yn="$(ask "Also delete /var/lib/postgresql and /etc/postgresql? [y/N]:" "n")"
+  case "${data_yn}" in y|Y|yes)
+    run ${SUDO} rm -rf /var/lib/postgresql /etc/postgresql
+    ok "Data directories removed." ;;
+  esac
+  run ${SUDO} rm -f /etc/apt/sources.list.d/pgdg.list
+  run ${SUDO} rm -f /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc 2>/dev/null || true
+  run ${SUDO} apt-get update 2>/dev/null || true
+  command -v ufw >/dev/null 2>&1 && { run ${SUDO} ufw delete allow 5432/tcp 2>/dev/null || true; }
+  ok "PostgreSQL removed."
+}
+
 # ---- run ----------------------------------------------------------------
+wf_svc_dispatch "${1:-}" "PostgreSQL" "postgresql" postgresql && exit $?
+[ "${1:-}" = "--uninstall" ] && { a_uninstall; exit $?; }
 banner
+if [ -z "${1:-}" ]; then
+  _WF_RC=0; wf_svc_menu "PostgreSQL" "postgresql" postgresql || _WF_RC=$?
+  [ "${_WF_RC}" -eq 99 ] && { a_uninstall; exit $?; }
+fi
 if ! command -v apt-get >/dev/null 2>&1; then err "This script targets Debian/Ubuntu (apt)."; exit 1; fi
 
 # Add the official PostgreSQL APT repository (PGDG) to get the latest version.

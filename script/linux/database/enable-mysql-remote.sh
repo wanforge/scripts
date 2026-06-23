@@ -21,8 +21,40 @@ else if command -v curl >/dev/null 2>&1; then . <(curl -fsSL "${__LIB}"); else .
 cfg_load
 wf_log_init
 
+a_uninstall() {
+  hd "Rollback MySQL Remote Access"
+  local conf
+  conf="$(${SUDO} grep -rlE '^[[:space:]]*bind-address' /etc/mysql 2>/dev/null | head -1 || true)"
+  if [ -z "${conf}" ]; then
+    info "MySQL config not found. Nothing to rollback."; return 0
+  fi
+  warn "Will set bind-address = 127.0.0.1 in ${conf} and close ufw port 3306."
+  local yn; yn="$(ask "Rollback? [y/N]:" "n")"
+  case "${yn}" in y|Y|yes) ;; *) info "Cancelled."; return 0 ;; esac
+  run ${SUDO} sed -i 's|^[[:space:]]*bind-address.*|bind-address = 127.0.0.1|' "${conf}"
+  ok "bind-address restored to 127.0.0.1 in ${conf}."
+  run ${SUDO} systemctl restart mysql 2>/dev/null || run ${SUDO} systemctl restart mariadb 2>/dev/null || true
+  command -v ufw >/dev/null 2>&1 && {
+    run ${SUDO} ufw delete allow 3306/tcp 2>/dev/null || true
+    run ${SUDO} ufw delete allow from any to any port 3306 proto tcp 2>/dev/null || true
+  }
+  ok "MySQL remote access rolled back."
+}
+
 # ---- run ----------------------------------------------------------------
+[ "${1:-}" = "--uninstall" ] && { a_uninstall; exit $?; }
 banner
+if [ -z "${1:-}" ]; then
+  MENU=(
+    "Manage|configure|enable MySQL remote access"
+    "Manage|rollback|restore local-only access"
+  )
+  menu_select "MySQL Remote Access — choose action:" || exit 0
+  case "${MENU_KEY}" in
+    rollback)    a_uninstall; exit $? ;;
+    configure|*) ;;
+  esac
+fi
 if [ ! -d /etc/mysql ]; then err "/etc/mysql not found. Install MySQL/MariaDB first."; exit 1; fi
 
 warn "This exposes the database to the network. Restrict the source range when possible."

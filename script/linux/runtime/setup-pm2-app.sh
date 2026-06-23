@@ -24,8 +24,73 @@ wf_log_init
 # run as a target user (e.g. a CloudPanel site user) when invoked as root
 maybe_switch_user "https://scripts.wanforge.asia/script/linux/runtime/setup-pm2-app.sh"
 
+_pm2_load() {
+  export NVM_DIR="${HOME}/.nvm"
+  # shellcheck disable=SC1091
+  [ -s "${NVM_DIR}/nvm.sh" ] && . "${NVM_DIR}/nvm.sh" && nvm use default >/dev/null 2>&1 || true
+  command -v pm2 >/dev/null 2>&1 || { err "pm2 not found. Run install-nodejs.sh first."; return 1; }
+}
+
+a_uninstall() {
+  hd "Remove PM2 Application"
+  _pm2_load || return 1
+  local app_name="${CFG_PM2_APP_NAME:-my-app}"
+  warn "Will delete PM2 app '${app_name}' and save the process list."
+  local yn; yn="$(ask "Delete PM2 app '${app_name}'? [y/N]:" "n")"
+  case "${yn}" in y|Y|yes) ;; *) info "Cancelled."; return 0 ;; esac
+  pm2 delete "${app_name}" 2>/dev/null || warn "App '${app_name}' not found in PM2 process list."
+  pm2 save
+  ok "PM2 app '${app_name}' removed."
+}
+
 # ---- run ----------------------------------------------------------------
+case "${1:-}" in
+  --stop)
+    hd "Stop PM2 App";    _pm2_load || exit 1
+    pm2 stop    "${CFG_PM2_APP_NAME:-my-app}" 2>/dev/null || warn "App not found in PM2"
+    pm2 save; ok "Stopped.";    exit 0 ;;
+  --start)
+    hd "Start PM2 App";   _pm2_load || exit 1
+    pm2 start   "${CFG_PM2_APP_NAME:-my-app}" 2>/dev/null || warn "App not found in PM2"
+    pm2 save; ok "Started.";   exit 0 ;;
+  --restart)
+    hd "Restart PM2 App"; _pm2_load || exit 1
+    pm2 restart "${CFG_PM2_APP_NAME:-my-app}" 2>/dev/null || warn "App not found in PM2"
+    pm2 save; ok "Restarted."; exit 0 ;;
+  --status)
+    hd "PM2 Status"; _pm2_load || exit 1; pm2 list; exit 0 ;;
+  --logs)
+    hd "PM2 Logs"; _pm2_load || exit 1
+    pm2 logs "${CFG_PM2_APP_NAME:-my-app}" --lines 50; exit 0 ;;
+  --remove-cron)
+    hd "Remove Cron"
+    wf_cron_remove "pm2|${CFG_PM2_APP_NAME:-my-app}"; exit 0 ;;
+  --uninstall) a_uninstall; exit $? ;;
+esac
 banner
+if [ -z "${1:-}" ]; then
+  MENU=(
+    "Manage|configure|configure / register PM2 app"
+    "Manage|stop|stop PM2 app"
+    "Manage|start|start PM2 app"
+    "Manage|restart|restart PM2 app"
+    "Manage|status|show PM2 status"
+    "Manage|logs|tail PM2 app logs"
+    "Manage|remove_cron|remove related cron entries"
+    "Manage|uninstall|delete PM2 app"
+  )
+  menu_select "PM2 App — choose action:" || exit 0
+  case "${MENU_KEY}" in
+    stop)        hd "Stop PM2 App";    _pm2_load || exit 1; pm2 stop    "${CFG_PM2_APP_NAME:-my-app}" 2>/dev/null || true; pm2 save; ok "Stopped.";    exit 0 ;;
+    start)       hd "Start PM2 App";   _pm2_load || exit 1; pm2 start   "${CFG_PM2_APP_NAME:-my-app}" 2>/dev/null || true; pm2 save; ok "Started.";   exit 0 ;;
+    restart)     hd "Restart PM2 App"; _pm2_load || exit 1; pm2 restart "${CFG_PM2_APP_NAME:-my-app}" 2>/dev/null || true; pm2 save; ok "Restarted."; exit 0 ;;
+    status)      hd "PM2 Status";      _pm2_load || exit 1; pm2 list;   exit 0 ;;
+    logs)        hd "PM2 Logs";        _pm2_load || exit 1; pm2 logs "${CFG_PM2_APP_NAME:-my-app}" --lines 50; exit 0 ;;
+    remove_cron) wf_cron_remove "pm2|${CFG_PM2_APP_NAME:-my-app}"; exit 0 ;;
+    uninstall)   a_uninstall; exit $? ;;
+    configure|*) ;;
+  esac
+fi
 
 # make pm2 (installed via nvm) available in this shell
 export NVM_DIR="${HOME}/.nvm"

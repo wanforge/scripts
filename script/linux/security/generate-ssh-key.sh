@@ -21,8 +21,33 @@ else if command -v curl >/dev/null 2>&1; then . <(curl -fsSL "${__LIB}"); else .
 cfg_load
 wf_log_init
 
+a_uninstall() {
+  hd "Remove SSH Key"
+  local keyfile="${CFG_SSH_KEYFILE:-${HOME}/.ssh/id_ed25519}"
+  if [ ! -f "${keyfile}" ] && [ ! -f "${keyfile}.pub" ]; then
+    info "Key not found at ${keyfile}. Nothing to remove."; return 0
+  fi
+  warn "Will delete: ${keyfile} and ${keyfile}.pub"
+  local yn; yn="$(ask "Delete this SSH key? [y/N]:" "n")"
+  case "${yn}" in y|Y|yes) ;; *) info "Cancelled."; return 0 ;; esac
+  rm -f "${keyfile}" "${keyfile}.pub"
+  ok "SSH key removed: ${keyfile}"
+}
+
 # ---- run ----------------------------------------------------------------
+[ "${1:-}" = "--uninstall" ] && { a_uninstall; exit $?; }
 banner
+if [ -z "${1:-}" ]; then
+  MENU=(
+    "Manage|generate|generate SSH key pair"
+    "Manage|uninstall|remove SSH key pair"
+  )
+  menu_select "SSH Key — choose action:" || exit 0
+  case "${MENU_KEY}" in
+    uninstall)   a_uninstall; exit $? ;;
+    generate|*)  ;;
+  esac
+fi
 command -v ssh-keygen >/dev/null 2>&1 || { err "ssh-keygen not found. Install openssh-client first."; exit 1; }
 
 KEYFILE="$(ask_cfg CFG_SSH_KEYFILE "Key file path:" "${HOME}/.ssh/id_ed25519")"

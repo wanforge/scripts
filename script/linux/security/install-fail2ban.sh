@@ -39,8 +39,32 @@ svc_enable_start() {
   fi
 }
 
+a_uninstall() {
+  hd "Uninstall Fail2Ban"
+  warn "This will stop and remove Fail2Ban from this system."
+  local yn; yn="$(ask "Remove fail2ban? [y/N]:" "n")"
+  case "${yn}" in y|Y|yes) ;; *) info "Cancelled."; return 0 ;; esac
+  local pm; pm="$(detect_pm)" || { err "No supported package manager."; return 1; }
+  run ${SUDO} systemctl stop fail2ban 2>/dev/null || true
+  run ${SUDO} systemctl disable fail2ban 2>/dev/null || true
+  case "${pm}" in
+    apt-get) run ${SUDO} apt-get purge -y fail2ban; run ${SUDO} apt-get autoremove -y ;;
+    dnf|yum) run ${SUDO} "${pm}" -y remove fail2ban ;;
+    pacman)  run ${SUDO} pacman -Rns --noconfirm fail2ban ;;
+    zypper)  run ${SUDO} zypper --non-interactive remove fail2ban ;;
+    apk)     run ${SUDO} apk del fail2ban ;;
+  esac
+  ok "Fail2Ban removed."
+}
+
 # ---- run ----------------------------------------------------------------
+wf_svc_dispatch "${1:-}" "Fail2Ban" "fail2ban" fail2ban && exit $?
+[ "${1:-}" = "--uninstall" ] && { a_uninstall; exit $?; }
 banner
+if [ -z "${1:-}" ]; then
+  _WF_RC=0; wf_svc_menu "Fail2Ban" "fail2ban" fail2ban || _WF_RC=$?
+  [ "${_WF_RC}" -eq 99 ] && { a_uninstall; exit $?; }
+fi
 PM="$(detect_pm)" || { err "No supported package manager found."; exit 1; }
 ANS="$(ask "Install & enable Fail2Ban? [Y/n]:" "y")"
 case "${ANS}" in

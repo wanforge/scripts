@@ -22,8 +22,40 @@ cfg_load
 wf_log_init
 step() { printf "\n%b==> %s%b\n" "${C_BOLD}${C_CYAN}" "$1" "${C_RESET}" >&2; }
 
+a_uninstall() {
+  hd "Uninstall Zabbix"
+  warn "This will stop and remove all Zabbix packages and the APT repository."
+  local yn; yn="$(ask "Remove Zabbix? [y/N]:" "n")"
+  case "${yn}" in y|Y|yes) ;; *) info "Cancelled."; return 0 ;; esac
+  for svc in zabbix-agent2 zabbix-server; do
+    run ${SUDO} systemctl stop "${svc}" 2>/dev/null || true
+    run ${SUDO} systemctl disable "${svc}" 2>/dev/null || true
+  done
+  run ${SUDO} apt-get purge -y 'zabbix-*' 2>/dev/null || true
+  run ${SUDO} apt-get autoremove -y
+  run ${SUDO} dpkg --purge zabbix-release 2>/dev/null || true
+  run ${SUDO} rm -f /etc/apt/sources.list.d/zabbix.list
+  run ${SUDO} apt-get update 2>/dev/null || true
+  local db_yn; db_yn="$(ask "Drop the 'zabbix' MySQL database and user? [y/N]:" "n")"
+  case "${db_yn}" in y|Y|yes)
+    ${SUDO} mysql -e "DROP DATABASE IF EXISTS zabbix; DROP USER IF EXISTS 'zabbix'@'localhost';" 2>/dev/null \
+      && ok "Dropped zabbix database and user." || warn "Could not drop DB (MySQL may not be running)." ;;
+  esac
+  command -v ufw >/dev/null 2>&1 && {
+    run ${SUDO} ufw delete allow 10050/tcp 2>/dev/null || true
+    run ${SUDO} ufw delete allow 10051/tcp 2>/dev/null || true
+  }
+  ok "Zabbix removed."
+}
+
 # ---- run ----------------------------------------------------------------
+wf_svc_dispatch "${1:-}" "Zabbix" "zabbix" zabbix-agent2 zabbix-server && exit $?
+[ "${1:-}" = "--uninstall" ] && { a_uninstall; exit $?; }
 banner
+if [ -z "${1:-}" ]; then
+  _WF_RC=0; wf_svc_menu "Zabbix" "zabbix" zabbix-agent2 zabbix-server || _WF_RC=$?
+  [ "${_WF_RC}" -eq 99 ] && { a_uninstall; exit $?; }
+fi
 command -v apt-get >/dev/null 2>&1 || { err "This script targets Debian/Ubuntu (apt)."; exit 1; }
 # shellcheck disable=SC1091
 . /etc/os-release 2>/dev/null || true

@@ -25,10 +25,33 @@ wf_log_init
 STEP=0; TOTAL=3
 step() { STEP=$((STEP + 1)); printf "\n%b==> [%d/%d] %s%b\n" "${C_BOLD}${C_CYAN}" "${STEP}" "${TOTAL}" "$1" "${C_RESET}" >&2; }
 
+a_uninstall() {
+  hd "Uninstall CloudPanel"
+  warn "CloudPanel does not have an automated uninstaller."
+  info "Manual steps to remove CloudPanel:"
+  info "  1. systemctl stop clp nginx 'php*' mysql mariadb"
+  info "  2. apt purge -y 'clp*' && apt autoremove -y"
+  info "  3. rm -rf /home/cloudpanel /etc/nginx /etc/clp /var/clp"
+  info "  4. Docs: https://www.cloudpanel.io/docs/v2/"
+  warn "No automated action taken — proceed manually."
+}
+
 # =========================================================================
 # run
 # =========================================================================
+[ "${1:-}" = "--uninstall" ] && { a_uninstall; exit $?; }
 banner
+if [ -z "${1:-}" ]; then
+  MENU=(
+    "Manage|install|install CloudPanel"
+    "Manage|uninstall|show uninstall instructions"
+  )
+  menu_select "CloudPanel — choose action:" || exit 0
+  case "${MENU_KEY}" in
+    uninstall) a_uninstall; exit $? ;;
+    install|*) ;;
+  esac
+fi
 
 # CloudPanel is Debian/Ubuntu only.
 if ! command -v apt-get >/dev/null 2>&1; then

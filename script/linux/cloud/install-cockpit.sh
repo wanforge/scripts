@@ -39,8 +39,29 @@ MENU=(
   "Metrics|pmcd-pmlogger|Enable pmcd + pmlogger services"
 )
 
+a_uninstall() {
+  hd "Uninstall Cockpit"
+  warn "This will stop and remove Cockpit and all its plugins."
+  local yn; yn="$(ask "Remove cockpit? [y/N]:" "n")"
+  case "${yn}" in y|Y|yes) ;; *) info "Cancelled."; return 0 ;; esac
+  run ${SUDO} systemctl stop cockpit 2>/dev/null || true
+  run ${SUDO} systemctl disable cockpit 2>/dev/null || true
+  run ${SUDO} apt-get purge -y cockpit cockpit-networkmanager cockpit-storaged \
+    cockpit-sosreport cockpit-pcp cockpit-machines cockpit-podman 2>/dev/null || true
+  run ${SUDO} apt-get autoremove -y
+  run ${SUDO} rm -f /etc/cockpit/cockpit.conf 2>/dev/null || true
+  command -v ufw >/dev/null 2>&1 && { run ${SUDO} ufw delete allow 9090/tcp 2>/dev/null || true; }
+  ok "Cockpit removed."
+}
+
 # ---- run ----------------------------------------------------------------
+wf_svc_dispatch "${1:-}" "Cockpit" "cockpit" cockpit && exit $?
+[ "${1:-}" = "--uninstall" ] && { a_uninstall; exit $?; }
 banner
+if [ -z "${1:-}" ]; then
+  _WF_RC=0; wf_svc_menu "Cockpit" "cockpit" cockpit || _WF_RC=$?
+  [ "${_WF_RC}" -eq 99 ] && { a_uninstall; exit $?; }
+fi
 if ! command -v apt-get >/dev/null 2>&1; then err "This script targets Debian/Ubuntu (apt)."; exit 1; fi
 checkbox "Select Cockpit actions:" || { warn "Cancelled."; exit 0; }
 [ "${#CHOSEN_KEYS[@]}" -eq 0 ] && { warn "Nothing selected."; exit 0; }
