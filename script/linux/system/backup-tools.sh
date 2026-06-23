@@ -606,7 +606,7 @@ a_add() {
     local _hi
     for _hi in "${!_homes[@]}"; do
       local _uname="${_homes[$_hi]##*/}"
-      MENU+=("User|${_uname}|${_homes[$_hi]}")
+      MENU+=("User|${_uname}|${_homes[$_hi]}/backups")
     done
     MENU+=("User|__custom__|enter custom path")
 
@@ -630,7 +630,7 @@ a_add() {
       else
         local _src=""
         for _hdir in "${_homes[@]}"; do
-          [ "${_hdir##*/}" = "${_key}" ] && _src="${_hdir}" && break
+          [ "${_hdir##*/}" = "${_key}" ] && _src="${_hdir}/backups" && break
         done
         _sources+=("${_key}-${_sfx}" "${_src}")
       fi
