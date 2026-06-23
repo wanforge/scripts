@@ -20,6 +20,7 @@ __d="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
 if [ -r "${__d}/../lib.sh" ]; then . "${__d}/../lib.sh"
 else if command -v curl >/dev/null 2>&1; then . <(curl -fsSL "${__LIB}"); else . <(wget -qO- "${__LIB}"); fi; fi
 cfg_load
+wf_log_init
 
 svc_enable_start() { local s="$1"; run ${SUDO} systemctl enable "$s" >/dev/null 2>&1 || true; run ${SUDO} systemctl start "$s" || true; }
 

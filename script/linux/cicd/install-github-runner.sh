@@ -46,6 +46,7 @@ else if command -v curl >/dev/null 2>&1; then . <(curl -fsSL "${__LIB}"); else .
 
 have() { command -v "$1" >/dev/null 2>&1; }
 cfg_load  # restore saved runner config (scope, name, labels, etc.)
+wf_log_init
 
 # Where runners are installed. Each runner gets its own subdir: $RUNNER_ROOT/<name>.
 RUNNER_ROOT="${RUNNER_ROOT:-/opt/actions-runner}"

@@ -70,7 +70,7 @@ LOG_FILE="${LOG_FILE:-}"
 if [ -n "${LOG_FILE}" ]; then : >> "${LOG_FILE}" 2>/dev/null || { printf "    cannot write LOG_FILE: %s\n" "${LOG_FILE}" >&2; LOG_FILE=""; }; fi
 __log() {  # __log "<line with color escapes>"
   printf '%b\n' "$1" >&2
-  [ -n "${LOG_FILE}" ] && printf '%b\n' "$1" | sed 's/\x1b\[[0-9;]*m//g' >> "${LOG_FILE}" 2>/dev/null || true
+  [ -n "${LOG_FILE}" ] && printf '[%s] %b\n' "$(date +%H:%M:%S)" "$1" | sed 's/\x1b\[[0-9;]*m//g' >> "${LOG_FILE}" 2>/dev/null || true
 }
 
 # ---- banner (random single-hue gradient) --------------------------------
@@ -206,6 +206,7 @@ wf_log_init() {
   mkdir -p "${WF_LOG_DIR}" && chmod 700 "${WF_LOG_DIR}"
   WF_LOG_FILE="${WF_LOG_DIR}/$(date +%Y-%m-%d).log"
   LOG_FILE="${WF_LOG_FILE}"
+  printf '\n── %s  run started %s ──\n' "${TASK:-?}" "$(date +%H:%M:%S)" >> "${LOG_FILE}" 2>/dev/null || true
 }
 
 # ---- privilege ----------------------------------------------------------

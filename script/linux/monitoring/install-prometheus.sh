@@ -19,6 +19,7 @@ __d="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
 if [ -r "${__d}/../lib.sh" ]; then . "${__d}/../lib.sh"
 else if command -v curl >/dev/null 2>&1; then . <(curl -fsSL "${__LIB}"); else . <(wget -qO- "${__LIB}"); fi; fi
 cfg_load
+wf_log_init
 
 svc() { run ${SUDO} systemctl enable --now "$1" 2>/dev/null || warn "Could not enable ${1}."; }
 ufw_allow() {  # ufw_allow <port> <cidr>

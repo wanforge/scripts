@@ -20,6 +20,7 @@ __d="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
 if [ -r "${__d}/../lib.sh" ]; then . "${__d}/../lib.sh"
 else if command -v curl >/dev/null 2>&1; then . <(curl -fsSL "${__LIB}"); else . <(wget -qO- "${__LIB}"); fi; fi
 cfg_load
+wf_log_init
 
 [ "$(id -u)" -eq 0 ] || command -v sudo >/dev/null 2>&1 || { err "sudo is required when not running as root."; exit 1; }
 

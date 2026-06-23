@@ -22,6 +22,7 @@ __d="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
 if [ -r "${__d}/../lib.sh" ]; then . "${__d}/../lib.sh"
 else if command -v curl >/dev/null 2>&1; then . <(curl -fsSL "${__LIB}"); else . <(wget -qO- "${__LIB}"); fi; fi
 cfg_load
+wf_log_init
 
 # ---- helpers ------------------------------------------------------------
 # DRY_RUN + run() come from lib.sh (global to all scripts).
