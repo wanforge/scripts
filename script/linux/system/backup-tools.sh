@@ -101,15 +101,25 @@ _bt_home_users() {
 }
 
 # --- tool checks ----------------------------------------------------------
-have()        { command -v "$1" >/dev/null 2>&1; }
-_need_aws()   { have aws   || { err "'aws' CLI required. Install: pip3 install awscli"; return 1; }; }
-_need_lftp()  { have lftp  || { err "'lftp' required.   Install: apt install lftp";     return 1; }; }
-_need_rsync()     { have rsync     || { err "'rsync' required.      Install: apt install rsync";                   return 1; }; }
-_need_mysqldump() { have mysqldump || { err "'mysqldump' required.  Install: apt install mysql-client";         return 1; }; }
-_need_pg_dump()   { have pg_dump   || { err "'pg_dump' required.    Install: apt install postgresql-client";    return 1; }; }
-_need_sqlite3()   { have sqlite3   || { err "'sqlite3' required.    Install: apt install sqlite3";              return 1; }; }
-_need_mongodump() { have mongodump || { err "'mongodump' required.  See: mongodb.com/try/download/database-tools"; return 1; }; }
-_need_openssl()   { have openssl   || { err "'openssl' required.    Install: apt install openssl";              return 1; }; }
+have() { command -v "$1" >/dev/null 2>&1; }
+_try_install() {
+  local cmd="$1"; shift
+  have "$cmd" && return 0
+  warn "'${cmd}' not found."
+  local ans; ans="$(ask "Install now? ($*) [Y/n]:" "y")"
+  [[ "${ans,,}" =~ ^n ]] && { err "Cannot continue without '${cmd}'."; return 1; }
+  "$@" || { err "Install failed. Run manually: $*"; return 1; }
+  have "$cmd" || { err "'${cmd}' not in PATH after install. Try: hash -r"; return 1; }
+  ok "'${cmd}' installed."
+}
+_need_aws()       { _try_install aws       pip3 install awscli; }
+_need_lftp()      { _try_install lftp      apt install -y lftp; }
+_need_rsync()     { _try_install rsync     apt install -y rsync; }
+_need_mysqldump() { _try_install mysqldump apt install -y mysql-client; }
+_need_pg_dump()   { _try_install pg_dump   apt install -y postgresql-client; }
+_need_sqlite3()   { _try_install sqlite3   apt install -y sqlite3; }
+_need_mongodump() { have mongodump || { err "'mongodump' required. See: mongodb.com/try/download/database-tools"; return 1; }; }
+_need_openssl()   { _try_install openssl   apt install -y openssl; }
 
 # --- DB dump / encrypt -------------------------------------------------------
 _bt_db_dump() {
@@ -964,16 +974,16 @@ while true; do
   printf "\n" >&2
   menu_select "Backup tools — S3 / FTP / SFTP:" || break
   case "${MENU_KEY}" in
-    add)       a_add ;;
-    list)      a_list ;;
-    delete)    a_delete ;;
-    run)       a_run ;;
-    run_all)   a_run_all ;;
-    test)      a_test ;;
-    dump)      a_dump ;;
-    status)    a_status ;;
-    cron)        a_cron ;;
-    remove_cron) wf_cron_remove "backup-tools" ;;
+    add)       a_add || true ;;
+    list)      a_list || true ;;
+    delete)    a_delete || true ;;
+    run)       a_run || true ;;
+    run_all)   a_run_all || true ;;
+    test)      a_test || true ;;
+    dump)      a_dump || true ;;
+    status)    a_status || true ;;
+    cron)        a_cron || true ;;
+    remove_cron) wf_cron_remove "backup-tools" || true ;;
     clear_cfg)   cfg_clear && ok "Saved defaults cleared." ;;
   esac
 done
