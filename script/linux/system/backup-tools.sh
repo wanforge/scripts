@@ -27,6 +27,16 @@ if   [ -r "${__d}/../lib.sh" ]; then . "${__d}/../lib.sh"
 elif command -v curl >/dev/null 2>&1; then . <(curl -fsSL "${__LIB}")
 else . <(wget -qO- "${__LIB}"); fi
 cfg_load
+wf_log_init   # sets WF_LOG_DIR, WF_LOG_FILE, LOG_FILE
+
+# --- engine detection -----------------------------------------------------
+# backup-engine.py: Python engine with SQLite resume, parallel workers.
+# Lives alongside this script; falls back to native tools if absent.
+ENGINE="${__d}/backup-engine.py"
+_has_engine() { [ -f "${ENGINE}" ] && have python3; }
+
+# State dir for engine SQLite DB (per-profile, under WF_DATA_DIR)
+_bt_state_dir() { printf '%s/backup-state/%s' "${WF_DATA_DIR}" "$1"; }
 
 # --- profile store --------------------------------------------------------
 BT_DIR="${XDG_CONFIG_HOME:-${HOME:-/root}/.config}/wanforge-scripts/backup-profiles"
@@ -90,14 +100,50 @@ _need_lftp()  { have lftp  || { err "'lftp' required.   Install: apt install lft
 _need_rsync() { have rsync || { err "'rsync' required.  Install: apt install rsync";    return 1; }; }
 
 # --- backup runners -------------------------------------------------------
+# Each runner tries backup-engine.py first (SQLite resume, parallel, delete-sync).
+# Falls back to native tool if engine or its deps are missing.
+
+_run_engine() {
+  # _run_engine [--dry-run] [--force] [--skip-scan] [--status]
+  local state_dir; state_dir="$(_bt_state_dir "${BT_NAME}")"
+  mkdir -p "${state_dir}"; chmod 700 "${state_dir}"
+  BACKUP_PROFILE="${BT_NAME}"       \
+  BACKUP_TYPE="${BT_TYPE}"          \
+  BACKUP_SOURCE="${BT_SOURCE}"      \
+  BACKUP_DELETE="${BT_DELETE:-0}"   \
+  BACKUP_STATE_DIR="${state_dir}"   \
+  BACKUP_LOG_FILE="${WF_LOG_FILE:-}" \
+  BACKUP_S3_ENDPOINT="${BT_S3_ENDPOINT:-}"   \
+  BACKUP_S3_ACCESS_KEY="${BT_S3_ACCESS_KEY:-}" \
+  BACKUP_S3_SECRET_KEY="${BT_S3_SECRET_KEY:-}" \
+  BACKUP_S3_BUCKET="${BT_S3_BUCKET:-}"         \
+  BACKUP_S3_PREFIX="${BT_S3_PREFIX:-${HOSTNAME_S}/${BT_NAME}}" \
+  BACKUP_FTP_HOST="${BT_FTP_HOST:-}"  BACKUP_FTP_PORT="${BT_FTP_PORT:-21}" \
+  BACKUP_FTP_USER="${BT_FTP_USER:-}"  BACKUP_FTP_PASS="${BT_FTP_PASS:-}"   \
+  BACKUP_FTP_DEST="${BT_FTP_DEST:-/}" BACKUP_FTP_SSL="${BT_FTP_SSL:-off}"  \
+  BACKUP_SFTP_HOST="${BT_SFTP_HOST:-}"  BACKUP_SFTP_PORT="${BT_SFTP_PORT:-22}" \
+  BACKUP_SFTP_USER="${BT_SFTP_USER:-}"  BACKUP_SFTP_KEY="${BT_SFTP_KEY:-}"     \
+  BACKUP_SFTP_DEST="${BT_SFTP_DEST:-}"  \
+    python3 "${ENGINE}" "$@"
+}
 
 _run_s3() {
   local dry="${1:-}"
-  _need_aws || return 1
   local prefix="${BT_S3_PREFIX:-${HOSTNAME_S}/${BT_NAME}}"
   info "Source  : ${BT_SOURCE}"
   info "Target  : s3://${BT_S3_BUCKET}/${prefix}"
   info "Endpoint: ${BT_S3_ENDPOINT}"
+
+  if _has_engine; then
+    info "Engine  : backup-engine.py (SQLite resume, parallel)"
+    local args=(); [ -n "$dry" ] && args+=("--dry-run")
+    _run_engine "${args[@]+"${args[@]}"}"
+    return $?
+  fi
+
+  # fallback: aws s3 sync
+  _need_aws || return 1
+  info "Engine  : aws s3 sync (fallback)"
   local args=()
   [ "${BT_DELETE:-0}" = "1" ] && args+=("--delete")
   [ -n "$dry" ] && args+=("--dryrun")
@@ -111,12 +157,22 @@ _run_s3() {
 
 _run_ftp() {
   local dry="${1:-}"
-  _need_lftp || return 1
   local port="${BT_FTP_PORT:-21}"
   local dest="${BT_FTP_DEST:-/}"
   info "Source  : ${BT_SOURCE}"
   info "Target  : ftp://${BT_FTP_HOST}:${port}${dest}"
   info "SSL     : ${BT_FTP_SSL:-off}"
+
+  if _has_engine; then
+    info "Engine  : backup-engine.py (SQLite resume, parallel)"
+    local args=(); [ -n "$dry" ] && args+=("--dry-run")
+    _run_engine "${args[@]+"${args[@]}"}"
+    return $?
+  fi
+
+  # fallback: lftp
+  _need_lftp || return 1
+  info "Engine  : lftp (fallback)"
   local ssl_opts="" protocol="ftp"
   case "${BT_FTP_SSL:-off}" in
     explicit) ssl_opts="set ftp:ssl-force true; set ftp:ssl-protect-data true;" ;;
@@ -133,11 +189,21 @@ _run_ftp() {
 
 _run_sftp() {
   local dry="${1:-}"
-  _need_rsync || return 1
   local port="${BT_SFTP_PORT:-22}"
   info "Source  : ${BT_SOURCE}"
   info "Target  : ${BT_SFTP_USER}@${BT_SFTP_HOST}:${port}${BT_SFTP_DEST}"
   [ -n "${BT_SFTP_KEY:-}" ] && info "Key     : ${BT_SFTP_KEY}"
+
+  if _has_engine; then
+    info "Engine  : backup-engine.py (SQLite resume, parallel)"
+    local args=(); [ -n "$dry" ] && args+=("--dry-run")
+    _run_engine "${args[@]+"${args[@]}"}"
+    return $?
+  fi
+
+  # fallback: rsync
+  _need_rsync || return 1
+  info "Engine  : rsync (fallback)"
   local ssh_e="ssh -o StrictHostKeyChecking=accept-new -p ${port}"
   [ -n "${BT_SFTP_KEY:-}" ] && ssh_e="${ssh_e} -i ${BT_SFTP_KEY}"
   local rflags="-avz --progress"
@@ -289,6 +355,22 @@ a_run_all() {
     "${C_GREEN}" "$ok_c" "${C_RESET}" "${C_RED}" "$fail_c" "${C_RESET}" >&2
 }
 
+a_status() {
+  hd "Backup status"
+  local names=() n
+  while IFS= read -r n; do names+=("$n"); done < <(_bt_list)
+  [ ${#names[@]} -gt 0 ] || { warn "No profiles configured."; return 0; }
+  if ! _has_engine; then
+    warn "backup-engine.py not found — status requires SQLite state (engine mode only)"
+    return 0
+  fi
+  for n in "${names[@]}"; do
+    _bt_load "$n" 2>/dev/null || continue
+    printf "\n  %b●%b %b%s%b  [%s]\n" "${C_GREEN}" "${C_RESET}" "${C_BOLD}" "$n" "${C_RESET}" "${BT_TYPE:-?}" >&2
+    _run_engine --status 2>/dev/null || true
+  done
+}
+
 a_cron() {
   BT_PICKED=""; _bt_pick || return 0
   local p="${BT_PICKED}"
@@ -301,12 +383,14 @@ a_cron() {
     crontab -l 2>/dev/null | grep -v "backup-tools.*${p}" | crontab - 2>/dev/null || true
   fi
   local hour; hour="$(ask "Backup hour 0-23 [2]:" "2")"; hour="${hour:-2}"
-  local log_dir="${XDG_DATA_HOME:-${HOME}/.local/share}/wanforge-scripts/backup-logs"
+  # Logs go to the standard WF_LOG_DIR (set by wf_log_init in lib.sh)
+  local log_dir="${WF_DATA_DIR}/logs/backup-tools"
   mkdir -p "$log_dir"
   local this; this="$(realpath "${BASH_SOURCE[0]:-$0}" 2>/dev/null || echo "/path/to/backup-tools.sh")"
   local entry="0 ${hour} * * * bash '${this}' --run '${p}' >> '${log_dir}/${p}_\$(date +\%Y\%m\%d).log' 2>&1"
   if (crontab -l 2>/dev/null; echo "$entry") | crontab -; then
     ok "Cron added — daily at ${hour}:00 for '${p}'"
+    info "Log dir : ${log_dir}"
     info "${entry}"
   else
     err "crontab update failed. Add manually:"
@@ -314,12 +398,16 @@ a_cron() {
   fi
 }
 
-# --- non-interactive run (for cron) ---------------------------------------
-if [ "${1:-}" = "--run" ]; then
-  [ -n "${2:-}" ] || { printf "Usage: %s --run <profile-name>\n" "$0" >&2; exit 1; }
-  _run_one "$2"
-  exit $?
-fi
+# --- non-interactive mode (cron / scripted) -------------------------------
+case "${1:-}" in
+  --run)
+    [ -n "${2:-}" ] || { printf "Usage: %s --run <profile>\n" "$0" >&2; exit 1; }
+    _run_one "$2"; exit $? ;;
+  --status)
+    # print engine status for one profile (used by a_status)
+    [ -n "${2:-}" ] || { printf "Usage: %s --status <profile>\n" "$0" >&2; exit 1; }
+    _bt_load "$2" && _run_engine --status; exit $? ;;
+esac
 
 # --- menu -----------------------------------------------------------------
 MENU=(
@@ -329,6 +417,7 @@ MENU=(
   "Run|run|run backup for one profile"
   "Run|run_all|run ALL profiles"
   "Run|test|dry-run — no actual transfer"
+  "Run|status|show upload progress (engine mode)"
   "Schedule|cron|setup daily cron job for a profile"
   "Config|clear_cfg|clear saved wizard defaults"
 )
@@ -344,6 +433,7 @@ while true; do
     run)       a_run ;;
     run_all)   a_run_all ;;
     test)      a_test ;;
+    status)    a_status ;;
     cron)      a_cron ;;
     clear_cfg) cfg_clear && ok "Saved defaults cleared." ;;
   esac

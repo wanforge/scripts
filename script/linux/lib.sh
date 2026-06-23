@@ -194,6 +194,20 @@ asks_cfg() {
 # auto-init when lib.sh is sourced (TASK must be set before sourcing)
 [ -n "${TASK:-}" ] && cfg_init
 
+# ---- standard data / log directories ------------------------------------
+# WF_DATA_DIR  — persistent data root  (~/.local/share/wanforge-scripts)
+# WF_LOG_DIR   — log dir for this TASK (~/.local/share/wanforge-scripts/logs/<TASK>)
+# Scripts may write logs here; LOG_FILE can be pointed at it.
+# mkdir is intentionally lazy — only called when a script actually needs it.
+WF_DATA_DIR="${XDG_DATA_HOME:-${HOME:-/root}/.local/share}/wanforge-scripts"
+WF_LOG_DIR="${WF_DATA_DIR}/logs/${TASK:-misc}"
+
+wf_log_init() {
+  mkdir -p "${WF_LOG_DIR}" && chmod 700 "${WF_LOG_DIR}"
+  WF_LOG_FILE="${WF_LOG_DIR}/$(date +%Y-%m-%d).log"
+  LOG_FILE="${WF_LOG_FILE}"
+}
+
 # ---- privilege ----------------------------------------------------------
 if [ "$(id -u)" -eq 0 ]; then SUDO=""; else SUDO="sudo"; fi
 

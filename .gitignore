@@ -1,6 +1,6 @@
 # PUBLIC REPO — never commit secrets here.
 
-# Environment / secrets
+# ── Secrets & credentials ─────────────────────────────────────────────────────
 *.env
 .env
 .env.*
@@ -12,28 +12,64 @@
 *.pfx
 id_rsa
 id_ed25519
+id_ecdsa
 *.gpg
 *.asc
-
-# Tokens / credentials
-*token*
-*credential*
-*password*
 .netrc
 .npmrc
 auth.json
+*token*
+*credential*
+*password*
+.s3-defaults
 
-# Local overrides
-*.local
-local.*
+# ── Backup configs (contain credentials — stored in ~/.config, not repo) ──────
+configs/*.conf
+!configs/*.example.conf
+!configs/example*.conf
 
-# OS / editor cruft
-.DS_Store
-Thumbs.db
-*.swp
-*~
-
-# Logs / temp
-*.log
+# ── State / database files ────────────────────────────────────────────────────
+*.db
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
+logs/
 tmp/
 .cache/
+*.log
+
+# ── Python (backup-engine.py) ─────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.eggs/
+venv/
+.venv/
+env/
+.Python
+pip-wheel-metadata/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ── OS / editor cruft ─────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+.project
+.classpath
+.settings/
