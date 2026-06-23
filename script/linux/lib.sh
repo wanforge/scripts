@@ -225,7 +225,7 @@ checkbox() {
   for ((i = 0; i < n; i++)); do checked[i]="${_def}"; done
   local groups=0 pg=""
   for ((i = 0; i < n; i++)); do IFS='|' read -r g _ <<< "${MENU[i]}"; [ "$g" != "$pg" ] && { groups=$((groups + 1)); pg="$g"; }; done
-  local total=$((2*n + groups))   # 2 lines per item + 1 per group header
+  local total=$((n + groups))
   printf "%b%s%b  %b↑/↓ move · SPACE toggle · A all · ENTER confirm · Q quit%b\n\n" \
     "${C_BOLD}" "${title}" "${C_RESET}" "${C_DIM}" "${C_RESET}" >&2
   while true; do
@@ -236,11 +236,9 @@ checkbox() {
       if [ "$g" != "$prev" ]; then printf "\033[2K%b── %s ──%b\n" "${C_BOLD}${C_YELLOW}" "$g" "${C_RESET}" >&2; prev="$g"; fi
       local box="[ ]"; [ "${checked[i]}" -eq 1 ] && box="[x]"
       if [ "$i" -eq "$cursor" ]; then
-        printf "\033[2K%b❯ %s %s%b\n" "${C_CYAN}${C_BOLD}" "$box" "$lbl" "${C_RESET}" >&2
-        printf "\033[2K    %b%s%b\n" "${C_CYAN}" "$dsc" "${C_RESET}" >&2
+        printf "\033[2K%b❯ %s %-20s%b  %b%s%b\n" "${C_CYAN}${C_BOLD}" "$box" "$lbl" "${C_RESET}" "${C_DIM}" "$dsc" "${C_RESET}" >&2
       else
-        printf "\033[2K  %b%s%b %s\n" "${C_GREEN}" "$box" "${C_RESET}" "$lbl" >&2
-        printf "\033[2K    %b%s%b\n" "${C_DIM}" "$dsc" "${C_RESET}" >&2
+        printf "\033[2K  %b%s%b %-20s  %b%s%b\n" "${C_GREEN}" "$box" "${C_RESET}" "$lbl" "${C_DIM}" "$dsc" "${C_RESET}" >&2
       fi
     done
     IFS= read -rsn1 key <&3 || break
@@ -271,7 +269,7 @@ menu_select() {
   local n=${#MENU[@]} i cursor=0 first=1 key rest prev g k lbl
   local groups=0 pg=""
   for ((i = 0; i < n; i++)); do IFS='|' read -r g _ <<< "${MENU[i]}"; [ "$g" != "$pg" ] && { groups=$((groups + 1)); pg="$g"; }; done
-  local total=$((2*n + groups))   # 2 lines per item (key + desc) + 1 per group header
+  local total=$((n + groups))
   printf "%b%s%b  %b↑/↓ move · ENTER select · Q back%b\n\n" "${C_BOLD}" "${title}" "${C_RESET}" "${C_DIM}" "${C_RESET}" >&2
   while true; do
     [ "$first" -eq 0 ] && printf "\033[%dA" "$total" >&2
@@ -280,11 +278,9 @@ menu_select() {
       IFS='|' read -r g k lbl <<< "${MENU[i]}"
       if [ "$g" != "$prev" ]; then printf "\033[2K%b── %s ──%b\n" "${C_BOLD}${C_YELLOW}" "$g" "${C_RESET}" >&2; prev="$g"; fi
       if [ "$i" -eq "$cursor" ]; then
-        printf "\033[2K%b❯ %s%b\n" "${C_CYAN}${C_BOLD}" "$k" "${C_RESET}" >&2
-        printf "\033[2K    %b%s%b\n" "${C_CYAN}" "$lbl" "${C_RESET}" >&2
+        printf "\033[2K%b❯ %-20s%b  %b%s%b\n" "${C_CYAN}${C_BOLD}" "$k" "${C_RESET}" "${C_DIM}" "$lbl" "${C_RESET}" >&2
       else
-        printf "\033[2K  %s\n" "$k" >&2
-        printf "\033[2K    %b%s%b\n" "${C_DIM}" "$lbl" "${C_RESET}" >&2
+        printf "\033[2K  %-20s  %b%s%b\n" "$k" "${C_DIM}" "$lbl" "${C_RESET}" >&2
       fi
     done
     IFS= read -rsn1 key <&3 || break
