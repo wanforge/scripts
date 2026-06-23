@@ -87,7 +87,18 @@ _bt_pick() {
   if [ ${#names[@]} -eq 1 ]; then BT_PICKED="${names[0]}"; return 0; fi
   MENU=()
   local i; for i in "${!names[@]}"; do
-    MENU+=("Profiles|${names[$i]}|${names[$i]}")
+    local _n="${names[$i]}"
+    local _desc
+    _desc="$(
+      _bt_load "${_n}" 2>/dev/null || true
+      case "${BT_TYPE:-}" in
+        s3)   printf '[s3]   %s → s3://%s' "${BT_SOURCE:-?}" "${BT_S3_BUCKET:-?}" ;;
+        ftp)  printf '[ftp]  %s → %s' "${BT_SOURCE:-?}" "${BT_FTP_HOST:-?}" ;;
+        sftp) printf '[sftp] %s → %s@%s' "${BT_SOURCE:-?}" "${BT_SFTP_USER:-?}" "${BT_SFTP_HOST:-?}" ;;
+        *)    printf '%s' "${_n}" ;;
+      esac
+    )"
+    MENU+=("Profiles|${_n}|${_desc}")
   done
   menu_select "Select profile:" || return 1
   BT_PICKED="${MENU_KEY}"
@@ -354,12 +365,25 @@ _run_s3() {
   local args=()
   [ "${BT_DELETE:-0}" = "1" ] && args+=("--delete")
   [ -n "$dry" ] && args+=("--dryrun")
+  local _aws_cfg; _aws_cfg="$(mktemp)"
+  cat > "${_aws_cfg}" <<'_AWSCFG'
+[default]
+s3 =
+  payload_signing_enabled = false
+  multipart_threshold = 256MB
+  multipart_chunksize = 64MB
+  max_concurrent_requests = 4
+_AWSCFG
+  AWS_CONFIG_FILE="${_aws_cfg}" \
   AWS_ACCESS_KEY_ID="${BT_S3_ACCESS_KEY}" \
   AWS_SECRET_ACCESS_KEY="${BT_S3_SECRET_KEY}" \
     aws s3 sync "${BT_SOURCE}/" "s3://${BT_S3_BUCKET}/${prefix}" \
       --endpoint-url "${BT_S3_ENDPOINT}" \
       --no-progress \
       "${args[@]+"${args[@]}"}"
+  local _rc=$?
+  rm -f "${_aws_cfg}"
+  return $_rc
 }
 
 _run_ftp() {
