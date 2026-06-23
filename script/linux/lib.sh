@@ -93,23 +93,42 @@ banner() {
     else printf "%s\n" "$l" >&2; fi
     i=$((i + 1)); sleep 0.04
   done
-  printf "%b        wanforge.asia%s • GPLv3 © 2026 Sugeng Sulistiyawan%b\n\n" \
-    "${C_DIM}" "${TASK:+ · ${TASK}}" "${C_RESET}" >&2
+  if [ "${USE_COLOR}" -eq 1 ]; then
+    printf "\033[38;5;240m%s\033[0m\n" "$(printf '%.0s─' {1..72})" >&2
+    printf "\033[38;5;240m  wanforge.asia%s  ·  GPLv3 © 2026 Sugeng Sulistiyawan\033[0m\n\n" \
+      "${TASK:+  ·  ${TASK}}" >&2
+  else
+    printf "  wanforge.asia%s  ·  GPLv3 © 2026 Sugeng Sulistiyawan\n\n" \
+      "${TASK:+  ·  ${TASK}}" >&2
+  fi
 }
 
 # ---- logging (gated by LOG_LEVEL; err always prints; mirrored to LOG_FILE)
-hd()   { [ "${LOG_LEVEL:-1}" -ge 1 ] || return 0; __log "\n${C_BOLD}${C_CYAN}▸ $1${C_RESET}"; }
-info() { [ "${LOG_LEVEL:-1}" -ge 1 ] || return 0; __log "    ${C_DIM}•${C_RESET} $1"; }
-ok()   { [ "${LOG_LEVEL:-1}" -ge 1 ] || return 0; __log "    ${C_GREEN}✔${C_RESET} $1"; }
-warn() { [ "${LOG_LEVEL:-1}" -ge 1 ] || return 0; __log "    ${C_YELLOW}!${C_RESET} $1"; }
-err()  { __log "    ${C_RED}✖${C_RESET} $1"; }
-dbg()  { [ "${LOG_LEVEL:-1}" -ge 2 ] || return 0; __log "    ${C_DIM}⋯${C_RESET} $1"; }
+hd() {
+  [ "${LOG_LEVEL:-1}" -ge 1 ] || return 0
+  local label=" $1 " w=72 pad="" ll lr
+  if [ "${USE_COLOR}" -eq 1 ]; then
+    ll=$(( (w - ${#label}) / 2 )); lr=$(( w - ll - ${#label} ))
+    pad() { local i=0 s=""; while [ $i -lt "$1" ]; do s="${s}─"; i=$((i+1)); done; printf '%s' "$s"; }
+    __log "\n${C_BOLD}${C_CYAN}$(pad $ll)${label}$(pad $lr)${C_RESET}"
+  else
+    __log "\n── $1 ──"
+  fi
+}
+info()  { [ "${LOG_LEVEL:-1}" -ge 1 ] || return 0; __log "  ${C_CYAN}•${C_RESET} $1"; }
+ok()    { [ "${LOG_LEVEL:-1}" -ge 1 ] || return 0; __log "  ${C_GREEN}✓${C_RESET} $1"; }
+warn()  { [ "${LOG_LEVEL:-1}" -ge 1 ] || return 0; __log "  ${C_YELLOW}⚠${C_RESET} $1"; }
+err()   { __log "  ${C_RED}✖${C_RESET} $1"; }
+dbg()   { [ "${LOG_LEVEL:-1}" -ge 2 ] || return 0; __log "  ${C_DIM}⋯${C_RESET} $1"; }
+step()  { [ "${LOG_LEVEL:-1}" -ge 1 ] || return 0; __log "\n  ${C_BOLD}${C_YELLOW}[$1]${C_RESET} $2"; }
+hr()    { [ "${LOG_LEVEL:-1}" -ge 1 ] || return 0; __log "${C_DIM}$(printf '%.0s─' {1..72})${C_RESET}"; }
+pause() { printf "  %b↵ Press Enter to continue…%b" "${C_DIM}" "${C_RESET}" >&2; read -r _ <&3 2>/dev/null || true; }
 
 # ---- prompts (read from the terminal even under `curl | bash`) -----------
 # Open the terminal on FD 3; fall back to stdin if /dev/tty is not available.
 if ! { [ -e /dev/tty ] && exec 3</dev/tty; } 2>/dev/null; then exec 3<&0; fi
-ask()  { local p="$1" d="${2:-}" a; if [ "${ASSUME_YES:-0}" = "1" ]; then echo "${d}"; return 0; fi; if [ -n "${d}" ]; then printf "%b?%b %s %b[%s]%b " "${C_YELLOW}" "${C_RESET}" "${p}" "${C_DIM}" "${d}" "${C_RESET}" >&2; else printf "%b?%b %s " "${C_YELLOW}" "${C_RESET}" "${p}" >&2; fi; read -r a <&3 || a=""; echo "${a:-$d}"; }
-asks() { local p="$1" a; printf "%b?%b %s " "${C_YELLOW}" "${C_RESET}" "${p}" >&2; read -rs a <&3 || a=""; printf "\n" >&2; echo "${a}"; }
+ask()  { local p="$1" d="${2:-}" a; if [ "${ASSUME_YES:-0}" = "1" ]; then echo "${d}"; return 0; fi; if [ -n "${d}" ]; then printf "%b›%b %s %b[%s]%b " "${C_YELLOW}" "${C_RESET}" "${p}" "${C_DIM}" "${d}" "${C_RESET}" >&2; else printf "%b›%b %s " "${C_YELLOW}" "${C_RESET}" "${p}" >&2; fi; read -r a <&3 || a=""; echo "${a:-$d}"; }
+asks() { local p="$1" a; printf "%b›%b %s " "${C_YELLOW}" "${C_RESET}" "${p}" >&2; read -rs a <&3 || a=""; printf "\n" >&2; echo "${a}"; }
 
 # ---- config persistence -------------------------------------------------
 # Per-script config saved at ~/.config/wanforge-scripts/<TASK>.conf (chmod 600).
@@ -226,17 +245,17 @@ checkbox() {
   local groups=0 pg=""
   for ((i = 0; i < n; i++)); do IFS='|' read -r g _ <<< "${MENU[i]}"; [ "$g" != "$pg" ] && { groups=$((groups + 1)); pg="$g"; }; done
   local total=$((n + groups))
-  printf "%b%s%b  %b↑/↓ move · SPACE toggle · A all · ENTER confirm · Q quit%b\n\n" \
-    "${C_BOLD}" "${title}" "${C_RESET}" "${C_DIM}" "${C_RESET}" >&2
+  printf "%b%s%b\n%b  ↑/↓ move · SPACE toggle · A all · ENTER confirm · Q quit%b\n\n" \
+    "${C_BOLD}${C_CYAN}" "${title}" "${C_RESET}" "${C_DIM}" "${C_RESET}" >&2
   while true; do
     [ "$first" -eq 0 ] && printf "\033[%dA" "$total" >&2
     first=0; prev=""
     for ((i = 0; i < n; i++)); do
       IFS='|' read -r g lbl dsc <<< "${MENU[i]}"
-      if [ "$g" != "$prev" ]; then printf "\033[2K%b── %s ──%b\n" "${C_BOLD}${C_YELLOW}" "$g" "${C_RESET}" >&2; prev="$g"; fi
-      local box="[ ]"; [ "${checked[i]}" -eq 1 ] && box="[x]"
+      if [ "$g" != "$prev" ]; then printf "\033[2K%b  ── %s ──%b\n" "${C_BOLD}${C_YELLOW}" "$g" "${C_RESET}" >&2; prev="$g"; fi
+      local box="[ ]"; [ "${checked[i]}" -eq 1 ] && box="[✓]"
       if [ "$i" -eq "$cursor" ]; then
-        printf "\033[2K%b❯ %s %-20s%b  %b%s%b\n" "${C_CYAN}${C_BOLD}" "$box" "$lbl" "${C_RESET}" "${C_DIM}" "$dsc" "${C_RESET}" >&2
+        printf "\033[2K%b❯ %s %-20s  %s%b\n" "${C_BOLD}${C_CYAN}" "$box" "$lbl" "$dsc" "${C_RESET}" >&2
       else
         printf "\033[2K  %b%s%b %-20s  %b%s%b\n" "${C_GREEN}" "$box" "${C_RESET}" "$lbl" "${C_DIM}" "$dsc" "${C_RESET}" >&2
       fi
@@ -270,15 +289,15 @@ menu_select() {
   local groups=0 pg=""
   for ((i = 0; i < n; i++)); do IFS='|' read -r g _ <<< "${MENU[i]}"; [ "$g" != "$pg" ] && { groups=$((groups + 1)); pg="$g"; }; done
   local total=$((n + groups))
-  printf "%b%s%b  %b↑/↓ move · ENTER select · Q back%b\n\n" "${C_BOLD}" "${title}" "${C_RESET}" "${C_DIM}" "${C_RESET}" >&2
+  printf "%b%s%b\n%b  ↑/↓ move · ENTER select · Q back%b\n\n" "${C_BOLD}${C_CYAN}" "${title}" "${C_RESET}" "${C_DIM}" "${C_RESET}" >&2
   while true; do
     [ "$first" -eq 0 ] && printf "\033[%dA" "$total" >&2
     first=0; prev=""
     for ((i = 0; i < n; i++)); do
       IFS='|' read -r g k lbl <<< "${MENU[i]}"
-      if [ "$g" != "$prev" ]; then printf "\033[2K%b── %s ──%b\n" "${C_BOLD}${C_YELLOW}" "$g" "${C_RESET}" >&2; prev="$g"; fi
+      if [ "$g" != "$prev" ]; then printf "\033[2K%b  ── %s ──%b\n" "${C_BOLD}${C_YELLOW}" "$g" "${C_RESET}" >&2; prev="$g"; fi
       if [ "$i" -eq "$cursor" ]; then
-        printf "\033[2K%b❯ %-20s%b  %b%s%b\n" "${C_CYAN}${C_BOLD}" "$k" "${C_RESET}" "${C_DIM}" "$lbl" "${C_RESET}" >&2
+        printf "\033[2K%b❯ %-20s  %s%b\n" "${C_BOLD}${C_CYAN}" "$k" "$lbl" "${C_RESET}" >&2
       else
         printf "\033[2K  %-20s  %b%s%b\n" "$k" "${C_DIM}" "$lbl" "${C_RESET}" >&2
       fi
