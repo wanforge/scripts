@@ -157,6 +157,23 @@ _need_rclone() {
   ok "rclone installed."
 }
 
+# --- wizard / UX helpers --------------------------------------------------
+_step() {
+  printf '\n%b┌─────────────────────────────────────────────────────\n│  Step %s/%s: %s\n└────────────────────────────────────────────────────-%b\n' \
+    "${C_BOLD}${C_CYAN}" "$1" "$2" "$3" "${C_RESET}" >&2
+}
+_pause() {
+  printf "\n%b  Press Enter to continue…%b" "${C_DIM}" "${C_RESET}" >&2
+  read -r _ </dev/tty 2>/dev/null || read -r _
+}
+_bt_count() { _bt_list | wc -l | tr -d '[:space:]'; }
+_section() { printf '\n%b  ▸ %s%b\n' "${C_BOLD}" "$*" "${C_RESET}" >&2; }
+_summary_profile() {
+  # _summary_profile name type source target
+  printf '  %b✔%b  %-22s  %b[%s]%b  %s → %s\n' \
+    "${C_GREEN}" "${C_RESET}" "$1" "${C_CYAN}" "$2" "${C_RESET}" "$3" "$4" >&2
+}
+
 # --- DB dump / encrypt -------------------------------------------------------
 _bt_db_dump() {
   # _bt_db_dump <tmp_base> → echoes path of created dump file
@@ -503,14 +520,17 @@ _run_one() {
 
 _a_add_db() {
   hd "Add database backup profile"
+  _step 1 5 "Profile name"
   local name; name="$(ask "Profile name (e.g. mysql-daily):" "")"; name="${name//[^a-zA-Z0-9_-]/}"
   [ -n "${name}" ] || { err "Profile name required."; return 1; }
   local file; file="$(_bt_file "${name}")"
   if [ -f "${file}" ]; then
-    local ow; ow="$(ask "Profile '${name}' exists. Overwrite? [y/N]:" "n")"
+    warn "Profile '${name}' already exists."
+    local ow; ow="$(ask "Overwrite? [y/N]:" "n")"
     [[ "${ow}" =~ ^[Yy] ]] || return 0
   fi
 
+  _step 2 5 "Database type"
   MENU=(
     "DB|mysql|MySQL / MariaDB — mysqldump, all DBs or single"
     "DB|postgresql|PostgreSQL — pg_dump / pg_dumpall"
@@ -520,6 +540,7 @@ _a_add_db() {
   )
   menu_select "Database type:" || return 0
 
+  _step 3 5 "Database credentials"
   local db_type="${MENU_KEY}" db_host="" db_port="" db_user="" db_pass="" db_name="" db_socket=""
   case "$db_type" in
     mysql)
@@ -555,9 +576,9 @@ _a_add_db() {
       ;;
   esac
 
-  hd "Encryption"
-  info "Dump is encrypted before upload. Passphrase stored in profile (chmod 600)."
-  info "Encrypted filename: <profile>_<timestamp>.sql.gz.enc  (decrypt: openssl enc -d -aes-256-cbc -pbkdf2)"
+  _step 4 5 "Encryption (optional)"
+  info "Passphrase stored in profile (chmod 600)."
+  info "Decrypt: openssl enc -d -aes-256-cbc -pbkdf2 -in file.sql.gz.enc"
   MENU=(
     "Encryption|none|None — store dump as-is"
     "Encryption|aes|AES-256-CBC (openssl pbkdf2, passphrase-based)"
@@ -568,6 +589,7 @@ _a_add_db() {
     do_enc=1; enc_pass="$(asks_cfg CFG_BT_ENCRYPT_PASS "Encryption passphrase:")"
   fi
 
+  _step 5 5 "Destination"
   MENU=(
     "Destination|s3|S3 / S3-compatible (AWS, IDCloudHost, MinIO…)"
     "Destination|ftp|FTP / FTPS"
@@ -638,6 +660,17 @@ _a_add_db() {
          BT_SFTP_KEY "${key:-}" BT_SFTP_DEST "${dest}" ;;
   esac
 
+  # summary
+  local _tgt=""
+  case "$tc" in
+    s3)   _tgt="s3://${bkt:-?}/${pfx:-?}" ;;
+    ftp)  _tgt="ftp://${host:-?}:${port:-21}${dest:-/}" ;;
+    sftp) _tgt="${user:-?}@${host:-?}:${dest:-/}" ;;
+  esac
+  _section "Profile created: ${name}"
+  _summary_profile "${name}" "${tc}" "${bt_src}" "${_tgt}"
+  printf '\n' >&2
+
   local tr; tr="$(ask "Run dry-run test now? [y/N]:" "n")"
   [[ "$tr" =~ ^[Yy] ]] && _run_one "${name}" "dry"
 }
@@ -646,6 +679,7 @@ a_add() {
   hd "Add backup profile(s)"
 
   # --- step 0: source type ---
+  _step 1 5 "What to back up"
   MENU=(
     "Source|dir|Directory / files — sync a folder to S3/FTP/SFTP"
     "Source|db|Database — dump MySQL, MariaDB, PostgreSQL, SQLite, MongoDB, or Redis"
@@ -654,6 +688,7 @@ a_add() {
   if [ "${MENU_KEY}" = "db" ]; then _a_add_db; return $?; fi
 
   # --- step 1: select source(s) via checkbox ---
+  _step 2 5 "Select source directories"
   local _hdir _homes=()
   while IFS= read -r _hdir; do _homes+=("$_hdir"); done < <(_bt_home_users)
 
@@ -705,13 +740,15 @@ a_add() {
   [ "${#_sources[@]}" -eq 0 ] && { warn "No sources selected."; return 0; }
 
   # --- step 2: common options ---
-  info "Sync-delete: files removed from source are also removed from the destination."
-  warn "Enable only when source is the single authoritative copy — dangerous for incremental backups."
+  _step 3 5 "Sync options"
+  info "Sync-delete removes files from destination that no longer exist in source."
+  warn "Safe only when source is authoritative — dangerous for incremental/shared backups."
   local del do_del=0
   del="$(ask "Enable sync-delete? [y/N]:" "n")"
   [[ "$del" =~ ^[Yy] ]] && do_del=1
 
   # --- step 3: destination (asked once, applied to all profiles) ---
+  _step 4 5 "Destination"
   MENU=(
     "Destination|s3|S3 / S3-compatible (AWS, IDCloudHost, MinIO…)"
     "Destination|ftp|FTP / FTPS"
@@ -753,13 +790,15 @@ a_add() {
   esac
 
   # --- step 4: create one profile per source ---
-  local _name _src _i=0
+  _step 5 5 "Creating profiles"
+  local _name _src _i=0 _created=()
   while [ "${_i}" -lt "${#_sources[@]}" ]; do
     _name="${_sources[$_i]}"; _src="${_sources[$((_i+1))]}"; _i=$((_i+2))
     local _file; _file="$(_bt_file "${_name}")"
     if [ -f "${_file}" ]; then
-      local _ow; _ow="$(ask "Profile '${_name}' exists. Overwrite? [y/N]:" "n")"
-      [[ "${_ow}" =~ ^[Yy] ]] || { info "Skipping ${_name}."; continue; }
+      warn "Profile '${_name}' exists."
+      local _ow; _ow="$(ask "Overwrite? [y/N]:" "n")"
+      [[ "${_ow}" =~ ^[Yy] ]] || { info "Skipped: ${_name}."; continue; }
     fi
     case "$tc" in
       s3) _bt_save "${_name}" \
@@ -775,7 +814,25 @@ a_add() {
            BT_SFTP_HOST "${host}" BT_SFTP_PORT "${port}" BT_SFTP_USER "${user}" \
            BT_SFTP_KEY "${key}" BT_SFTP_DEST "${dest}/${_name}" ;;
     esac
+    _created+=("${_name}")
   done
+
+  if [ "${#_created[@]}" -gt 0 ]; then
+    _section "Profiles created (${#_created[@]})"
+    local _tgt_base=""
+    case "$tc" in
+      s3)   _tgt_base="s3://${bkt:-?}" ;;
+      ftp)  _tgt_base="ftp://${host:-?}:${port:-21}${dest:-/}" ;;
+      sftp) _tgt_base="${user:-?}@${host:-?}:${dest:-/}" ;;
+    esac
+    local _name2 _src2 _j=0
+    while [ "${_j}" -lt "${#_sources[@]}" ]; do
+      _name2="${_sources[$_j]}"; _src2="${_sources[$((_j+1))]}"; _j=$((_j+2))
+      [ -f "$(_bt_file "${_name2}")" ] || continue
+      _summary_profile "${_name2}" "${tc}" "${_src2}" "${_tgt_base}"
+    done
+    printf '\n' >&2
+  fi
 
   local tr; tr="$(ask "Run dry-run test for all created profiles? [y/N]:" "n")"
   if [[ "$tr" =~ ^[Yy] ]]; then
@@ -788,11 +845,11 @@ a_add() {
 }
 
 a_list() {
-  hd "Backup profiles (${BT_DIR})"
   local names=() n
   while IFS= read -r n; do names+=("$n"); done < <(_bt_list)
+  hd "Backup profiles — ${#names[@]} configured"
   if [ ${#names[@]} -eq 0 ]; then
-    warn "No profiles configured."
+    warn "No profiles configured. Use 'add' to create one."
     return 0
   fi
   for n in "${names[@]}"; do
@@ -810,6 +867,7 @@ a_list() {
         "${BT_SOURCE:-?}" "${target}" >&2
     )
   done
+  _pause
 }
 
 a_delete() {
@@ -865,15 +923,18 @@ a_dump() {
   local final="${out_dir}/${BT_NAME}_${ts}.${ext}"
   mv "${dump_file}" "${final}"
   ok "Saved: ${final}"
+  _pause
 }
-a_run()  { BT_PICKED=""; _bt_pick || return 0; _run_one "${BT_PICKED}"; }
-a_test() { BT_PICKED=""; _bt_pick || return 0; _run_one "${BT_PICKED}" "dry"; }
+a_run()  { BT_PICKED=""; _bt_pick || return 0; _run_one "${BT_PICKED}"; _pause; }
+a_test() { BT_PICKED=""; _bt_pick || return 0; _run_one "${BT_PICKED}" "dry"; _pause; }
 
 a_run_all() {
   local names=() n ok_c=0 fail_c=0
   while IFS= read -r n; do names+=("$n"); done < <(_bt_list)
   [ ${#names[@]} -gt 0 ] || { warn "No profiles configured."; return 0; }
-  hd "Running all ${#names[@]} profile(s)"
+  hd "Run ALL profiles (${#names[@]})"
+  local ans; ans="$(ask "Run all ${#names[@]} profile(s) now? [y/N]:" "n")"
+  [[ "$ans" =~ ^[Yy] ]] || { info "Aborted."; return 0; }
   for n in "${names[@]}"; do
     printf "\n%b── %s ──%b\n" "${C_BOLD}" "$n" "${C_RESET}" >&2
     _run_one "$n" \
@@ -883,6 +944,7 @@ a_run_all() {
   printf "\n%b═══════════════════════════════════%b\n" "${C_CYAN}" "${C_RESET}" >&2
   printf "  %b✔ %d succeeded%b   %b✖ %d failed%b\n" \
     "${C_GREEN}" "$ok_c" "${C_RESET}" "${C_RED}" "$fail_c" "${C_RESET}" >&2
+  _pause
 }
 
 a_status() {
@@ -1052,22 +1114,22 @@ case "${1:-}" in
 esac
 
 # --- menu -----------------------------------------------------------------
-MENU=(
-  "Profile|add|add new backup profile"
-  "Profile|list|list all profiles"
-  "Profile|delete|remove a profile"
-  "Run|run|run backup (dir sync or DB dump + upload)"
-  "Run|run_all|run ALL profiles (auto dump+encrypt for DB)"
-  "Run|test|dry-run — no actual transfer"
-  "Run|dump|dump DB to local file only (no upload)"
-  "Run|status|show upload progress (engine mode)"
-  "Schedule|cron|setup daily cron job for a profile"
-  "Schedule|remove_cron|remove backup cron entries"
-  "Config|clear_cfg|clear saved wizard defaults"
-)
-
 banner
 while true; do
+  _cnt="$(_bt_count 2>/dev/null || echo 0)"
+  MENU=(
+    "Profile|add|add new backup profile"
+    "Profile|list|list all profiles (${_cnt} configured)"
+    "Profile|delete|remove a profile"
+    "Run|run|run backup (dir sync or DB dump + upload)"
+    "Run|run_all|run ALL ${_cnt} profile(s)"
+    "Run|test|dry-run — no actual transfer"
+    "Run|dump|dump DB to local file only (no upload)"
+    "Run|status|show upload progress (engine mode)"
+    "Schedule|cron|setup daily cron job for a profile"
+    "Schedule|remove_cron|remove backup cron entries"
+    "Config|clear_cfg|clear saved wizard defaults"
+  )
   printf "\n" >&2
   menu_select "Backup tools — S3 / FTP / SFTP:" || break
   case "${MENU_KEY}" in
@@ -1079,9 +1141,9 @@ while true; do
     test)      a_test || true ;;
     dump)      a_dump || true ;;
     status)    a_status || true ;;
-    cron)        a_cron || true ;;
-    remove_cron) wf_cron_remove "backup-tools" || true ;;
-    clear_cfg)   cfg_clear && ok "Saved defaults cleared." ;;
+    cron)        a_cron || true; _pause ;;
+    remove_cron) wf_cron_remove "backup-tools" || true; _pause ;;
+    clear_cfg)   cfg_clear && ok "Saved defaults cleared."; _pause ;;
   esac
 done
 
