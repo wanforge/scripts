@@ -783,6 +783,8 @@ a_delete() {
     rm -f "$(_bt_file "${n}")"
     ok "Deleted: ${n}"
   done
+  printf "\n%bPress Enter to return to menu…%b" "${C_DIM}" "${C_RESET}" >&2
+  read -r _ </dev/tty 2>/dev/null || read -r _
 }
 
 a_dump() {
