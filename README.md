@@ -392,33 +392,68 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/runtime/setup-pm2-app.sh |
 
 ### backup-tools.sh
 
-- Multi-destination backup manager. Manages **named profiles** (each a `~/.config/wanforge-scripts/backup-profiles/<name>.conf`, chmod 600). Pick a profile to add, run, test, or schedule — no global config, no cronjob clutter.
-- **Destination types** and their required tools:
+- Multi-destination backup manager. Manages **named profiles** (`~/.config/wanforge-scripts/backup-profiles/<name>.conf`, chmod 600). No global config, no cron clutter.
+- **Two source types** — chosen when adding a profile:
+  - **Directory / files** — syncs a folder (supports home-dir picker with checkbox multi-user selection).
+  - **Database** — dumps the DB then uploads the dump file; supported engines:
 
-  | Type   | Tool                              | Notes                                                                        |
-  | ------ | --------------------------------- | ---------------------------------------------------------------------------- |
-  | `s3`   | `aws` CLI (`pip3 install awscli`) | Custom `--endpoint-url` → AWS, IDCloudHost, MinIO, Backblaze B2, etc.        |
-  | `ftp`  | `lftp` (`apt install lftp`)       | `lftp mirror -R` with optional SSL: off / explicit TLS / implicit TLS (FTPS) |
-  | `sftp` | `rsync` (`apt install rsync`)     | `rsync -avz -e ssh`; SSH key path or agent; `--delete` optional              |
+    | Engine        | Tool                     | Default port | Notes                                           |
+    | ------------- | ------------------------ | ------------ | ----------------------------------------------- |
+    | MySQL/MariaDB | `mysqldump`              | 3306         | `--all-databases` or single DB, gzip-compressed |
+    | PostgreSQL    | `pg_dump` / `pg_dumpall` | 5432         | single DB or all, gzip-compressed               |
+    | SQLite        | `sqlite3`                | (file path)  | `.dump` piped through gzip                      |
+    | MongoDB       | `mongodump`              | 27017        | per-DB or all, tar.gz archive                   |
+    | Redis         | `redis-cli`              | 6379         | `BGSAVE` → copies RDB, gzip-compressed          |
+
+- **Encryption** — optional per-profile AES-256-CBC (`openssl enc -pbkdf2`). Enabled in the wizard; passphrase stored in profile (chmod 600). Encrypted files get `.enc` suffix. Applied automatically on every run/cron.
+- **Destination types** — same for both directory and DB profiles:
+
+  | Type   | Tool                              | Notes                                                                     |
+  | ------ | --------------------------------- | ------------------------------------------------------------------------- |
+  | `s3`   | `aws` CLI (`pip3 install awscli`) | Custom `--endpoint-url` → AWS, IDCloudHost, MinIO, Backblaze B2, etc.     |
+  | `ftp`  | `lftp` (`apt install lftp`)       | `lftp mirror -R` (dir) or `put` (DB dump); SSL: off / explicit / implicit |
+  | `sftp` | `rsync` (`apt install rsync`)     | `rsync -avz -e ssh`; SSH key path or agent; `--delete` for dir profiles   |
 
 - **TUI menu** (arrow-key, loops until Q):
-  - **Add profile** — wizard: name, source dir, sync-delete toggle, type, then type-specific credentials (secrets via masked input, saved securely).
+  - **Add profile** — source type first (dir or DB), then wizard collects credentials (secrets via masked input, saved securely). For dir: checkbox multi-user home-dir picker. For DB: engine, connection, optional encryption, then destination.
   - **List** — shows every profile with type tag and `source → target` summary.
-  - **Delete** — with confirmation.
-  - **Run** — real transfer for one chosen profile.
-  - **Run all** — runs every profile in sequence, reports succeeded/failed count.
-  - **Dry-run** — simulates the transfer (no bytes moved) to verify config.
-  - **Cron** — injects a `crontab` entry for a specific profile; runs non-interactively via `--run`.
-- **Wizard defaults** are remembered (endpoint, host, username, etc.) so adding a second profile to the same server skips re-typing.
-- **Non-interactive / cron mode**: `bash backup-tools.sh --run <profile>` — no banner, exits with the transfer's exit code.
+  - **Delete** — checkbox multi-select, delete multiple profiles at once.
+  - **Run** — real transfer for one profile (dir sync or DB dump → upload).
+  - **Run all** — all profiles in sequence; DB profiles auto-dump and auto-encrypt before upload.
+  - **Dry-run** — simulates (no bytes moved).
+  - **Dump (local)** — dumps a DB profile to a local file only, no upload (respects encryption setting).
+  - **Cron** — injects a `crontab` entry for a profile; runs via `--run` non-interactively.
+- **Wizard defaults** are remembered so adding a second profile to the same server skips re-typing.
+- **Non-interactive / cron / scripted flags**:
 
   ```bash
-  # run manually
-  curl -fsSL https://scripts.wanforge.asia/script/linux/system/backup-tools.sh | bash
+  # Directory backup
+  bash backup-tools.sh --run      web-daily          # sync dir → S3/FTP/SFTP
+  bash backup-tools.sh --run-all                     # run all profiles
+  bash backup-tools.sh --test     web-daily          # dry-run
 
-  # cron (script must be saved locally first)
-  0 2 * * * bash /opt/scripts/backup-tools.sh --run web-daily >> /var/log/backup-web-daily.log 2>&1
+  # DB backup (dump + optional encrypt + upload)
+  bash backup-tools.sh --run      mysql-daily        # dump MySQL → upload
+  bash backup-tools.sh --run-all                     # all profiles incl. DB
+
+  # Dump to local file only (no upload)
+  bash backup-tools.sh --dump     mysql-daily        # → ~/mysql-daily_20260623_020000.sql.gz
+  bash backup-tools.sh --dump     mysql-daily /tmp   # custom output dir
+  bash backup-tools.sh --dump-all /backups/local     # dump all DB profiles locally
+
+  # Schedule
+  bash backup-tools.sh --cron     mysql-daily 2      # daily at 02:00
+  bash backup-tools.sh --remove-cron mysql-daily     # remove its cron entry
+
+  # Profile management
+  bash backup-tools.sh --list
+  bash backup-tools.sh --delete   old-profile another-profile
+
+  # run manually (TUI)
+  curl -fsSL https://scripts.wanforge.asia/script/linux/system/backup-tools.sh | bash
   ```
+
+- DB dump filenames include a timestamp — each run creates a new file, old ones are **not** overwritten: `<profile>_YYYYMMDD_HHMMSS.sql.gz` (or `.tar.gz`, `.rdb.gz`, `.sql.gz.enc` for encrypted).
 
 ### install-firewall.sh
 

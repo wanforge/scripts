@@ -56,10 +56,12 @@ _bt_list() {
 _bt_load() {
   local file; file="$(_bt_file "$1")"
   [ -f "$file" ] || { err "Profile not found: $1"; return 1; }
-  unset BT_NAME BT_TYPE BT_SOURCE BT_DELETE
+  unset BT_NAME BT_TYPE BT_SOURCE BT_SOURCE_TYPE BT_DELETE
   unset BT_S3_ENDPOINT BT_S3_ACCESS_KEY BT_S3_SECRET_KEY BT_S3_BUCKET BT_S3_PREFIX
   unset BT_FTP_HOST BT_FTP_PORT BT_FTP_USER BT_FTP_PASS BT_FTP_DEST BT_FTP_SSL
   unset BT_SFTP_HOST BT_SFTP_PORT BT_SFTP_USER BT_SFTP_KEY BT_SFTP_DEST
+  unset BT_DB_TYPE BT_DB_HOST BT_DB_PORT BT_DB_USER BT_DB_PASS BT_DB_SOCKET BT_DB_NAME
+  unset BT_ENCRYPT BT_ENCRYPT_PASS
   # shellcheck source=/dev/null
   . "$file"
 }
@@ -104,7 +106,181 @@ _bt_home_users() {
 have()        { command -v "$1" >/dev/null 2>&1; }
 _need_aws()   { have aws   || { err "'aws' CLI required. Install: pip3 install awscli"; return 1; }; }
 _need_lftp()  { have lftp  || { err "'lftp' required.   Install: apt install lftp";     return 1; }; }
-_need_rsync() { have rsync || { err "'rsync' required.  Install: apt install rsync";    return 1; }; }
+_need_rsync()     { have rsync     || { err "'rsync' required.      Install: apt install rsync";                   return 1; }; }
+_need_mysqldump() { have mysqldump || { err "'mysqldump' required.  Install: apt install mysql-client";         return 1; }; }
+_need_pg_dump()   { have pg_dump   || { err "'pg_dump' required.    Install: apt install postgresql-client";    return 1; }; }
+_need_sqlite3()   { have sqlite3   || { err "'sqlite3' required.    Install: apt install sqlite3";              return 1; }; }
+_need_mongodump() { have mongodump || { err "'mongodump' required.  See: mongodb.com/try/download/database-tools"; return 1; }; }
+_need_openssl()   { have openssl   || { err "'openssl' required.    Install: apt install openssl";              return 1; }; }
+
+# --- DB dump / encrypt -------------------------------------------------------
+_bt_db_dump() {
+  # _bt_db_dump <tmp_base> → echoes path of created dump file
+  local base="$1" outfile args
+  case "${BT_DB_TYPE:-}" in
+    mysql|mariadb)
+      _need_mysqldump || return 1
+      outfile="${base}.sql.gz"; args=()
+      [ -n "${BT_DB_HOST:-}"   ] && args+=(-h "${BT_DB_HOST}")
+      [ -n "${BT_DB_PORT:-}"   ] && args+=(-P "${BT_DB_PORT}")
+      [ -n "${BT_DB_USER:-}"   ] && args+=(-u "${BT_DB_USER}")
+      [ -n "${BT_DB_PASS:-}"   ] && args+=("--password=${BT_DB_PASS}")
+      [ -n "${BT_DB_SOCKET:-}" ] && args+=(-S "${BT_DB_SOCKET}")
+      if [ "${BT_DB_NAME:-all}" = "all" ] || [ -z "${BT_DB_NAME:-}" ]; then
+        args+=(--all-databases)
+      else
+        args+=("${BT_DB_NAME}")
+      fi
+      args+=(--single-transaction --routines --triggers --events --skip-lock-tables)
+      info "Dumping MySQL/MariaDB → $(basename "${outfile}")"
+      mysqldump "${args[@]}" | gzip -9 > "${outfile}"
+      ;;
+    postgresql|postgres|pg)
+      _need_pg_dump || return 1
+      outfile="${base}.sql.gz"; args=()
+      [ -n "${BT_DB_HOST:-}" ] && args+=(-h "${BT_DB_HOST}")
+      [ -n "${BT_DB_PORT:-}" ] && args+=(-p "${BT_DB_PORT}")
+      [ -n "${BT_DB_USER:-}" ] && args+=(-U "${BT_DB_USER}")
+      if [ "${BT_DB_NAME:-all}" = "all" ] || [ -z "${BT_DB_NAME:-}" ]; then
+        info "Dumping all PostgreSQL DBs → $(basename "${outfile}")"
+        PGPASSWORD="${BT_DB_PASS:-}" pg_dumpall "${args[@]}" | gzip -9 > "${outfile}"
+      else
+        info "Dumping PostgreSQL '${BT_DB_NAME}' → $(basename "${outfile}")"
+        PGPASSWORD="${BT_DB_PASS:-}" pg_dump "${args[@]}" "${BT_DB_NAME}" | gzip -9 > "${outfile}"
+      fi
+      ;;
+    sqlite|sqlite3)
+      _need_sqlite3 || return 1
+      [ -f "${BT_DB_NAME:-}" ] || { err "SQLite file not found: ${BT_DB_NAME:-}"; return 1; }
+      outfile="${base}.sql.gz"
+      info "Dumping SQLite '${BT_DB_NAME}' → $(basename "${outfile}")"
+      sqlite3 "${BT_DB_NAME}" ".dump" | gzip -9 > "${outfile}"
+      ;;
+    mongodb|mongo)
+      _need_mongodump || return 1
+      outfile="${base}.tar.gz"; args=(--out "$(mktemp -d)")
+      [ -n "${BT_DB_HOST:-}" ] && args+=(--host "${BT_DB_HOST}")
+      [ -n "${BT_DB_PORT:-}" ] && args+=(--port "${BT_DB_PORT}")
+      [ -n "${BT_DB_USER:-}" ] && args+=(--username "${BT_DB_USER}")
+      [ -n "${BT_DB_PASS:-}" ] && args+=(--password "${BT_DB_PASS}")
+      [ "${BT_DB_NAME:-all}" = "all" ] || args+=(--db "${BT_DB_NAME}")
+      info "Dumping MongoDB → $(basename "${outfile}")"
+      local mongo_tmp="${args[1]}"
+      mongodump "${args[@]}" 2>/dev/null
+      tar czf "${outfile}" -C "${mongo_tmp}" .
+      rm -rf "${mongo_tmp}"
+      ;;
+    redis)
+      have redis-cli || { err "'redis-cli' required. Install: apt install redis-tools"; return 1; }
+      outfile="${base}.rdb.gz"
+      local rcli_args=()
+      [ -n "${BT_DB_HOST:-}" ] && rcli_args+=(-h "${BT_DB_HOST}")
+      [ -n "${BT_DB_PORT:-}" ] && rcli_args+=(-p "${BT_DB_PORT}")
+      [ -n "${BT_DB_PASS:-}" ] && rcli_args+=(-a "${BT_DB_PASS}")
+      local rdb_dir rdb_fn
+      rdb_dir="$(redis-cli "${rcli_args[@]}" CONFIG GET dir        2>/dev/null | tail -1 || true)"
+      rdb_fn="$( redis-cli "${rcli_args[@]}" CONFIG GET dbfilename 2>/dev/null | tail -1 || true)"
+      redis-cli "${rcli_args[@]}" BGSAVE >/dev/null 2>&1 || true; sleep 2
+      local rdb_path="${rdb_dir}/${rdb_fn}"
+      [ -f "${rdb_path}" ] || { err "Redis RDB not found: ${rdb_path}"; return 1; }
+      info "Dumping Redis RDB → $(basename "${outfile}")"
+      gzip -9 -c "${rdb_path}" > "${outfile}"
+      ;;
+    *)
+      err "Unknown DB type '${BT_DB_TYPE:-}'. Supported: mysql, mariadb, postgresql, sqlite, mongodb, redis"
+      return 1 ;;
+  esac
+  printf '%s\n' "${outfile}"
+}
+
+_bt_encrypt_file() {
+  # encrypts <file> AES-256-CBC, removes original, echoes new path
+  local inp="$1"
+  _need_openssl || return 1
+  local enc="${inp}.enc"
+  openssl enc -aes-256-cbc -pbkdf2 -iter 100000 \
+    -pass pass:"${BT_ENCRYPT_PASS:-}" -in "${inp}" -out "${enc}"
+  rm -f "${inp}"
+  printf '%s\n' "${enc}"
+}
+
+_run_db_s3() {
+  local dumpfile="$1" fname prefix
+  prefix="${BT_S3_PREFIX:-${HOSTNAME_S}/${BT_NAME}}"; fname="$(basename "${dumpfile}")"
+  _need_aws || return 1
+  info "Uploading → s3://${BT_S3_BUCKET}/${prefix}/${fname}"
+  AWS_ACCESS_KEY_ID="${BT_S3_ACCESS_KEY}" AWS_SECRET_ACCESS_KEY="${BT_S3_SECRET_KEY}" \
+    aws s3 cp "${dumpfile}" "s3://${BT_S3_BUCKET}/${prefix}/${fname}" \
+      --endpoint-url "${BT_S3_ENDPOINT}" --no-progress
+}
+
+_run_db_ftp() {
+  local dumpfile="$1" fname port dest ssl_opts="" protocol="ftp"
+  port="${BT_FTP_PORT:-21}"; dest="${BT_FTP_DEST:-/backups}"; fname="$(basename "${dumpfile}")"
+  _need_lftp || return 1
+  case "${BT_FTP_SSL:-off}" in
+    explicit) ssl_opts="set ftp:ssl-force true; set ftp:ssl-protect-data true;" ;;
+    implicit) ssl_opts="set ftp:ssl-force true;"; protocol="ftps" ;;
+    *)        ssl_opts="set ftp:ssl-allow false;" ;;
+  esac
+  info "Uploading → ftp://${BT_FTP_HOST}:${port}${dest}/${fname}"
+  lftp -u "${BT_FTP_USER},${BT_FTP_PASS}" "${protocol}://${BT_FTP_HOST}:${port}" \
+    -e "${ssl_opts} mkdir -p '${dest}'; put '${dumpfile}' -o '${dest}/${fname}'; quit"
+}
+
+_run_db_sftp() {
+  local dumpfile="$1" port dest ssh_e
+  port="${BT_SFTP_PORT:-22}"; dest="${BT_SFTP_DEST:-/backups}"
+  _need_rsync || return 1
+  ssh_e="ssh -o StrictHostKeyChecking=accept-new -p ${port}"
+  [ -n "${BT_SFTP_KEY:-}" ] && ssh_e="${ssh_e} -i ${BT_SFTP_KEY}"
+  info "Uploading → ${BT_SFTP_USER}@${BT_SFTP_HOST}:${dest}/"
+  # shellcheck disable=SC2086
+  rsync -avz --progress -e "${ssh_e}" "${dumpfile}" "${BT_SFTP_USER}@${BT_SFTP_HOST}:${dest}/"
+}
+
+_run_db() {
+  local dry="${1:-}"
+  local ts; ts="$(date +%Y%m%d_%H%M%S)"
+  local tmp_base="/tmp/wf-db-${BT_NAME}-${ts}-$$"
+
+  hd "DB Backup — ${BT_NAME} [${BT_DB_TYPE:-?}${dry:+, dry-run}]"
+  info "DB type : ${BT_DB_TYPE:-?}"
+  info "DB name : ${BT_DB_NAME:-all}"
+  info "Dest    : ${BT_TYPE:-?}"
+  [ "${BT_ENCRYPT:-0}" = "1" ] && info "Encrypt : AES-256-CBC"
+
+  if [ -n "${dry}" ]; then
+    info "[dry-run] would dump ${BT_DB_TYPE:-?} '${BT_DB_NAME:-all}' and upload to ${BT_TYPE:-?}"
+    return 0
+  fi
+
+  local dump_file
+  dump_file="$(_bt_db_dump "${tmp_base}")" || { rm -f "${tmp_base}"* 2>/dev/null; return 1; }
+  ok "Dump: $(basename "${dump_file}")"
+
+  if [ "${BT_ENCRYPT:-0}" = "1" ]; then
+    hd "Encrypting"
+    dump_file="$(_bt_encrypt_file "${dump_file}")" || { rm -f "${dump_file}"; return 1; }
+    ok "Encrypted: $(basename "${dump_file}")"
+  fi
+
+  # rename to <profile>_<timestamp>.<ext>  before uploading
+  local bn ext upload_file
+  bn="$(basename "${dump_file}")"; ext="${bn#*.}"
+  upload_file="/tmp/${BT_NAME}_${ts}.${ext}"
+  mv "${dump_file}" "${upload_file}"
+
+  local rc=0
+  case "${BT_TYPE:-}" in
+    s3)   _run_db_s3   "${upload_file}" || rc=$? ;;
+    ftp)  _run_db_ftp  "${upload_file}" || rc=$? ;;
+    sftp) _run_db_sftp "${upload_file}" || rc=$? ;;
+    *)    err "Unknown destination type: ${BT_TYPE}"; rc=1 ;;
+  esac
+  rm -f "${upload_file}"
+  return $rc
+}
 
 # --- backup runners -------------------------------------------------------
 # Each runner tries backup-engine.py first (SQLite resume, parallel, delete-sync).
@@ -224,22 +400,173 @@ _run_sftp() {
 _run_one() {
   local name="$1" dry="${2:-}"
   _bt_load "$name" || return 1
-  local type_label; type_label="$(printf '%s' "${BT_TYPE:-?}" | tr '[:lower:]' '[:upper:]')"
-  hd "${type_label} Backup — ${name}${dry:+ (dry-run)}"
   local rc=0
-  case "${BT_TYPE:-}" in
-    s3)   _run_s3   "$dry" || rc=$? ;;
-    ftp)  _run_ftp  "$dry" || rc=$? ;;
-    sftp) _run_sftp "$dry" || rc=$? ;;
-    *)    err "Unknown type '${BT_TYPE}' in profile '${name}'"; return 1 ;;
-  esac
+  if [ "${BT_SOURCE_TYPE:-dir}" = "db" ]; then
+    _run_db "$dry" || rc=$?
+  else
+    local type_label; type_label="$(printf '%s' "${BT_TYPE:-?}" | tr '[:lower:]' '[:upper:]')"
+    hd "${type_label} Backup — ${name}${dry:+ (dry-run)}"
+    case "${BT_TYPE:-}" in
+      s3)   _run_s3   "$dry" || rc=$? ;;
+      ftp)  _run_ftp  "$dry" || rc=$? ;;
+      sftp) _run_sftp "$dry" || rc=$? ;;
+      *)    err "Unknown type '${BT_TYPE}' in profile '${name}'"; return 1 ;;
+    esac
+  fi
   [ $rc -eq 0 ] && ok "Done: ${name}" || { err "Failed: ${name} (exit ${rc})"; return 1; }
 }
 
 # --- actions --------------------------------------------------------------
 
+_a_add_db() {
+  hd "Add database backup profile"
+  local name; name="$(ask "Profile name (e.g. mysql-daily):" "")"; name="${name//[^a-zA-Z0-9_-]/}"
+  [ -n "${name}" ] || { err "Profile name required."; return 1; }
+  local file; file="$(_bt_file "${name}")"
+  if [ -f "${file}" ]; then
+    local ow; ow="$(ask "Profile '${name}' exists. Overwrite? [y/N]:" "n")"
+    [[ "${ow}" =~ ^[Yy] ]] || return 0
+  fi
+
+  hd "Database type"
+  printf "  %b1)%b MySQL / MariaDB\n" "${C_CYAN}" "${C_RESET}" >&2
+  printf "  %b2)%b PostgreSQL\n"       "${C_CYAN}" "${C_RESET}" >&2
+  printf "  %b3)%b SQLite\n"           "${C_CYAN}" "${C_RESET}" >&2
+  printf "  %b4)%b MongoDB\n"          "${C_CYAN}" "${C_RESET}" >&2
+  printf "  %b5)%b Redis\n"            "${C_CYAN}" "${C_RESET}" >&2
+  local dbt; dbt="$(ask "Type [1]:" "1")"; dbt="${dbt:-1}"
+
+  local db_type db_host="" db_port="" db_user="" db_pass="" db_name="" db_socket=""
+  case "$dbt" in
+    1) db_type="mysql" ;;
+    2) db_type="postgresql" ;;
+    3) db_type="sqlite" ;;
+    4) db_type="mongodb" ;;
+    5) db_type="redis" ;;
+    *) err "Invalid DB type."; return 1 ;;
+  esac
+
+  case "$dbt" in
+    1)
+      db_host="$(ask_cfg   CFG_BT_DB_HOST   "DB Host:"                        "localhost")"
+      db_port="$(ask_cfg   CFG_BT_DB_PORT   "DB Port:"                        "3306")"
+      db_user="$(ask_cfg   CFG_BT_DB_USER   "DB Username:"                    "root")"
+      db_pass="$(asks_cfg  CFG_BT_DB_PASS   "DB Password:")"
+      db_socket="$(ask_cfg CFG_BT_DB_SOCK   "MySQL socket (blank=use tcp):"   "")"
+      db_name="$(ask_cfg   CFG_BT_DB_NAME   "Database name ('all'=all DBs):"  "all")"
+      ;;
+    2)
+      db_host="$(ask_cfg  CFG_BT_DB_HOST   "DB Host:"                         "localhost")"
+      db_port="$(ask_cfg  CFG_BT_DB_PORT   "DB Port:"                         "5432")"
+      db_user="$(ask_cfg  CFG_BT_DB_USER   "DB Username:"                     "postgres")"
+      db_pass="$(asks_cfg CFG_BT_DB_PASS   "DB Password:")"
+      db_name="$(ask_cfg  CFG_BT_DB_NAME   "Database name ('all'=all DBs):"   "all")"
+      ;;
+    3)
+      db_name="$(ask_cfg  CFG_BT_DB_NAME   "SQLite file path:"                "")"
+      ;;
+    4)
+      db_host="$(ask_cfg  CFG_BT_DB_HOST   "DB Host:"                         "localhost")"
+      db_port="$(ask_cfg  CFG_BT_DB_PORT   "DB Port:"                         "27017")"
+      db_user="$(ask_cfg  CFG_BT_DB_USER   "DB Username (blank=no auth):"     "")"
+      db_pass="$(asks_cfg CFG_BT_DB_PASS   "DB Password:")"
+      db_name="$(ask_cfg  CFG_BT_DB_NAME   "Database name ('all'=all DBs):"   "all")"
+      ;;
+    5)
+      db_host="$(ask_cfg  CFG_BT_DB_HOST   "Redis Host:"                      "127.0.0.1")"
+      db_port="$(ask_cfg  CFG_BT_DB_PORT   "Redis Port:"                      "6379")"
+      db_pass="$(asks_cfg CFG_BT_DB_PASS   "Redis Password (blank=none):")"
+      ;;
+  esac
+
+  hd "Encryption"
+  printf "  %b1)%b None\n" "${C_CYAN}" "${C_RESET}" >&2
+  printf "  %b2)%b AES-256-CBC (openssl, password-based)\n" "${C_CYAN}" "${C_RESET}" >&2
+  local enc_c; enc_c="$(ask "Choose [1]:" "1")"; enc_c="${enc_c:-1}"
+  local do_enc=0 enc_pass=""
+  if [ "${enc_c}" = "2" ]; then
+    do_enc=1; enc_pass="$(asks_cfg CFG_BT_ENCRYPT_PASS "Encryption passphrase:")"
+  fi
+
+  hd "Destination type"
+  printf "  %b1)%b S3 / S3-compatible (AWS, IDCloudHost, MinIO…)\n" "${C_CYAN}" "${C_RESET}" >&2
+  printf "  %b2)%b FTP / FTPS\n"                                     "${C_CYAN}" "${C_RESET}" >&2
+  printf "  %b3)%b SFTP (SSH + rsync)\n"                             "${C_CYAN}" "${C_RESET}" >&2
+  local tc; tc="$(ask "Type [1]:" "1")"; tc="${tc:-1}"
+
+  local ep ak sk bkt pfx host port user pass dest ssl_c ssl key
+  case "$tc" in
+    1)
+      ep="$(ask_cfg  CFG_BT_S3_ENDPOINT   "S3 Endpoint URL:"   "https://is3.cloudhost.id")"
+      ak="$(ask_cfg  CFG_BT_S3_ACCESS_KEY "S3 Access Key:"     "")"
+      sk="$(asks_cfg CFG_BT_S3_SECRET_KEY "S3 Secret Key:")"
+      bkt="$(ask_cfg CFG_BT_S3_BUCKET     "S3 Bucket name:"    "")"
+      pfx="$(ask_cfg CFG_BT_S3_PREFIX     "S3 Prefix:"         "${HOSTNAME_S}/${name}")"
+      ;;
+    2)
+      host="$(ask_cfg  CFG_BT_FTP_HOST "FTP Host:"      "")"; port="$(ask_cfg CFG_BT_FTP_PORT "FTP Port:" "21")"
+      user="$(ask_cfg  CFG_BT_FTP_USER "FTP Username:"  "")"; pass="$(asks_cfg CFG_BT_FTP_PASS "FTP Password:")"
+      dest="$(ask_cfg  CFG_BT_FTP_DEST "Remote path:"   "/backups")"
+      printf "  %b1)%b No SSL   %b2)%b Explicit TLS   %b3)%b Implicit TLS\n" \
+        "${C_CYAN}" "${C_RESET}" "${C_CYAN}" "${C_RESET}" "${C_CYAN}" "${C_RESET}" >&2
+      ssl_c="$(ask "SSL mode [1]:" "1")"; ssl_c="${ssl_c:-1}"
+      case "$ssl_c" in 2) ssl="explicit" ;; 3) ssl="implicit" ;; *) ssl="off" ;; esac
+      ;;
+    3)
+      host="$(ask_cfg  CFG_BT_SFTP_HOST "SFTP Host:"                  "")"; port="$(ask_cfg CFG_BT_SFTP_PORT "SFTP Port:" "22")"
+      user="$(ask_cfg  CFG_BT_SFTP_USER "SFTP Username:"              "")"; key="$(ask_cfg CFG_BT_SFTP_KEY "SSH key (blank=agent):" "")"
+      dest="$(ask_cfg  CFG_BT_SFTP_DEST "Remote destination path:"    "/backups")"
+      ;;
+    *) err "Invalid destination type."; return 1 ;;
+  esac
+
+  local bt_src
+  case "$db_type" in
+    mysql|mariadb) bt_src="mysql://${db_user:-root}@${db_host:-localhost}/${db_name:-all}" ;;
+    postgresql)    bt_src="pg://${db_user:-postgres}@${db_host:-localhost}/${db_name:-all}" ;;
+    sqlite)        bt_src="sqlite://${db_name:-?}" ;;
+    mongodb)       bt_src="mongodb://${db_host:-localhost}/${db_name:-all}" ;;
+    redis)         bt_src="redis://${db_host:-127.0.0.1}:${db_port:-6379}" ;;
+    *)             bt_src="${db_type}://${db_name:-?}" ;;
+  esac
+
+  case "$tc" in
+    1) _bt_save "${name}" \
+         BT_NAME "${name}" BT_TYPE "s3"   BT_SOURCE_TYPE "db" BT_SOURCE "${bt_src}" BT_DELETE "0" \
+         BT_DB_TYPE "${db_type}" BT_DB_HOST "${db_host}" BT_DB_PORT "${db_port}" \
+         BT_DB_USER "${db_user}" BT_DB_PASS "${db_pass}" BT_DB_NAME "${db_name}" BT_DB_SOCKET "${db_socket}" \
+         BT_ENCRYPT "${do_enc}" BT_ENCRYPT_PASS "${enc_pass}" \
+         BT_S3_ENDPOINT "${ep}" BT_S3_ACCESS_KEY "${ak}" BT_S3_SECRET_KEY "${sk}" \
+         BT_S3_BUCKET "${bkt}" BT_S3_PREFIX "${pfx}" ;;
+    2) _bt_save "${name}" \
+         BT_NAME "${name}" BT_TYPE "ftp"  BT_SOURCE_TYPE "db" BT_SOURCE "${bt_src}" BT_DELETE "0" \
+         BT_DB_TYPE "${db_type}" BT_DB_HOST "${db_host}" BT_DB_PORT "${db_port}" \
+         BT_DB_USER "${db_user}" BT_DB_PASS "${db_pass}" BT_DB_NAME "${db_name}" BT_DB_SOCKET "${db_socket}" \
+         BT_ENCRYPT "${do_enc}" BT_ENCRYPT_PASS "${enc_pass}" \
+         BT_FTP_HOST "${host}" BT_FTP_PORT "${port}" BT_FTP_USER "${user}" \
+         BT_FTP_PASS "${pass}" BT_FTP_DEST "${dest}" BT_FTP_SSL "${ssl:-off}" ;;
+    3) _bt_save "${name}" \
+         BT_NAME "${name}" BT_TYPE "sftp" BT_SOURCE_TYPE "db" BT_SOURCE "${bt_src}" BT_DELETE "0" \
+         BT_DB_TYPE "${db_type}" BT_DB_HOST "${db_host}" BT_DB_PORT "${db_port}" \
+         BT_DB_USER "${db_user}" BT_DB_PASS "${db_pass}" BT_DB_NAME "${db_name}" BT_DB_SOCKET "${db_socket}" \
+         BT_ENCRYPT "${do_enc}" BT_ENCRYPT_PASS "${enc_pass}" \
+         BT_SFTP_HOST "${host}" BT_SFTP_PORT "${port}" BT_SFTP_USER "${user}" \
+         BT_SFTP_KEY "${key:-}" BT_SFTP_DEST "${dest}" ;;
+  esac
+
+  local tr; tr="$(ask "Run dry-run test now? [y/N]:" "n")"
+  [[ "$tr" =~ ^[Yy] ]] && _run_one "${name}" "dry"
+}
+
 a_add() {
   hd "Add backup profile(s)"
+
+  # --- step 0: source type ---
+  hd "Source type"
+  printf "  %b1)%b Directory / files\n" "${C_CYAN}" "${C_RESET}" >&2
+  printf "  %b2)%b Database (MySQL, MariaDB, PostgreSQL, SQLite, MongoDB, Redis)\n" "${C_CYAN}" "${C_RESET}" >&2
+  local _st; _st="$(ask "Choose [1]:" "1")"; _st="${_st:-1}"
+  if [ "${_st}" = "2" ]; then _a_add_db; return $?; fi
 
   # --- step 1: select source(s) via checkbox ---
   local _hdir _homes=()
@@ -426,6 +753,25 @@ a_delete() {
   done
 }
 
+a_dump() {
+  BT_PICKED=""; _bt_pick || return 0
+  _bt_load "${BT_PICKED}" || return 0
+  [ "${BT_SOURCE_TYPE:-dir}" = "db" ] || { warn "'${BT_PICKED}' is not a DB profile (source_type=dir)."; return 0; }
+  local ts; ts="$(date +%Y%m%d_%H%M%S)"
+  local out_dir; out_dir="$(ask "Output directory [${HOME}]:" "${HOME}")"; out_dir="${out_dir:-${HOME}}"
+  local tmp_base="${out_dir}/wf-db-${BT_NAME}-${ts}-$$"
+  hd "Dump — ${BT_PICKED} [${BT_DB_TYPE:-?}]"
+  local dump_file; dump_file="$(_bt_db_dump "${tmp_base}")" || return 1
+  ok "Dump: $(basename "${dump_file}")"
+  if [ "${BT_ENCRYPT:-0}" = "1" ]; then
+    dump_file="$(_bt_encrypt_file "${dump_file}")" || return 1
+    ok "Encrypted: $(basename "${dump_file}")"
+  fi
+  local bn; bn="$(basename "${dump_file}")"; local ext="${bn#*.}"
+  local final="${out_dir}/${BT_NAME}_${ts}.${ext}"
+  mv "${dump_file}" "${final}"
+  ok "Saved: ${final}"
+}
 a_run()  { BT_PICKED=""; _bt_pick || return 0; _run_one "${BT_PICKED}"; }
 a_test() { BT_PICKED=""; _bt_pick || return 0; _run_one "${BT_PICKED}" "dry"; }
 
@@ -491,14 +837,16 @@ a_cron() {
 # --- non-interactive mode (cron / scripted) -------------------------------
 #
 # Flags:
-#   --run       <profile>       run backup for one profile
-#   --run-all                   run all profiles
+#   --run       <profile>       run backup for one profile (dir sync OR db dump+upload)
+#   --run-all                   run all profiles (auto dump+encrypt for DB profiles)
 #   --test      <profile>       dry-run for one profile
+#   --dump      <profile> [dir] dump DB to local file only, no upload (auto-encrypts if profile has BT_ENCRYPT=1)
+#   --dump-all  [dir]           dump all DB profiles to local files
 #   --list                      list all configured profiles
 #   --status    [profile]       show engine status (all or one profile)
 #   --cron      <profile> [h]   register daily cron entry (hour h, default 2)
 #   --remove-cron [profile]     remove matching cron entries from crontab
-#   --delete    <profile>       delete a profile (with confirmation)
+#   --delete    <profile> [..]  delete one or more profiles
 case "${1:-}" in
   --run)
     [ -n "${2:-}" ] || { printf "Usage: %s --run <profile>\n" "$0" >&2; exit 1; }
@@ -538,6 +886,45 @@ case "${1:-}" in
       wf_cron_remove "backup-tools"
     fi
     exit 0 ;;
+  --dump)
+    [ -n "${2:-}" ] || { printf "Usage: %s --dump <db-profile> [output_dir]\n" "$0" >&2; exit 1; }
+    _bt_load "$2" || exit 1
+    [ "${BT_SOURCE_TYPE:-dir}" = "db" ] || { err "Profile '$2' is not a DB profile (source_type=dir)."; exit 1; }
+    BT_DUMP_DIR="${3:-${HOME}}"
+    BT_DUMP_TS="$(date +%Y%m%d_%H%M%S)"
+    hd "Dump — ${BT_NAME} [${BT_DB_TYPE:-?}]"
+    BT_DUMP_FILE="$(_bt_db_dump "${BT_DUMP_DIR}/wf-db-${BT_NAME}-${BT_DUMP_TS}-$$")" || exit 1
+    ok "Dump: $(basename "${BT_DUMP_FILE}")"
+    if [ "${BT_ENCRYPT:-0}" = "1" ]; then
+      BT_DUMP_FILE="$(_bt_encrypt_file "${BT_DUMP_FILE}")" || exit 1
+      ok "Encrypted: $(basename "${BT_DUMP_FILE}")"
+    fi
+    BT_DUMP_EXT="$(basename "${BT_DUMP_FILE}")"; BT_DUMP_EXT="${BT_DUMP_EXT#*.}"
+    BT_DUMP_FINAL="${BT_DUMP_DIR}/${BT_NAME}_${BT_DUMP_TS}.${BT_DUMP_EXT}"
+    mv "${BT_DUMP_FILE}" "${BT_DUMP_FINAL}"
+    ok "Saved: ${BT_DUMP_FINAL}"
+    exit 0 ;;
+  --dump-all)
+    BT_DUMPALL_DIR="${2:-${HOME}}"
+    BT_DUMPALL_TS="$(date +%Y%m%d_%H%M%S)"
+    BT_DUMPALL_OK=0; BT_DUMPALL_FAIL=0
+    while IFS= read -r BT_DUMPALL_N; do
+      _bt_load "${BT_DUMPALL_N}" 2>/dev/null || { warn "Cannot load: ${BT_DUMPALL_N}"; BT_DUMPALL_FAIL=$((BT_DUMPALL_FAIL+1)); continue; }
+      [ "${BT_SOURCE_TYPE:-dir}" = "db" ] || continue
+      hd "Dump — ${BT_NAME} [${BT_DB_TYPE:-?}]"
+      BT_DUMPALL_FILE="$(_bt_db_dump "${BT_DUMPALL_DIR}/wf-db-${BT_NAME}-${BT_DUMPALL_TS}-$$")" \
+        || { BT_DUMPALL_FAIL=$((BT_DUMPALL_FAIL+1)); continue; }
+      if [ "${BT_ENCRYPT:-0}" = "1" ]; then
+        BT_DUMPALL_FILE="$(_bt_encrypt_file "${BT_DUMPALL_FILE}")" \
+          || { BT_DUMPALL_FAIL=$((BT_DUMPALL_FAIL+1)); continue; }
+      fi
+      BT_DUMPALL_EXT="$(basename "${BT_DUMPALL_FILE}")"; BT_DUMPALL_EXT="${BT_DUMPALL_EXT#*.}"
+      BT_DUMPALL_FINAL="${BT_DUMPALL_DIR}/${BT_NAME}_${BT_DUMPALL_TS}.${BT_DUMPALL_EXT}"
+      mv "${BT_DUMPALL_FILE}" "${BT_DUMPALL_FINAL}"
+      ok "Saved: ${BT_DUMPALL_FINAL}"; BT_DUMPALL_OK=$((BT_DUMPALL_OK+1))
+    done < <(_bt_list)
+    ok "Dump-all: ${BT_DUMPALL_OK} saved, ${BT_DUMPALL_FAIL} failed."
+    exit 0 ;;
   --delete)
     [ -n "${2:-}" ] || { printf "Usage: %s --delete <profile> [profile2 ...]\n" "$0" >&2; exit 1; }
     hd "Delete profile(s)"
@@ -556,9 +943,10 @@ MENU=(
   "Profile|add|add new backup profile"
   "Profile|list|list all profiles"
   "Profile|delete|remove a profile"
-  "Run|run|run backup for one profile"
-  "Run|run_all|run ALL profiles"
+  "Run|run|run backup (dir sync or DB dump + upload)"
+  "Run|run_all|run ALL profiles (auto dump+encrypt for DB)"
   "Run|test|dry-run — no actual transfer"
+  "Run|dump|dump DB to local file only (no upload)"
   "Run|status|show upload progress (engine mode)"
   "Schedule|cron|setup daily cron job for a profile"
   "Schedule|remove_cron|remove backup cron entries"
@@ -576,6 +964,7 @@ while true; do
     run)       a_run ;;
     run_all)   a_run_all ;;
     test)      a_test ;;
+    dump)      a_dump ;;
     status)    a_status ;;
     cron)        a_cron ;;
     remove_cron) wf_cron_remove "backup-tools" ;;
