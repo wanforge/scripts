@@ -790,7 +790,8 @@ a_dump() {
   _bt_load "${BT_PICKED}" || return 0
   [ "${BT_SOURCE_TYPE:-dir}" = "db" ] || { warn "'${BT_PICKED}' is not a DB profile (source_type=dir)."; return 0; }
   local ts; ts="$(date +%Y%m%d_%H%M%S)"
-  local out_dir; out_dir="$(ask "Output directory [${HOME}]:" "${HOME}")"; out_dir="${out_dir:-${HOME}}"
+  local out_dir; out_dir="$(ask "Output directory [${HOME}/backups]:" "${HOME}/backups")"; out_dir="${out_dir:-${HOME}/backups}"
+  mkdir -p "${out_dir}"
   local tmp_base="${out_dir}/wf-db-${BT_NAME}-${ts}-$$"
   hd "Dump — ${BT_PICKED} [${BT_DB_TYPE:-?}]"
   local dump_file; dump_file="$(_bt_db_dump "${tmp_base}")" || return 1
@@ -922,7 +923,8 @@ case "${1:-}" in
     [ -n "${2:-}" ] || { printf "Usage: %s --dump <db-profile> [output_dir]\n" "$0" >&2; exit 1; }
     _bt_load "$2" || exit 1
     [ "${BT_SOURCE_TYPE:-dir}" = "db" ] || { err "Profile '$2' is not a DB profile (source_type=dir)."; exit 1; }
-    BT_DUMP_DIR="${3:-${HOME}}"
+    BT_DUMP_DIR="${3:-${HOME}/backups}"
+    mkdir -p "${BT_DUMP_DIR}"
     BT_DUMP_TS="$(date +%Y%m%d_%H%M%S)"
     hd "Dump — ${BT_NAME} [${BT_DB_TYPE:-?}]"
     BT_DUMP_FILE="$(_bt_db_dump "${BT_DUMP_DIR}/wf-db-${BT_NAME}-${BT_DUMP_TS}-$$")" || exit 1
@@ -937,7 +939,8 @@ case "${1:-}" in
     ok "Saved: ${BT_DUMP_FINAL}"
     exit 0 ;;
   --dump-all)
-    BT_DUMPALL_DIR="${2:-${HOME}}"
+    BT_DUMPALL_DIR="${2:-${HOME}/backups}"
+    mkdir -p "${BT_DUMPALL_DIR}"
     BT_DUMPALL_TS="$(date +%Y%m%d_%H%M%S)"
     BT_DUMPALL_OK=0; BT_DUMPALL_FAIL=0
     while IFS= read -r BT_DUMPALL_N; do
