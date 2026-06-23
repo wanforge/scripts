@@ -48,9 +48,7 @@ MENU=(
 
 a_uninstall() {
   hd "Uninstall Python components"
-  warn "This removes pip, venv, dev headers, and pipx (not the python3 interpreter itself)."
-  local yn; yn="$(ask "Remove Python optional packages? [y/N]:" "n")"
-  case "${yn}" in y|Y|yes) ;; *) info "Cancelled."; return 0 ;; esac
+  confirm_critical "remove Python optional packages: pip, venv, dev headers, pipx (not python3 itself)" || return 0
   case "${PM}" in
     apt-get) run ${SUDO} apt-get purge -y python3-pip python3-venv python3-dev python3-virtualenv pipx 2>/dev/null || true
              run ${SUDO} apt-get autoremove -y ;;

@@ -28,9 +28,7 @@ a_uninstall() {
   if [ ! -f "${bin_dir}/composer" ]; then
     info "Composer not found at ${bin_dir}/composer."; return 0
   fi
-  warn "Will remove ${bin_dir}/composer."
-  local yn; yn="$(ask "Remove composer? [y/N]:" "n")"
-  case "${yn}" in y|Y|yes) ;; *) info "Cancelled."; return 0 ;; esac
+  confirm_critical "remove Composer from ${bin_dir}/composer" || return 0
   rm -f "${bin_dir}/composer"
   ok "Composer removed."
 }

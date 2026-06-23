@@ -169,7 +169,7 @@ a_user_delete() {
   req "$u" username || return 1
   ensure_user "$u" || return 1
   [ "$u" = "root" ] && { err "Refusing to delete root."; return 1; }
-  warn "This will permanently delete ${u}."
+  confirm_critical "permanently delete user account '${u}' from this system" || return 0
   home_yn="$(ask 'Remove home directory too? [y/N]:' 'n')"
   kill_yn="$(ask 'Kill running processes for this user first? [y/N]:' 'n')"
   case "$kill_yn" in y|Y|yes) run ${SUDO} bash -c "pkill -u '$u' || true" ;; esac

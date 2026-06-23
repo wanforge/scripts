@@ -35,9 +35,7 @@ a_uninstall() {
   hd "Remove PM2 Application"
   _pm2_load || return 1
   local app_name="${CFG_PM2_APP_NAME:-my-app}"
-  warn "Will delete PM2 app '${app_name}' and save the process list."
-  local yn; yn="$(ask "Delete PM2 app '${app_name}'? [y/N]:" "n")"
-  case "${yn}" in y|Y|yes) ;; *) info "Cancelled."; return 0 ;; esac
+  confirm_critical "delete PM2 app '${app_name}' and remove from process list" || return 0
   pm2 delete "${app_name}" 2>/dev/null || warn "App '${app_name}' not found in PM2 process list."
   pm2 save
   ok "PM2 app '${app_name}' removed."

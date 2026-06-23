@@ -29,8 +29,7 @@ a_uninstall() {
     info "MySQL config not found. Nothing to rollback."; return 0
   fi
   warn "Will set bind-address = 127.0.0.1 in ${conf} and close ufw port 3306."
-  local yn; yn="$(ask "Rollback? [y/N]:" "n")"
-  case "${yn}" in y|Y|yes) ;; *) info "Cancelled."; return 0 ;; esac
+  confirm_critical "rollback MySQL to local-only access (bind-address = 127.0.0.1)" || return 0
   run ${SUDO} sed -i 's|^[[:space:]]*bind-address.*|bind-address = 127.0.0.1|' "${conf}"
   ok "bind-address restored to 127.0.0.1 in ${conf}."
   run ${SUDO} systemctl restart mysql 2>/dev/null || run ${SUDO} systemctl restart mariadb 2>/dev/null || true

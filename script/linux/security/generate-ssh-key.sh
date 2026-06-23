@@ -27,9 +27,7 @@ a_uninstall() {
   if [ ! -f "${keyfile}" ] && [ ! -f "${keyfile}.pub" ]; then
     info "Key not found at ${keyfile}. Nothing to remove."; return 0
   fi
-  warn "Will delete: ${keyfile} and ${keyfile}.pub"
-  local yn; yn="$(ask "Delete this SSH key? [y/N]:" "n")"
-  case "${yn}" in y|Y|yes) ;; *) info "Cancelled."; return 0 ;; esac
+  confirm_critical "permanently delete SSH key: ${keyfile} and ${keyfile}.pub" || return 0
   rm -f "${keyfile}" "${keyfile}.pub"
   ok "SSH key removed: ${keyfile}"
 }

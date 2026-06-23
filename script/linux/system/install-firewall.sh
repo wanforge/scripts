@@ -31,9 +31,7 @@ pm_install() {
 
 a_uninstall() {
   hd "Uninstall UFW"
-  warn "This will disable UFW, reset all rules, and remove the package."
-  local yn; yn="$(ask "Remove ufw? [y/N]:" "n")"
-  case "${yn}" in y|Y|yes) ;; *) info "Cancelled."; return 0 ;; esac
+  confirm_critical "disable UFW, reset all rules, and purge the ufw package" || return 0
   run ${SUDO} ufw --force disable 2>/dev/null || true
   run ${SUDO} ufw --force reset 2>/dev/null || true
   local pm; pm="$(detect_pm)" || { err "No supported package manager."; return 1; }
@@ -59,12 +57,8 @@ case "${1:-}" in
     hd "UFW Status";  ${SUDO} ufw status verbose 2>/dev/null || true;      exit 0 ;;
   --reset)
     hd "Reset UFW Rules"
-    warn "This will remove all custom UFW rules."
-    RST_YN="$(ask "Reset all rules? [y/N]:" "n")"
-    case "${RST_YN}" in
-      y|Y|yes) run ${SUDO} ufw --force reset; ok "Rules reset." ;;
-      *)       info "Cancelled." ;;
-    esac; exit 0 ;;
+    confirm_critical "reset ALL ufw rules — all custom rules will be deleted" || exit 0
+    run ${SUDO} ufw --force reset; ok "Rules reset."; exit 0 ;;
   --remove-cron) hd "Remove Cron"; wf_cron_remove "ufw|firewall"; exit 0 ;;
   --uninstall)   a_uninstall; exit $? ;;
 esac
@@ -88,10 +82,8 @@ if [ -z "${1:-}" ]; then
     status)      hd "UFW Status";  ${SUDO} ufw status verbose 2>/dev/null || true;      exit 0 ;;
     reset)
       hd "Reset UFW Rules"
-      warn "This will remove all custom UFW rules."
-      RST_YN="$(ask "Reset all rules? [y/N]:" "n")"
-      case "${RST_YN}" in y|Y|yes) run ${SUDO} ufw --force reset; ok "Rules reset." ;; *) info "Cancelled." ;; esac
-      exit 0 ;;
+      confirm_critical "reset ALL ufw rules — all custom rules will be deleted" || exit 0
+      run ${SUDO} ufw --force reset; ok "Rules reset."; exit 0 ;;
     remove_cron) wf_cron_remove "ufw|firewall"; exit 0 ;;
     uninstall)   a_uninstall; exit $? ;;
     install|*)   ;;

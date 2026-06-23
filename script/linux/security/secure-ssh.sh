@@ -46,8 +46,7 @@ a_uninstall() {
   fi
   [ -n "${backup}" ] && warn "Will restore ${SSHD_MAIN} from: ${backup##*/}"
   [ -f "${DROPIN}" ]  && warn "Will remove drop-in: ${DROPIN}"
-  local yn; yn="$(ask "Restore original SSH config? [y/N]:" "n")"
-  case "${yn}" in y|Y|yes) ;; *) info "Cancelled."; return 0 ;; esac
+  confirm_critical "restore original SSH config (overwrites current sshd_config)" || return 0
   [ -n "${backup}" ] && run ${SUDO} cp "${backup}" "${SSHD_MAIN}"
   [ -f "${DROPIN}" ]  && run ${SUDO} rm -f "${DROPIN}"
   if ${SUDO} sshd -t; then

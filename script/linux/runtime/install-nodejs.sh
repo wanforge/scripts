@@ -31,9 +31,7 @@ a_uninstall() {
   if [ ! -d "${nvm_dir}" ]; then
     info "nvm not found at ${nvm_dir}."; return 0
   fi
-  warn "This will remove ${nvm_dir} and all installed Node.js versions."
-  local yn; yn="$(ask "Remove nvm + Node.js? [y/N]:" "n")"
-  case "${yn}" in y|Y|yes) ;; *) info "Cancelled."; return 0 ;; esac
+  confirm_critical "remove nvm + all Node.js versions from ${nvm_dir}" || return 0
   rm -rf "${nvm_dir}"
   for f in "${HOME}/.bashrc" "${HOME}/.bash_profile" "${HOME}/.profile" "${HOME}/.zshrc"; do
     [ -f "$f" ] && sed -i '/NVM_DIR\|nvm\.sh\|bash_completion/d' "$f" 2>/dev/null || true

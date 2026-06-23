@@ -218,13 +218,14 @@ if [ "$(id -u)" -eq 0 ]; then SUDO=""; else SUDO="sudo"; fi
 # ENTER confirm, Q quit (returns 1).
 CHOSEN_KEYS=()
 checkbox() {
-  local title="${1:-Select:}"
+  # checkbox <title> [default: 1=all-checked 0=all-unchecked]
+  local title="${1:-Select:}" _def="${2:-1}"
   local n=${#MENU[@]} i cursor=0 first=1 key rest prev g lbl dsc
   local -a checked
-  for ((i = 0; i < n; i++)); do checked[i]=1; done
+  for ((i = 0; i < n; i++)); do checked[i]="${_def}"; done
   local groups=0 pg=""
   for ((i = 0; i < n; i++)); do IFS='|' read -r g _ <<< "${MENU[i]}"; [ "$g" != "$pg" ] && { groups=$((groups + 1)); pg="$g"; }; done
-  local total=$((n + groups))
+  local total=$((2*n + groups))   # 2 lines per item + 1 per group header
   printf "%b%s%b  %b↑/↓ move · SPACE toggle · A all · ENTER confirm · Q quit%b\n\n" \
     "${C_BOLD}" "${title}" "${C_RESET}" "${C_DIM}" "${C_RESET}" >&2
   while true; do
@@ -234,11 +235,12 @@ checkbox() {
       IFS='|' read -r g lbl dsc <<< "${MENU[i]}"
       if [ "$g" != "$prev" ]; then printf "\033[2K%b── %s ──%b\n" "${C_BOLD}${C_YELLOW}" "$g" "${C_RESET}" >&2; prev="$g"; fi
       local box="[ ]"; [ "${checked[i]}" -eq 1 ] && box="[x]"
-      printf "\033[2K" >&2
       if [ "$i" -eq "$cursor" ]; then
-        printf "%b❯ %s %-22s%b %b%s%b\n" "${C_CYAN}${C_BOLD}" "$box" "$lbl" "${C_RESET}" "${C_DIM}" "$dsc" "${C_RESET}" >&2
+        printf "\033[2K%b❯ %s %s%b\n" "${C_CYAN}${C_BOLD}" "$box" "$lbl" "${C_RESET}" >&2
+        printf "\033[2K    %b%s%b\n" "${C_CYAN}" "$dsc" "${C_RESET}" >&2
       else
-        printf "  %b%s%b %-22s %b%s%b\n" "${C_GREEN}" "$box" "${C_RESET}" "$lbl" "${C_DIM}" "$dsc" "${C_RESET}" >&2
+        printf "\033[2K  %b%s%b %s\n" "${C_GREEN}" "$box" "${C_RESET}" "$lbl" >&2
+        printf "\033[2K    %b%s%b\n" "${C_DIM}" "$dsc" "${C_RESET}" >&2
       fi
     done
     IFS= read -rsn1 key <&3 || break
@@ -269,7 +271,7 @@ menu_select() {
   local n=${#MENU[@]} i cursor=0 first=1 key rest prev g k lbl
   local groups=0 pg=""
   for ((i = 0; i < n; i++)); do IFS='|' read -r g _ <<< "${MENU[i]}"; [ "$g" != "$pg" ] && { groups=$((groups + 1)); pg="$g"; }; done
-  local total=$((n + groups))
+  local total=$((2*n + groups))   # 2 lines per item (key + desc) + 1 per group header
   printf "%b%s%b  %b↑/↓ move · ENTER select · Q back%b\n\n" "${C_BOLD}" "${title}" "${C_RESET}" "${C_DIM}" "${C_RESET}" >&2
   while true; do
     [ "$first" -eq 0 ] && printf "\033[%dA" "$total" >&2
@@ -277,9 +279,13 @@ menu_select() {
     for ((i = 0; i < n; i++)); do
       IFS='|' read -r g k lbl <<< "${MENU[i]}"
       if [ "$g" != "$prev" ]; then printf "\033[2K%b── %s ──%b\n" "${C_BOLD}${C_YELLOW}" "$g" "${C_RESET}" >&2; prev="$g"; fi
-      printf "\033[2K" >&2
-      if [ "$i" -eq "$cursor" ]; then printf "%b❯ %s%b\n" "${C_CYAN}${C_BOLD}" "$lbl" "${C_RESET}" >&2
-      else printf "    %b%s%b\n" "${C_DIM}" "$lbl" "${C_RESET}" >&2; fi
+      if [ "$i" -eq "$cursor" ]; then
+        printf "\033[2K%b❯ %s%b\n" "${C_CYAN}${C_BOLD}" "$k" "${C_RESET}" >&2
+        printf "\033[2K    %b%s%b\n" "${C_CYAN}" "$lbl" "${C_RESET}" >&2
+      else
+        printf "\033[2K  %s\n" "$k" >&2
+        printf "\033[2K    %b%s%b\n" "${C_DIM}" "$lbl" "${C_RESET}" >&2
+      fi
     done
     IFS= read -rsn1 key <&3 || break
     [ "$key" = $'\x1b' ] && { IFS= read -rsn2 -t 0.01 rest <&3 || rest=""; key+="$rest"; }
@@ -313,6 +319,19 @@ maybe_switch_user() {  # maybe_switch_user "<self raw url>"
 home_of() { getent passwd "${1:-${TARGET_USER}}" 2>/dev/null | cut -d: -f6; }
 
 # ---- service / cron management helpers -----------------------------------
+# confirm_critical <description> [keyword=yes]
+# 2-step guard for irreversible actions: first y/N, then type the keyword exactly.
+# Returns 0 if both pass, 1 if either is cancelled.
+confirm_critical() {
+  local desc="${1:-this action}" kw="${2:-yes}"
+  warn "IRREVERSIBLE: ${desc}"
+  local yn; yn="$(ask "Are you sure? [y/N]:" "n")"
+  [[ "${yn}" =~ ^[Yy] ]] || { info "Cancelled."; return 1; }
+  local typed; typed="$(ask "Type '${kw}' to confirm:" "")"
+  [ "${typed}" = "${kw}" ] || { warn "Confirmation mismatch — cancelled."; return 1; }
+  return 0
+}
+
 # wf_svc_dispatch <cmd> <title> <cron_pat> <svc...>
 # Handles --stop|--start|--restart|--enable|--disable|--status|--remove-cron
 # for systemd-based services. Returns 0 if cmd was handled (call `&& exit $?`
@@ -417,7 +436,9 @@ wf_svc_menu() {
     stop|start|restart|enable|disable|status)
       wf_svc_dispatch "--${MENU_KEY}" "${title}" "${cron_pat}" "${_svcs[@]}"; exit $? ;;
     remove_cron) wf_cron_remove "${cron_pat}"; exit 0 ;;
-    uninstall)   return 99 ;;
+    uninstall)
+      confirm_critical "uninstall / remove ${title}" || exit 0
+      return 99 ;;
     install|*)   return 0 ;;
   esac
 }

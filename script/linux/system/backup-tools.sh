@@ -460,9 +460,10 @@ _a_add_db() {
       db_port="$(ask_cfg  CFG_BT_DB_PORT   "DB Port:"                         "5432")"
       db_user="$(ask_cfg  CFG_BT_DB_USER   "DB Username:"                     "postgres")"
       db_pass="$(asks_cfg CFG_BT_DB_PASS   "DB Password:")"
-      db_name="$(ask_cfg  CFG_BT_DB_NAME   "Database name ('all'=all DBs):"   "all")"
+      db_name="$(ask_cfg  CFG_BT_DB_NAME   "Database name ('all'=dump all DBs, requires admin):" "all")"
       ;;
     3)
+      info "Provide the full path to the .db / .sqlite file on this server."
       db_name="$(ask_cfg  CFG_BT_DB_NAME   "SQLite file path:"                "")"
       ;;
     4)
@@ -480,8 +481,10 @@ _a_add_db() {
   esac
 
   hd "Encryption"
-  printf "  %b1)%b None\n" "${C_CYAN}" "${C_RESET}" >&2
-  printf "  %b2)%b AES-256-CBC (openssl, password-based)\n" "${C_CYAN}" "${C_RESET}" >&2
+  info "Dump is encrypted before upload. Passphrase stored in profile (chmod 600)."
+  info "Encrypted filename: <profile>_<timestamp>.sql.gz.enc  (decrypt: openssl enc -d -aes-256-cbc -pbkdf2)"
+  printf "  %b1)%b None — store dump as-is\n"                      "${C_CYAN}" "${C_RESET}" >&2
+  printf "  %b2)%b AES-256-CBC (openssl pbkdf2, passphrase-based)\n" "${C_CYAN}" "${C_RESET}" >&2
   local enc_c; enc_c="$(ask "Choose [1]:" "1")"; enc_c="${enc_c:-1}"
   local do_enc=0 enc_pass=""
   if [ "${enc_c}" = "2" ]; then
@@ -587,8 +590,10 @@ a_add() {
     checkbox "Select users / home directories to backup:" || { info "Cancelled."; return 0; }
     [ "${#CHOSEN_KEYS[@]}" -eq 0 ] && { info "Nothing selected."; return 0; }
 
+    info "Suffix is appended to each selected username to form the profile name."
+    info "  Example: suffix 'daily'  →  alice-daily, deploy-daily, root-daily"
     local _sfx
-    _sfx="$(ask "Profile name suffix (e.g. 'daily' → alice-daily) [backup]:" "backup")"
+    _sfx="$(ask "Suffix [backup]:" "backup")"
     _sfx="${_sfx:-backup}"
 
     local _key
@@ -618,8 +623,10 @@ a_add() {
   [ "${#_sources[@]}" -eq 0 ] && { warn "No sources selected."; return 0; }
 
   # --- step 2: common options ---
+  info "Sync-delete: files removed from source are also removed from the destination."
+  warn "Enable only when source is the single authoritative copy — dangerous for incremental backups."
   local del do_del=0
-  del="$(ask "Delete dest files missing from source? [y/N]:" "n")"
+  del="$(ask "Enable sync-delete? [y/N]:" "n")"
   [[ "$del" =~ ^[Yy] ]] && do_del=1
 
   # --- step 3: destination (asked once, applied to all profiles) ---
@@ -740,12 +747,10 @@ a_delete() {
     MENU+=("Profile|${n}|${_desc}")
   done
 
-  checkbox "Select profiles to delete:" || { info "Cancelled."; return 0; }
+  checkbox "Select profiles to delete:" 0 || { info "Cancelled."; return 0; }
   [ "${#CHOSEN_KEYS[@]}" -eq 0 ] && { info "Nothing selected."; return 0; }
 
-  warn "Will permanently delete ${#CHOSEN_KEYS[@]} profile(s): ${CHOSEN_KEYS[*]}"
-  local cf; cf="$(ask "Confirm? [y/N]:" "n")"
-  [[ "$cf" =~ ^[Yy] ]] || { info "Cancelled."; return 0; }
+  confirm_critical "permanently delete ${#CHOSEN_KEYS[@]} profile(s): ${CHOSEN_KEYS[*]}" "delete" || return 0
 
   for n in "${CHOSEN_KEYS[@]}"; do
     rm -f "$(_bt_file "${n}")"
