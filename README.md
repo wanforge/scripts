@@ -78,44 +78,45 @@ menu (firewall / database / CloudPanel / Proxmox / net-tools managers) press `Q`
 to go **back to the launcher**. Press `Q` at the launcher to quit entirely.
 
 ```text
-Select scripts to run:  ↑/↓ move · SPACE toggle · A all · ENTER run · Q quit
+Select scripts to run:
+  ↑/↓ move · SPACE toggle · A all · ENTER confirm · Q quit
 
-── System ──
-❯ [ ] install-packages     Update system + base essentials (micro, curl, wget, git)
-  [ ] set-timezone         Set timezone (UTC recommended for servers)
-  [ ] backup-tools         Backup manager: S3 / FTP / SFTP — named profiles, cron, dry-run
-── Security ──
-  [ ] install-firewall     Install & configure ufw firewall
-  [ ] firewall-manager     Full ufw manager: allow/deny IP/port, multiple, rate-limit
-  [ ] install-fail2ban     Install & enable Fail2Ban
-  [ ] secure-ssh           Harden SSH: change port, disable root/password, pubkey
-  [ ] generate-ssh-key     Generate an ed25519 SSH key (user-local)
-  [ ] manage-users         Manage Linux users, sudo access & SSH keys
-── Panel & Console ──
-  [ ] install-cloudpanel   Install CloudPanel CE v2 (Debian/Ubuntu only)
-  [ ] clpctl-manager       Manage CloudPanel via clpctl (sites, db, users, certs)
-  [ ] install-cockpit      Install Cockpit web console + modules (Debian/Ubuntu)
-── Database ──
-  [ ] install-postgresql   Install PostgreSQL + create roles + remote access
-  [ ] enable-mysql-remote  Allow remote MySQL/MariaDB access (sensitive)
-  [ ] database-toolkit     Monitor, optimize, config, datetime (MySQL/PostgreSQL)
-── App Runtime ──
-  [ ] install-nodejs       Install Node.js via nvm (user-local) + PM2
-  [ ] install-python       Install Python 3 + pip, venv, dev, pipx
-  [ ] install-composer     Install Composer (user-local, signature-verified)
-  [ ] setup-pm2-app        Configure pm2-logrotate + register an app (ecosystem)
-── Monitoring ──
-  [ ] monitor-system       CPU, RAM, storage, processes, network (snapshot or realtime)
-── Network ──
-  [ ] net-tools            Local/public IP, ports, speedtest, ping, dig, scan
-── Proxmox ──
-  [ ] proxmox-toolkit      PVE: node/VM/CT resources, storage, realtime dashboard
-── CI/CD ──
-  [ ] install-github-runner GitHub Actions self-hosted runner (avoid billed minutes)
-── Observability ──
-  [ ] install-prometheus   Prometheus + node_exporter (+ Alertmanager)
-  [ ] install-grafana      Grafana + Prometheus data source
-  [ ] install-zabbix       Zabbix agent or server (official repo)
+  ── System ──
+❯ [✓] install-packages     Update system + base essentials (micro, curl, wget, git)
+  [✓] set-timezone         Set timezone (UTC recommended for servers)
+  [✓] backup-tools         Backup manager: S3 / FTP / SFTP — named profiles, cron, dry-run
+  ── Security ──
+  [✓] install-firewall     Install & configure ufw firewall
+  [✓] firewall-manager     Full ufw manager: allow/deny IP/port, multiple, rate-limit
+  [✓] install-fail2ban     Install & enable Fail2Ban
+  [✓] secure-ssh           Harden SSH: change port, disable root/password, pubkey
+  [✓] generate-ssh-key     Generate an ed25519 SSH key (user-local)
+  [✓] manage-users         Manage Linux users, sudo access & SSH keys
+  ── Panel & Console ──
+  [✓] install-cloudpanel   Install CloudPanel CE v2 (Debian/Ubuntu only)
+  [✓] clpctl-manager       Manage CloudPanel via clpctl (sites, db, users, certs)
+  [✓] install-cockpit      Install Cockpit web console + modules (Debian/Ubuntu)
+  ── Database ──
+  [✓] install-postgresql   Install PostgreSQL + create roles + remote access
+  [✓] enable-mysql-remote  Allow remote MySQL/MariaDB access (sensitive)
+  [✓] database-toolkit     Monitor, optimize, config, datetime (MySQL/PostgreSQL)
+  ── App Runtime ──
+  [✓] install-nodejs       Install Node.js via nvm (user-local) + PM2
+  [✓] install-python       Install Python 3 + pip, venv, dev, pipx
+  [✓] install-composer     Install Composer (user-local, signature-verified)
+  [✓] setup-pm2-app        Configure pm2-logrotate + register an app (ecosystem)
+  ── Monitoring ──
+  [✓] monitor-system       CPU, RAM, storage, processes, network (snapshot or realtime)
+  ── Network ──
+  [✓] net-tools            Local/public IP, ports, speedtest, ping, dig, scan
+  ── Proxmox ──
+  [✓] proxmox-toolkit      PVE: node/VM/CT resources, storage, realtime dashboard
+  ── CI/CD ──
+  [✓] install-github-runner GitHub Actions self-hosted runner (avoid billed minutes)
+  ── Observability ──
+  [✓] install-prometheus   Prometheus + node_exporter (+ Alertmanager)
+  [✓] install-grafana      Grafana + Prometheus data source
+  [✓] install-zabbix       Zabbix agent or server (official repo)
 ```
 
 ### Launcher Flow
@@ -756,9 +757,24 @@ curl -fsSL .../script/linux/monitoring/install-zabbix.sh | bash          # serve
 
 ## Shared library
 
-The banner, colors, logging helpers (`info`/`ok`/`warn`/`err`/`hd`), prompts
-(`ask`/`asks`), and the grouped `checkbox` menu live once in
-[`script/linux/lib.sh`](script/linux/lib.sh). Every script sources it:
+The banner, colors, logging helpers, prompts, and TUI menus live once in
+[`script/linux/lib.sh`](script/linux/lib.sh). Every script sources it.
+
+| Helper | Purpose |
+|--------|---------|
+| `hd "Title"` | Centered fill-line section header (`───── Title ─────`) |
+| `info "…"` | `•` info line |
+| `ok "…"` | `✓` success line |
+| `warn "…"` | `⚠` warning line |
+| `err "…"` | `✖` error line (always prints, ignores `LOG_LEVEL`) |
+| `step N "…"` | `[N] task name` numbered step indicator |
+| `hr` | `──────────` horizontal rule separator |
+| `pause` | Press Enter to continue (reads from `/dev/tty`) |
+| `dbg "…"` | Debug line (only at `LOG_LEVEL ≥ 2`) |
+| `ask "prompt" "default"` | `›` interactive prompt; auto-fills default in `ASSUME_YES` mode |
+| `asks "prompt"` | Same but masked input (for secrets) |
+| `checkbox "title"` | Arrow-key grouped checkbox with `[✓]` toggles |
+| `menu_select "title"` | Arrow-key single-select menu |
 
 ```bash
 TASK="my-script"
@@ -768,10 +784,10 @@ if [ -r "${__d}/../lib.sh" ]; then . "${__d}/../lib.sh"
 else . <(curl -fsSL "${__LIB}"); fi
 ```
 
-It looks for `lib.sh` one directory up (cloned repo layout: `script/linux/<category>/`),
-otherwise fetches it from the public repo over HTTPS. Set `TASK` before sourcing — the
-banner subtitle uses it. To add a script, copy this header, fill in `TASK`, place the
-file under `script/linux/<os>/<category>/`, and register it in `install.sh`.
+Looks for `lib.sh` one directory up (cloned repo: `script/linux/<category>/`),
+otherwise fetches from the public repo over HTTPS. Set `TASK` before sourcing —
+the banner subtitle uses it. To add a script: copy the header, fill in `TASK`,
+place under `script/linux/<os>/<category>/`, register in `install.sh`.
 
 ## License
 
