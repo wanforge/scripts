@@ -118,6 +118,51 @@ Select scripts to run:  ↑/↓ move · SPACE toggle · A all · ENTER run · Q 
   [ ] install-zabbix       Zabbix agent or server (official repo)
 ```
 
+### Launcher Flow
+
+```mermaid
+flowchart TD
+    A(["curl | bash install.sh"])
+    B["TUI Checkbox Menu\n↑/↓ Space A Enter Q\n─ grouped by category ─"]
+    C(["bash script.sh"])
+    D["Management Menu\ninstall · stop · start · restart\nenable · disable · status\nremove-cron · uninstall"]
+    E(["bash script.sh --flag"])
+
+    IW["Install / Configure Wizard\n(interactive prompts)"]
+    SVC["systemctl action\n(stop / start / restart /\nenable / disable / status)"]
+    CRON["crontab cleanup\n(user + root)"]
+    RM["Removal Wizard\n(purge packages,\nrepo, firewall rules)"]
+
+    A --> B
+    B -->|"bash script.sh --install\n(skips management menu)"| IW
+
+    C -->|no args| D
+    D -->|install| IW
+    D -->|stop · start · restart\nenable · disable · status| SVC
+    D -->|remove-cron| CRON
+    D -->|uninstall| RM
+
+    E -->|"--stop / --start\n--restart / --enable\n--disable / --status"| SVC
+    E -->|--remove-cron| CRON
+    E -->|--uninstall| RM
+    E -->|"--install (or unknown flag)"| IW
+
+    style A fill:#1e3a5f,color:#fff,stroke:#4a9eff
+    style C fill:#1e3a5f,color:#fff,stroke:#4a9eff
+    style E fill:#1e3a5f,color:#fff,stroke:#4a9eff
+    style B fill:#2d4a1e,color:#fff,stroke:#6abf40
+    style D fill:#2d4a1e,color:#fff,stroke:#6abf40
+    style IW fill:#3a2d1e,color:#fff,stroke:#bf8c40
+    style SVC fill:#1e2d3a,color:#fff,stroke:#40a0bf
+    style CRON fill:#1e2d3a,color:#fff,stroke:#40a0bf
+    style RM fill:#3a1e1e,color:#fff,stroke:#bf4040
+```
+
+> **Service scripts** (fail2ban, grafana, prometheus, zabbix, cockpit, postgresql) use `systemctl`
+> for stop/start/restart/enable/disable/status.
+> **backup-tools** and **setup-pm2-app** have their own action sets (backup engine / pm2 commands).
+> **Non-service scripts** (nodejs, composer, python, ssh-key) only expose install + uninstall.
+
 ## Output Modes
 
 Every script shares one verbosity control (defined in `lib.sh`). Set it with an
@@ -654,21 +699,6 @@ curl -fsSL .../script/linux/monitoring/install-zabbix.sh | bash          # serve
 - Registers an application by generating `ecosystem.config.js` (name, cwd, script,
   args, instances/cluster, `NODE_ENV`, memory restart limit), then runs
   `pm2 start` + `pm2 save`.
-
-## Launcher Flow
-
-```mermaid
-flowchart TD
-    A[curl install.sh] --> B[Show banner + checkbox menu]
-    B --> C{Select scripts}
-    C -->|Space toggle| C
-    C -->|A toggle all| C
-    C -->|Enter| D[Optional auth: skip for public repo]
-    D --> E[Fetch each selected script]
-    E --> F[Run in menu order]
-    F --> G[Done]
-    C -->|Q| H[Cancel]
-```
 
 ## Security Notes
 
