@@ -91,7 +91,7 @@ checkbox_menu() {
     IFS='|' read -r g _ <<< "${SCRIPTS[i]}"
     [ "$g" != "$pg" ] && { groups=$((groups + 1)); pg="$g"; }
   done
-  local total=$((n + groups))
+  local total=$((2 * n + groups))
 
   printf "%bSelect scripts to run:%b  %b↑/↓ move · SPACE toggle · A all · ENTER run · Q quit%b\n\n" \
     "${C_BOLD}" "${C_RESET}" "${C_DIM}" "${C_RESET}" >&2
@@ -107,11 +107,12 @@ checkbox_menu() {
         prev="$g"
       fi
       local box="[ ]"; [ "${checked[i]}" -eq 1 ] && box="[x]"
-      printf "\033[2K" >&2
       if [ "$i" -eq "$cursor" ]; then
-        printf "%b❯ %s %-20s%b %b%s%b\n" "${C_CYAN}${C_BOLD}" "$box" "$lbl" "${C_RESET}" "${C_DIM}" "$dsc" "${C_RESET}" >&2
+        printf "\033[2K%b❯ %s %-20s%b\n" "${C_CYAN}${C_BOLD}" "$box" "$lbl" "${C_RESET}" >&2
+        printf "\033[2K    %b%s%b\n" "${C_DIM}" "$dsc" "${C_RESET}" >&2
       else
-        printf "  %b%s%b %-20s %b%s%b\n" "${C_GREEN}" "$box" "${C_RESET}" "$lbl" "${C_DIM}" "$dsc" "${C_RESET}" >&2
+        printf "\033[2K  %b%s%b %-20s\n" "${C_GREEN}" "$box" "${C_RESET}" "$lbl" >&2
+        printf "\033[2K    %b%s%b\n" "${C_DIM}" "$dsc" "${C_RESET}" >&2
       fi
     done
 
