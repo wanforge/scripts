@@ -10,7 +10,7 @@
 #   bash backup-tools.sh --run <profile>   # non-interactive run (for cron)
 #
 # Requirements by type:
-#   S3   — aws CLI  (apt install awscli)
+#   S3   — aws CLI v2 (auto-installed from awscli.amazonaws.com)
 #   FTP  — lftp     (apt install lftp)
 #   SFTP — rsync    (apt install rsync)
 #
@@ -112,7 +112,23 @@ _try_install() {
   have "$cmd" || { err "'${cmd}' not in PATH after install. Try: hash -r"; return 1; }
   ok "'${cmd}' installed."
 }
-_need_aws()       { _try_install aws       apt install -y awscli; }
+_need_aws() {
+  have aws && return 0
+  warn "'aws' not found."
+  local ans; ans="$(ask "Install AWS CLI v2 now? [Y/n]:" "y")"
+  [[ "${ans,,}" =~ ^n ]] && { err "Cannot continue without 'aws'."; return 1; }
+  (
+    set -e
+    cd /tmp
+    curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o awscliv2.zip
+    unzip -q -o awscliv2.zip
+    ./aws/install --update
+    rm -rf awscliv2.zip aws
+  ) || { err "AWS CLI v2 install failed. See https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html"; return 1; }
+  hash -r
+  have aws || { err "'aws' not in PATH. Open new shell or: export PATH=\$PATH:/usr/local/bin"; return 1; }
+  ok "AWS CLI v2 installed."
+}
 _need_lftp()      { _try_install lftp      apt install -y lftp; }
 _need_rsync()     { _try_install rsync     apt install -y rsync; }
 _need_mysqldump() { _try_install mysqldump apt install -y mysql-client; }
