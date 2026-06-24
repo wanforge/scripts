@@ -49,7 +49,7 @@ fi
 command -v ssh-keygen >/dev/null 2>&1 || { err "ssh-keygen not found. Install openssh-client first."; exit 1; }
 
 KEYFILE="$(ask_cfg CFG_SSH_KEYFILE "Key file path:" "${HOME}/.ssh/id_ed25519")"
-COMMENT="$(ask_cfg CFG_SSH_COMMENT "Key comment:" "wanforge-asia@$(hostname 2>/dev/null || echo wanforge-app)")"
+COMMENT="$(ask_cfg CFG_SSH_COMMENT "Key comment:" "$(id -un)@$(hostname -s 2>/dev/null || hostname)")"
 
 # passphrase (optional)
 PASS=""
