@@ -29,6 +29,26 @@ else . <(wget -qO- "${__LIB}"); fi
 cfg_load
 wf_log_init   # sets WF_LOG_DIR, WF_LOG_FILE, LOG_FILE
 
+# --- self-install guard -------------------------------------------------------
+# When run via curl|bash, BASH_SOURCE[0] is a tmpfile (/tmp/...) that gets
+# deleted after the session — any cron entry registered would silently fail.
+# If detected, save self to a permanent path and re-exec from there.
+_BT_SELF="$(realpath "${BASH_SOURCE[0]:-$0}" 2>/dev/null || readlink -f "${BASH_SOURCE[0]:-$0}" 2>/dev/null || echo "$0")"
+case "${_BT_SELF}" in
+  /tmp/*|/proc/*)
+    if [ "$(id -u)" -eq 0 ]; then
+      _BT_PERM_DIR="/opt/wanforge-scripts"
+    else
+      _BT_PERM_DIR="${HOME}/.local/lib/wanforge-scripts"
+    fi
+    _BT_PERM="${_BT_PERM_DIR}/backup-tools.sh"
+    mkdir -p "${_BT_PERM_DIR}"
+    cp "${_BT_SELF}" "${_BT_PERM}" && chmod +x "${_BT_PERM}"
+    exec bash "${_BT_PERM}" "$@"
+    ;;
+esac
+unset _BT_SELF _BT_PERM_DIR _BT_PERM
+
 # --- engine detection -----------------------------------------------------
 # backup-engine.py: Python engine with SQLite resume, parallel workers.
 # Lives alongside this script; falls back to native tools if absent.
