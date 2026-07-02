@@ -424,6 +424,7 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/runtime/setup-pm2-app.sh |
   - **Dry-run** — simulates (no bytes moved).
   - **Dump (local)** — dumps a DB profile to a local file only, no upload (respects encryption setting).
   - **Cron** — injects a `crontab` entry for a profile; runs via `--run` non-interactively.
+  - **Cron status** — shows all active backup cron jobs (current user + root).
 - **Wizard defaults** are remembered so adding a second profile to the same server skips re-typing.
 - **Non-interactive / cron / scripted flags**:
 

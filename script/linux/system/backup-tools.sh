@@ -990,14 +990,15 @@ a_cron() {
   local hour; hour="$(ask "Backup hour 0-23 [2]:" "2")"; hour="${hour:-2}"
   local log_dir="${WF_DATA_DIR}/logs/backup-tools"
   mkdir -p "$log_dir"
-  local this; this="$(realpath "${BASH_SOURCE[0]:-$0}" 2>/dev/null || echo "/path/to/backup-tools.sh")"
+  local this; this="$(realpath "${BASH_SOURCE[0]:-$0}" 2>/dev/null || readlink -f "${BASH_SOURCE[0]:-$0}" 2>/dev/null || echo "$0")"
+  [ -f "${this}" ] || { err "Script path '${this}' not a real file — run from disk, not via pipe."; return 1; }
 
   for p in "${CHOSEN_KEYS[@]}"; do
     local existing; existing="$(crontab -l 2>/dev/null | grep "backup-tools.*${p}" || true)"
     if [ -n "$existing" ]; then
       crontab -l 2>/dev/null | grep -v "backup-tools.*${p}" | crontab - 2>/dev/null || true
     fi
-    local entry="0 ${hour} * * * bash '${this}' --run '${p}' >> '${log_dir}/${p}_\$(date +\%Y\%m\%d).log' 2>&1"
+    local entry="0 ${hour} * * * bash '${this}' --run '${p}' >> \"${log_dir}/${p}_\$(date +\%Y\%m\%d).log\" 2>&1"
     if (crontab -l 2>/dev/null; echo "$entry") | crontab -; then
       ok "Cron added — daily at ${hour}:00 for '${p}'"
     else
@@ -1005,6 +1006,26 @@ a_cron() {
     fi
   done
   info "Log dir: ${log_dir}"
+}
+
+a_cron_status() {
+  hd "Cron status — Backup jobs"
+  local entries; entries="$(crontab -l 2>/dev/null | grep "backup-tools" || true)"
+  if [ -z "${entries}" ]; then
+    warn "No backup cron jobs scheduled for $(id -un)."
+  else
+    info "Active cron entries:"
+    printf '%s\n' "${entries}" >&2
+  fi
+  if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
+    local root_entries; root_entries="$(sudo crontab -l 2>/dev/null | grep "backup-tools" || true)"
+    if [ -z "${root_entries}" ]; then
+      info "No backup cron jobs scheduled for root."
+    else
+      info "Active cron entries (root):"
+      printf '%s\n' "${root_entries}" >&2
+    fi
+  fi
 }
 
 # --- non-interactive mode (cron / scripted) -------------------------------
@@ -1045,8 +1066,8 @@ case "${1:-}" in
     crontab -l 2>/dev/null | grep -v "backup-tools.*${BT_CRON_PROF}" | crontab - 2>/dev/null || true
     BT_CRON_LOGDIR="${WF_DATA_DIR}/logs/backup-tools"
     mkdir -p "${BT_CRON_LOGDIR}"
-    BT_CRON_THIS="$(realpath "${BASH_SOURCE[0]:-$0}" 2>/dev/null || echo "$0")"
-    BT_CRON_ENTRY="0 ${BT_CRON_HOUR} * * * bash '${BT_CRON_THIS}' --run '${BT_CRON_PROF}' >> '${BT_CRON_LOGDIR}/${BT_CRON_PROF}_\$(date +\%Y\%m\%d).log' 2>&1"
+    BT_CRON_THIS="$(realpath "${BASH_SOURCE[0]:-$0}" 2>/dev/null || readlink -f "${BASH_SOURCE[0]:-$0}" 2>/dev/null || echo "$0")"
+    BT_CRON_ENTRY="0 ${BT_CRON_HOUR} * * * bash '${BT_CRON_THIS}' --run '${BT_CRON_PROF}' >> \"${BT_CRON_LOGDIR}/${BT_CRON_PROF}_\$(date +\%Y\%m\%d).log\" 2>&1"
     (crontab -l 2>/dev/null; echo "${BT_CRON_ENTRY}") | crontab -
     ok "Cron set: daily at ${BT_CRON_HOUR}:00 for '${BT_CRON_PROF}'"
     info "${BT_CRON_ENTRY}"
@@ -1127,6 +1148,7 @@ while true; do
     "Run|dump|dump DB to local file only (no upload)"
     "Run|status|show upload progress (engine mode)"
     "Schedule|cron|setup daily cron job for a profile"
+    "Schedule|cron_status|show scheduled cron jobs"
     "Schedule|remove_cron|remove backup cron entries"
     "Config|clear_cfg|clear saved wizard defaults"
   )
@@ -1142,6 +1164,7 @@ while true; do
     dump)      a_dump || true ;;
     status)    a_status || true ;;
     cron)        a_cron || true; _pause ;;
+    cron_status) a_cron_status || true; _pause ;;
     remove_cron) wf_cron_remove "backup-tools" || true; _pause ;;
     clear_cfg)   cfg_clear && ok "Saved defaults cleared."; _pause ;;
   esac
