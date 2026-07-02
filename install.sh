@@ -135,9 +135,16 @@ checkbox_menu() {
 
 banner
 
-# Reusable temp file for fetched scripts.
-TMP_SCRIPT="$(mktemp)"
-trap 'rm -f "${TMP_SCRIPT}"' EXIT
+# Permanent install dir — scripts run from here so BASH_SOURCE[0] is stable (needed for cron).
+if [ "$(id -u)" -eq 0 ]; then
+  WF_INSTALL_DIR="/opt/wanforge-scripts"
+else
+  WF_INSTALL_DIR="${HOME}/.local/lib/wanforge-scripts"
+fi
+mkdir -p "${WF_INSTALL_DIR}"
+
+TMP_DL="$(mktemp)"
+trap 'rm -f "${TMP_DL}"' EXIT
 
 # --- launcher loop: menu -> run selection -> back to menu (Q quits) -------
 while true; do
@@ -149,13 +156,16 @@ while true; do
   for sel in "${SELECTED[@]}"; do
     IFS='|' read -r _ SEL_LABEL SCRIPT_PATH _ <<< "${SCRIPTS[$sel]}"
     RAW_URL="https://scripts.wanforge.asia/${SCRIPT_PATH}"
+    PERM_SCRIPT="${WF_INSTALL_DIR}/${SEL_LABEL}.sh"
 
-    dlo "${RAW_URL}" "${TMP_SCRIPT}" &
+    dlo "${RAW_URL}" "${TMP_DL}" &
     spinner $! "Fetching ${SEL_LABEL}"
     wait $! || { printf "%b✖ Download failed: %s%b\n" "${C_RED}" "${SCRIPT_PATH}" "${C_RESET}" >&2; continue; }
 
+    cp "${TMP_DL}" "${PERM_SCRIPT}" && chmod +x "${PERM_SCRIPT}"
+
     printf "%b▶ running %s...%b\n" "${C_BOLD}${C_GREEN}" "${SEL_LABEL}" "${C_RESET}" >&2
-    bash "${TMP_SCRIPT}" || printf "%b✖ %s exited non-zero%b\n" "${C_BOLD}" "${SEL_LABEL}" "${C_RESET}" >&2
+    bash "${PERM_SCRIPT}" || printf "%b✖ %s exited non-zero%b\n" "${C_BOLD}" "${SEL_LABEL}" "${C_RESET}" >&2
   done
 
   printf "\n%b✔ Done. Press Enter to return to the menu (Q there to quit)…%b" "${C_DIM}${C_GREEN}" "${C_RESET}" >&2
