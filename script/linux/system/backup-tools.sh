@@ -1028,6 +1028,76 @@ a_cron_status() {
   fi
 }
 
+a_cron_test() {
+  hd "Test cron jobs — dry-run all scheduled profiles"
+
+  # collect all cron entries for backup-tools (current user + root)
+  local all_entries=""
+  all_entries+="$(crontab -l 2>/dev/null | grep "backup-tools" || true)"$'\n'
+  if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
+    all_entries+="$(sudo crontab -l 2>/dev/null | grep "backup-tools" || true)"$'\n'
+  fi
+
+  # extract unique profile names and script paths from cron entries
+  local profiles=() scripts=() line script_path profile_name
+  while IFS= read -r line; do
+    [ -z "${line}" ] && continue
+    # extract script path: bash '/path/to/script.sh' --run 'profile'
+    script_path="$(printf '%s' "${line}" | grep -oP "bash\s+'?\K[^'\" ]+" || true)"
+    profile_name="$(printf '%s' "${line}" | grep -oP -- "--run\s+'?\K[^'\" ]+" || true)"
+    [ -z "${script_path}" ] || [ -z "${profile_name}" ] && continue
+    # deduplicate
+    local dup=0
+    for p in "${profiles[@]+"${profiles[@]}"}"; do [ "$p" = "${profile_name}" ] && dup=1 && break; done
+    [ "${dup}" -eq 1 ] && continue
+    profiles+=("${profile_name}")
+    scripts+=("${script_path}")
+  done <<< "${all_entries}"
+
+  if [ "${#profiles[@]}" -eq 0 ]; then
+    warn "No backup cron jobs found. Nothing to test."
+    return 0
+  fi
+
+  info "Found ${#profiles[@]} scheduled profile(s). Running dry-run..."
+  printf "\n" >&2
+
+  local ok_count=0 fail_count=0 skip_count=0
+  local i
+  for i in "${!profiles[@]}"; do
+    local prof="${profiles[$i]}" scr="${scripts[$i]}"
+    printf "  %b●%b %-40s " "${C_CYAN}" "${C_RESET}" "${prof}" >&2
+
+    # check script file exists
+    if [ ! -f "${scr}" ]; then
+      printf "%b✖ script not found: %s%b\n" "${C_RED}" "${scr}" "${C_RESET}" >&2
+      fail_count=$((fail_count + 1))
+      continue
+    fi
+
+    # check profile config exists
+    if [ ! -f "$(_bt_file "${prof}")" ]; then
+      printf "%b⚠ profile config missing%b\n" "${C_YELLOW}" "${C_RESET}" >&2
+      skip_count=$((skip_count + 1))
+      continue
+    fi
+
+    # dry-run
+    if bash "${scr}" --test "${prof}" >/dev/null 2>&1; then
+      printf "%b✔ dry-run OK%b\n" "${C_GREEN}" "${C_RESET}" >&2
+      ok_count=$((ok_count + 1))
+    else
+      printf "%b✖ dry-run FAILED%b\n" "${C_RED}" "${C_RESET}" >&2
+      fail_count=$((fail_count + 1))
+    fi
+  done
+
+  printf "\n" >&2
+  info "Result: ${ok_count} OK, ${fail_count} failed, ${skip_count} skipped."
+  [ "${fail_count}" -gt 0 ] && warn "Fix failed profiles or re-register cron via 'Cron' menu."
+  return 0
+}
+
 # --- non-interactive mode (cron / scripted) -------------------------------
 #
 # Flags:
@@ -1149,6 +1219,7 @@ while true; do
     "Run|status|show upload progress (engine mode)"
     "Schedule|cron|setup daily cron job for a profile"
     "Schedule|cron_status|show scheduled cron jobs"
+    "Schedule|cron_test|test all scheduled cron jobs (dry-run)"
     "Schedule|remove_cron|remove backup cron entries"
     "Config|clear_cfg|clear saved wizard defaults"
   )
@@ -1165,6 +1236,7 @@ while true; do
     status)    a_status || true ;;
     cron)        a_cron || true; _pause ;;
     cron_status) a_cron_status || true; _pause ;;
+    cron_test)   a_cron_test || true; _pause ;;
     remove_cron) wf_cron_remove "backup-tools" || true; _pause ;;
     clear_cfg)   cfg_clear && ok "Saved defaults cleared."; _pause ;;
   esac
