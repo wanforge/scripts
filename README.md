@@ -85,6 +85,7 @@ Select scripts to run:
 ❯ [✓] install-packages     Update system + base essentials (micro, curl, wget, git)
   [✓] set-timezone         Set timezone (UTC recommended for servers)
   [✓] backup-tools         Backup manager: S3 / FTP / SFTP — named profiles, cron, dry-run
+  [✓] sys-troubleshoot     Diagnostics & troubleshooting: CPU, RAM, services, OOM, logs, firewall, network
   ── Security ──
   [✓] install-firewall     Install & configure ufw firewall
   [✓] firewall-manager     Full ufw manager: allow/deny IP/port, multiple, rate-limit
@@ -120,6 +121,7 @@ Select scripts to run:
   [✓] install-zabbix       Zabbix agent or server (official repo)
   [✓] install-uptime-kuma  Uptime Kuma beautiful self-hosted status page
   [✓] install-loki         Loki + Promtail log aggregator & forwarding agent
+  [✓] install-goaccess     GoAccess real-time web log analyzer (terminal & HTML daemon)
 ```
 
 ### Launcher Flow
@@ -264,6 +266,7 @@ bash install-grafana.sh --uninstall   # full removal (packages, repo, firewall r
 | `install-zabbix.sh`           |                    ✓                     |     ✓      |    ✓    |     ✓      |      ✓      |   ✓    |      ✓      |         ✓          |
 | `install-uptime-kuma.sh`      |                    ✓                     |     ✓      |    ✓    |     —      |      —      |   ✓    |      —      |         ✓          |
 | `install-loki.sh`             |                    ✓                     |     ✓      |    ✓    |     ✓      |      ✓      |   ✓    |      —      |         ✓          |
+| `install-goaccess.sh`         |                    ✓                     |     ✓      |    ✓    |     ✓      |      ✓      |   ✓    |      —      |         ✓          |
 | `install-cockpit.sh`          |                    ✓                     |     ✓      |    ✓    |     ✓      |      ✓      |   ✓    |      ✓      |         ✓          |
 | `install-postgresql.sh`       |                    ✓                     |     ✓      |    ✓    |     ✓      |      ✓      |   ✓    |      ✓      |        ✓ ⚠         |
 | `install-firewall.sh`         |               `--disable`                | `--enable` |    —    | `--enable` | `--disable` |   ✓    |      ✓      |         ✓          |
@@ -300,6 +303,7 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/system/install-packages.sh
 curl -fsSL https://scripts.wanforge.asia/script/linux/system/set-timezone.sh | bash
 curl -fsSL https://scripts.wanforge.asia/script/linux/system/install-firewall.sh | bash
 curl -fsSL https://scripts.wanforge.asia/script/linux/system/backup-tools.sh | bash
+curl -fsSL https://scripts.wanforge.asia/script/linux/system/sys-troubleshoot.sh | bash
 
 # Security
 curl -fsSL https://scripts.wanforge.asia/script/linux/security/firewall-manager.sh | bash
@@ -335,6 +339,7 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/monitoring/install-grafana
 curl -fsSL https://scripts.wanforge.asia/script/linux/monitoring/install-zabbix.sh | bash
 curl -fsSL https://scripts.wanforge.asia/script/linux/monitoring/install-uptime-kuma.sh | bash
 curl -fsSL https://scripts.wanforge.asia/script/linux/monitoring/install-loki.sh | bash
+curl -fsSL https://scripts.wanforge.asia/script/linux/monitoring/install-goaccess.sh | bash
 
 # App runtime
 curl -fsSL https://scripts.wanforge.asia/script/linux/runtime/install-nodejs.sh | bash
@@ -351,6 +356,7 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/runtime/setup-pm2-app.sh |
 | System          | `install-packages.sh`      | Update/upgrade system, install base essentials (micro/curl/wget/git)          | Yes  | Multi           |
 | System          | `set-timezone.sh`          | Set timezone via `timedatectl` (default `Asia/Jakarta`)                       | Yes  | Any (systemd)   |
 | System          | `backup-tools.sh`          | Backup manager: S3 / FTP / SFTP — named profiles, cron, dry-run               | No   | Any             |
+| System          | `sys-troubleshoot.sh`      | Diagnostics & troubleshooting: CPU, RAM, services, OOM, logs, firewall, net   | Yes  | Any             |
 | System          | `install-firewall.sh`      | Install `ufw`, open SSH/http/https, add custom ports, enable                  | Yes  | Mainly Deb/Ubu  |
 | Security        | `firewall-manager.sh`      | Full ufw manager: allow/deny IP & port, multi-IP, rate-limit                  | Yes  | Any (ufw)       |
 | Security        | `install-fail2ban.sh`      | Install and enable the Fail2Ban service                                       | Yes  | Multi           |
@@ -377,6 +383,7 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/runtime/setup-pm2-app.sh |
 | Observability   | `install-zabbix.sh`        | Zabbix agent or full server (frontend + MySQL schema)                         | Yes  | Debian/Ubuntu   |
 | Observability   | `install-uptime-kuma.sh`   | Uptime Kuma status page & endpoint monitor (Node.js + PM2)                    | No   | Linux           |
 | Observability   | `install-loki.sh`          | Loki + Promtail log aggregator & forwarding agent                             | Yes  | Debian/Ubuntu   |
+| Observability   | `install-goaccess.sh`      | GoAccess real-time web log analyzer (terminal & HTML daemon)                 | Yes  | Debian/Ubuntu   |
 
 ## Script Details
 
@@ -469,6 +476,18 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/runtime/setup-pm2-app.sh |
   ```
 
 - DB dump filenames include a timestamp — each run creates a new file, old ones are **not** overwritten: `<profile>_YYYYMMDD_HHMMSS.sql.gz` (or `.tar.gz`, `.rdb.gz`, `.sql.gz.enc` for encrypted).
+
+### sys-troubleshoot.sh
+
+- Diagnostics and troubleshooting utility that checks server health and audits common issues.
+- **Audits**:
+  - CPU load, RAM usage, swap space, and disk utilization.
+  - Failed systemd units (`systemctl --failed`).
+  - Out-of-memory (OOM) events from kernel ring buffer and logs.
+  - Nginx error logs (scans `/var/log/nginx/` for 502/504 gateways, timeouts, connection refused, or permissions issues and displays recent logs).
+  - Reachability of database ports (checks MySQL 3306 and PostgreSQL 5432 socket listeners).
+  - Fail2ban status (displays list of jails, active bans, and provides a TUI option to unban any blocked IP).
+  - Internet connection latency and DNS resolution check.
 
 ### install-firewall.sh
 
@@ -732,6 +751,12 @@ Menu actions:
 - Debian/Ubuntu. Installs **Grafana Loki** (log aggregation server) and/or **Promtail** (log collection agent).
 - **Loki Server**: Runs on port `3100`, storing indices and chunks persistently at `/var/lib/loki`. Optionally registers as a Grafana datasource.
 - **Promtail Agent**: Scrapes `/var/log/*log` and `systemd-journal` (system unit logs), then forwards them to a central Loki URL. Allows setting up distributed logging (pushing to a remote Loki server).
+
+### install-goaccess.sh
+
+- Debian/Ubuntu. Installs **GoAccess** real-time web log analyzer.
+- **Console TUI**: Run directly in terminal to analyze Nginx/Apache logs with live updates.
+- **HTML Daemon**: Configures a systemd service (`goaccess.service`) that runs in the background, reading access logs and generating a real-time HTML report on a selected web directory (e.g. `/var/www/html/report.html`), utilizing WebSockets on port `7890` for live browser updates.
 
 ### Monitoring & Logging stack — quick walkthrough
 
