@@ -67,6 +67,7 @@ SCRIPTS=(
   "Observability|install-grafana|script/linux/monitoring/install-grafana.sh|Grafana + Prometheus data source"
   "Observability|install-zabbix|script/linux/monitoring/install-zabbix.sh|Zabbix agent or server (official repo)"
   "Observability|install-uptime-kuma|script/linux/monitoring/install-uptime-kuma.sh|Uptime Kuma — beautiful self-hosted status page and service monitor"
+  "Observability|install-loki|script/linux/monitoring/install-loki.sh|Loki + Promtail log aggregator & forwarding agent"
 )
 # ------------------------------------------------------------------------
 

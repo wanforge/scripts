@@ -119,6 +119,7 @@ Select scripts to run:
   [✓] install-grafana      Grafana + Prometheus data source
   [✓] install-zabbix       Zabbix agent or server (official repo)
   [✓] install-uptime-kuma  Uptime Kuma beautiful self-hosted status page
+  [✓] install-loki         Loki + Promtail log aggregator & forwarding agent
 ```
 
 ### Launcher Flow
@@ -262,6 +263,7 @@ bash install-grafana.sh --uninstall   # full removal (packages, repo, firewall r
 | `install-prometheus.sh`       |                    ✓                     |     ✓      |    ✓    |     ✓      |      ✓      |   ✓    |      ✓      |         ✓          |
 | `install-zabbix.sh`           |                    ✓                     |     ✓      |    ✓    |     ✓      |      ✓      |   ✓    |      ✓      |         ✓          |
 | `install-uptime-kuma.sh`      |                    ✓                     |     ✓      |    ✓    |     —      |      —      |   ✓    |      —      |         ✓          |
+| `install-loki.sh`             |                    ✓                     |     ✓      |    ✓    |     ✓      |      ✓      |   ✓    |      —      |         ✓          |
 | `install-cockpit.sh`          |                    ✓                     |     ✓      |    ✓    |     ✓      |      ✓      |   ✓    |      ✓      |         ✓          |
 | `install-postgresql.sh`       |                    ✓                     |     ✓      |    ✓    |     ✓      |      ✓      |   ✓    |      ✓      |        ✓ ⚠         |
 | `install-firewall.sh`         |               `--disable`                | `--enable` |    —    | `--enable` | `--disable` |   ✓    |      ✓      |         ✓          |
@@ -332,6 +334,7 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/monitoring/install-prometh
 curl -fsSL https://scripts.wanforge.asia/script/linux/monitoring/install-grafana.sh | bash
 curl -fsSL https://scripts.wanforge.asia/script/linux/monitoring/install-zabbix.sh | bash
 curl -fsSL https://scripts.wanforge.asia/script/linux/monitoring/install-uptime-kuma.sh | bash
+curl -fsSL https://scripts.wanforge.asia/script/linux/monitoring/install-loki.sh | bash
 
 # App runtime
 curl -fsSL https://scripts.wanforge.asia/script/linux/runtime/install-nodejs.sh | bash
@@ -373,6 +376,7 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/runtime/setup-pm2-app.sh |
 | Observability   | `install-grafana.sh`       | Grafana (official repo) + auto datasource & dashboard provisioning           | Yes  | Debian/Ubuntu   |
 | Observability   | `install-zabbix.sh`        | Zabbix agent or full server (frontend + MySQL schema)                         | Yes  | Debian/Ubuntu   |
 | Observability   | `install-uptime-kuma.sh`   | Uptime Kuma status page & endpoint monitor (Node.js + PM2)                    | No   | Linux           |
+| Observability   | `install-loki.sh`          | Loki + Promtail log aggregator & forwarding agent                             | Yes  | Debian/Ubuntu   |
 
 ## Script Details
 
@@ -723,19 +727,31 @@ Menu actions:
 - Multi-distro. Installs **Uptime Kuma** using Node.js + PM2 (run `install-nodejs.sh` first to set up the Node environment).
 - Features: Clones Uptime Kuma repository, runs installation setup, registers the server with PM2 (supports custom port mapping and ufw firewall rules), and manages service lifecycle.
 
-### Monitoring stack — quick walkthrough
+### install-loki.sh
+
+- Debian/Ubuntu. Installs **Grafana Loki** (log aggregation server) and/or **Promtail** (log collection agent).
+- **Loki Server**: Runs on port `3100`, storing indices and chunks persistently at `/var/lib/loki`. Optionally registers as a Grafana datasource.
+- **Promtail Agent**: Scrapes `/var/log/*log` and `systemd-journal` (system unit logs), then forwards them to a central Loki URL. Allows setting up distributed logging (pushing to a remote Loki server).
+
+### Monitoring & Logging stack — quick walkthrough
 
 ```bash
-# 1) On each host you want to monitor: metrics exporter
-curl -fsSL .../script/linux/monitoring/install-prometheus.sh | bash      # pick node_exporter (+ Prometheus/Alertmanager on the main host)
+# 1) On each host to monitor (metrics + log agents):
+# Installs node_exporter to export metrics and Promtail to forward logs
+curl -fsSL https://scripts.wanforge.asia/script/linux/monitoring/install-prometheus.sh | bash      # pick node_exporter
+curl -fsSL https://scripts.wanforge.asia/script/linux/monitoring/install-loki.sh | bash            # pick promtail, point to Loki server URL
 
-# 2) On the monitoring host: Grafana + Prometheus data source + Node Exporter dashboard
-curl -fsSL .../script/linux/monitoring/install-grafana.sh | bash         # auto-add datasource and auto-import dashboard 1860
+# 2) On the central monitoring host (Prometheus server, Loki server, Grafana):
+curl -fsSL https://scripts.wanforge.asia/script/linux/monitoring/install-prometheus.sh | bash      # pick prometheus + Alertmanager
+curl -fsSL https://scripts.wanforge.asia/script/linux/monitoring/install-loki.sh | bash            # pick loki (server)
+curl -fsSL https://scripts.wanforge.asia/script/linux/monitoring/install-grafana.sh | bash         # installs Grafana, auto-adds Prometheus datasource, auto-imports Dashboard 1860
 
-# 3) Open Grafana (http://host:3000) → Dashboards → Node Exporter Full dashboard is ready!
+# 3) Open Grafana (http://host:3000)
+# - Dashboards -> Node Exporter Full dashboard is ready.
+# - Explore -> Select 'Loki' data source -> Browse and query your system and journal logs in real-time.
 
-# Alternative status page:
-curl -fsSL .../script/linux/monitoring/install-uptime-kuma.sh | bash     # install Uptime Kuma on port 3001
+# Alternative standalone status page:
+curl -fsSL https://scripts.wanforge.asia/script/linux/monitoring/install-uptime-kuma.sh | bash     # install Uptime Kuma on port 3001
 ```
 
 ### install-nodejs.sh
