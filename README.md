@@ -261,6 +261,7 @@ bash install-grafana.sh --uninstall   # full removal (packages, repo, firewall r
 | `install-grafana.sh`          |                    ✓                     |     ✓      |    ✓    |     ✓      |      ✓      |   ✓    |      ✓      |         ✓          |
 | `install-prometheus.sh`       |                    ✓                     |     ✓      |    ✓    |     ✓      |      ✓      |   ✓    |      ✓      |         ✓          |
 | `install-zabbix.sh`           |                    ✓                     |     ✓      |    ✓    |     ✓      |      ✓      |   ✓    |      ✓      |         ✓          |
+| `install-uptime-kuma.sh`      |                    ✓                     |     ✓      |    ✓    |     —      |      —      |   ✓    |      —      |         ✓          |
 | `install-cockpit.sh`          |                    ✓                     |     ✓      |    ✓    |     ✓      |      ✓      |   ✓    |      ✓      |         ✓          |
 | `install-postgresql.sh`       |                    ✓                     |     ✓      |    ✓    |     ✓      |      ✓      |   ✓    |      ✓      |        ✓ ⚠         |
 | `install-firewall.sh`         |               `--disable`                | `--enable` |    —    | `--enable` | `--disable` |   ✓    |      ✓      |         ✓          |
@@ -274,6 +275,8 @@ bash install-grafana.sh --uninstall   # full removal (packages, repo, firewall r
 | `secure-ssh.sh`               |                    —                     |     —      |    —    |     —      |      —      |   —    |      —      | ✓ (restore backup) |
 | `generate-ssh-key.sh`         |                    —                     |     —      |    —    |     —      |      —      |   —    |      —      |         ✓          |
 | `install-cloudpanel.sh`       |                    —                     |     —      |    —    |     —      |      —      |   —    |      —      |  ✓ (manual steps)  |
+| `install-github-runner.sh`    |                    ✓                     |     ✓      |    ✓    |     —      |      —      |   ✓    |      —      |         ✓          |
+| `install-gitlab-runner.sh`    |                    ✓                     |     ✓      |    ✓    |     —      |      —      |   ✓    |      —      |         ✓          |
 
 Service scripts (`--stop/start/restart/enable/disable/status`) use `systemctl` and
 operate on all services the script manages (e.g. prometheus also controls
@@ -322,11 +325,13 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/network/proxmox-toolkit.sh
 
 # CI/CD
 curl -fsSL https://scripts.wanforge.asia/script/linux/cicd/install-github-runner.sh | bash
+curl -fsSL https://scripts.wanforge.asia/script/linux/cicd/install-gitlab-runner.sh | bash
 
 # Observability stack
 curl -fsSL https://scripts.wanforge.asia/script/linux/monitoring/install-prometheus.sh | bash
 curl -fsSL https://scripts.wanforge.asia/script/linux/monitoring/install-grafana.sh | bash
 curl -fsSL https://scripts.wanforge.asia/script/linux/monitoring/install-zabbix.sh | bash
+curl -fsSL https://scripts.wanforge.asia/script/linux/monitoring/install-uptime-kuma.sh | bash
 
 # App runtime
 curl -fsSL https://scripts.wanforge.asia/script/linux/runtime/install-nodejs.sh | bash
@@ -363,9 +368,11 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/runtime/setup-pm2-app.sh |
 | Network         | `net-tools.sh`             | Local/public IP, ports, speedtest, ping/traceroute/dig/whois/scan             | Some | Any             |
 | Proxmox         | `proxmox-toolkit.sh`       | PVE node/VM/CT resources, storage, cluster, realtime dashboard                | Yes  | Proxmox VE      |
 | CI/CD           | `install-github-runner.sh` | GitHub Actions self-hosted runner as a systemd service (avoid billed minutes) | Yes  | Linux           |
-| Observability   | `install-prometheus.sh`    | Prometheus + node_exporter + optional Alertmanager, scrape config             | Yes  | Debian/Ubuntu   |
-| Observability   | `install-grafana.sh`       | Grafana (official repo) + auto Prometheus data source                         | Yes  | Debian/Ubuntu   |
+| CI/CD           | `install-gitlab-runner.sh` | GitLab CI/CD self-hosted runner manager                                       | Yes  | Linux           |
+| Observability   | `install-prometheus.sh`    | Prometheus + node_exporter + Alertmanager (with alert rules & integrations)  | Yes  | Debian/Ubuntu   |
+| Observability   | `install-grafana.sh`       | Grafana (official repo) + auto datasource & dashboard provisioning           | Yes  | Debian/Ubuntu   |
 | Observability   | `install-zabbix.sh`        | Zabbix agent or full server (frontend + MySQL schema)                         | Yes  | Debian/Ubuntu   |
+| Observability   | `install-uptime-kuma.sh`   | Uptime Kuma status page & endpoint monitor (Node.js + PM2)                    | No   | Linux           |
 
 ## Script Details
 
@@ -679,42 +686,56 @@ Menu actions:
   [hardening for self-hosted runners](https://docs.github.com/actions/security-guides/security-hardening-for-github-actions#hardening-for-self-hosted-runners)
   — avoid self-hosted runners on **public** repos (untrusted forks can run code).
 
+### install-gitlab-runner.sh
+
+A single-select TUI **manager** for GitLab CI/CD self-hosted runners.
+Allows registering runners to execute CI/CD jobs on your own machine.
+
+Menu actions:
+- **Install**: Add the official GitLab runner repository, install `gitlab-runner`, and register a new runner with the GitLab instance (supports shell and docker executors, tags, and description).
+- **List**: List registered runners on this host.
+- **Status**: Show systemd service status.
+- **Logs**: Tail journald logs (last 100 lines).
+- **Start / Stop / Restart**: Control the gitlab-runner service.
+- **Remove**: Unregister runners from GitLab and optionally purge the gitlab-runner package and repository.
+
 ### install-prometheus.sh
 
-- Debian/Ubuntu. Checkbox components: Prometheus (`:9090`), node_exporter
-  (`:9100`, host CPU/RAM/disk metrics), Alertmanager (`:9093`), and firewall.
-- Installs from distro packages, enables services, and **adds a node_exporter
-  scrape job** to `/etc/prometheus/prometheus.yml`. Prints the URLs at the end.
+- Debian/Ubuntu. Checkbox components: Prometheus (`:9090`), node_exporter (`:9100`, host CPU/RAM/disk metrics), Alertmanager (`:9093`), and firewall.
+- Installs from distro packages, enables services, and **adds a node_exporter scrape job** to `/etc/prometheus/prometheus.yml`.
+- **System Alerts**: Automatically provisions `/etc/prometheus/alert.rules.yml` containing pre-configured rules (Host down, high CPU/RAM, low disk space) and links them to Prometheus.
+- **Alertmanager Notification Wizard**: Offers interactive setup for Alertmanager notifications including Slack/Discord webhooks, Telegram bots, generic webhook URLs, and SMTP emails.
 
 ### install-grafana.sh
 
-- Debian/Ubuntu. Adds the **official Grafana APT repo**, installs and enables
-  `grafana-server` (`:3000`), optionally **provisions a Prometheus data source**,
-  and opens the firewall. Login `admin/admin` on first use; import dashboard
-  ID `1860` (Node Exporter Full) to visualize host metrics.
+- Debian/Ubuntu. Adds the **official Grafana APT repo**, installs and enables `grafana-server` (`:3000`), and opens the firewall.
+- **Datasource Provisioning**: Optionally auto-provisions a Prometheus data source.
+- **Dashboard Provisioning**: Optionally auto-provisions the "Node Exporter Full" dashboard (ID 1860) and binds it to the Prometheus datasource so metrics are visible immediately out-of-the-box.
 
 ### install-zabbix.sh
 
-- Debian/Ubuntu. Adds the **official Zabbix repo** (version + OS auto-detected),
-  then choose:
+- Debian/Ubuntu. Adds the **official Zabbix repo** (version + OS auto-detected), then choose:
   - **Agent** — `zabbix-agent2`, set the server IP + hostname, open `:10050`.
-  - **Server** — server + PHP frontend + MySQL/MariaDB: creates the `zabbix`
-    database, imports the schema, sets `DBPassword`, starts everything. Frontend
-    at `http://<ip>/zabbix`, default login `Admin/zabbix`.
+  - **Server** — server + PHP frontend + MySQL/MariaDB: creates the `zabbix` database, imports the schema, sets `DBPassword`, starts everything. Frontend at `http://<ip>/zabbix`, default login `Admin/zabbix`.
+
+### install-uptime-kuma.sh
+
+- Multi-distro. Installs **Uptime Kuma** using Node.js + PM2 (run `install-nodejs.sh` first to set up the Node environment).
+- Features: Clones Uptime Kuma repository, runs installation setup, registers the server with PM2 (supports custom port mapping and ufw firewall rules), and manages service lifecycle.
 
 ### Monitoring stack — quick walkthrough
 
 ```bash
 # 1) On each host you want to monitor: metrics exporter
-curl -fsSL .../script/linux/monitoring/install-prometheus.sh | bash      # pick node_exporter (+ Prometheus on the main host)
+curl -fsSL .../script/linux/monitoring/install-prometheus.sh | bash      # pick node_exporter (+ Prometheus/Alertmanager on the main host)
 
-# 2) On the monitoring host: Grafana + Prometheus data source
-curl -fsSL .../script/linux/monitoring/install-grafana.sh | bash         # auto-add http://localhost:9090
+# 2) On the monitoring host: Grafana + Prometheus data source + Node Exporter dashboard
+curl -fsSL .../script/linux/monitoring/install-grafana.sh | bash         # auto-add datasource and auto-import dashboard 1860
 
-# 3) In Grafana (http://host:3000) → Dashboards → Import → 1860 → done.
+# 3) Open Grafana (http://host:3000) → Dashboards → Node Exporter Full dashboard is ready!
 
-# Alternative all-in-one platform:
-curl -fsSL .../script/linux/monitoring/install-zabbix.sh | bash          # server on the main host, agent on the rest
+# Alternative status page:
+curl -fsSL .../script/linux/monitoring/install-uptime-kuma.sh | bash     # install Uptime Kuma on port 3001
 ```
 
 ### install-nodejs.sh
