@@ -95,6 +95,144 @@ if has_key prometheus && has_key node && [ -f "${CFG}" ]; then
   fi
 fi
 
+# add alerting rules to Prometheus if selected
+if has_key prometheus; then
+  step "Configure Prometheus alerting rules"
+  RULES_CFG="/etc/prometheus/alert.rules.yml"
+  if [ "${DRY_RUN:-0}" = "1" ]; then
+    info "[dry-run] would create alert rules file at ${RULES_CFG}"
+  else
+    printf "groups:\n  - name: system_alerts\n    rules:\n      - alert: InstanceDown\n        expr: up == 0\n        for: 1m\n        labels:\n          severity: critical\n        annotations:\n          summary: \"Instance {{ \$labels.instance }} down\"\n          description: \"Instance {{ \$labels.instance }} has been down for more than 1 minute.\"\n\n      - alert: HostCpuHigh\n        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100) > 85\n        for: 5m\n        labels:\n          severity: warning\n        annotations:\n          summary: \"Host CPU high (instance {{ \$labels.instance }})\"\n          description: \"CPU usage is above 85%% (current value: {{ \$value }}%%)\"\n\n      - alert: HostOutOfMemory\n        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 90\n        for: 2m\n        labels:\n          severity: warning\n        annotations:\n          summary: \"Host Out of Memory (instance {{ \$labels.instance }})\"\n          description: \"Node memory usage is above 90%% (current value: {{ \$value }}%%)\"\n\n      - alert: HostDiskSpaceLow\n        expr: (node_filesystem_free_bytes{mountpoint=\"/\"} / node_filesystem_size_bytes{mountpoint=\"/\"}) * 100 < 15\n        for: 5m\n        labels:\n          severity: warning\n        annotations:\n          summary: \"Host Disk Space Low (instance {{ \$labels.instance }})\"\n          description: \"Disk usage on / is above 85%% (current value: {{ \$value }}%%)\"\n" \
+      | run ${SUDO} tee "${RULES_CFG}" >/dev/null
+  fi
+
+  # Include rules file in prometheus.yml
+  if [ -f "${CFG}" ]; then
+    if ${SUDO} grep -q "alert.rules.yml" "${CFG}" 2>/dev/null; then
+      info "Alerting rules file already linked in prometheus.yml"
+    else
+      step "Link alerting rules in prometheus.yml"
+      if [ "${DRY_RUN:-0}" = "1" ]; then
+        info "[dry-run] would link alert rules in ${CFG}"
+      else
+        if ${SUDO} grep -q "^rule_files:" "${CFG}" 2>/dev/null; then
+          run ${SUDO} sed -i '/^rule_files:/a \  - "/etc/prometheus/alert.rules.yml"' "${CFG}"
+        else
+          printf "\nrule_files:\n  - \"/etc/prometheus/alert.rules.yml\"\n" | run ${SUDO} tee -a "${CFG}" >/dev/null
+        fi
+      fi
+      run ${SUDO} systemctl restart prometheus || true
+      ok "Linked alerting rules and restarted Prometheus."
+    fi
+  fi
+fi
+
+# configure Alertmanager integration if selected
+AM_CFG="/etc/prometheus/alertmanager.yml"
+if has_key alertmanager && [ -f "${AM_CFG}" ]; then
+  case "$(ask_cfg CFG_AM_SETUP "Configure Alertmanager notifications integration? [y/N]:" "n")" in
+    y|Y|yes)
+      MENU=(
+        "Receiver|discord|Discord or Slack Webhook"
+        "Receiver|telegram|Telegram Bot"
+        "Receiver|webhook|Generic Webhook URL"
+        "Receiver|email|SMTP Email"
+      )
+      if menu_select "Choose notification integration:"; then
+        AM_REC="${MENU_KEY}"
+        case "${AM_REC}" in
+          discord)
+            URL="$(asks_cfg CFG_AM_SLACK_URL "Webhook URL:")"
+            if [ -n "${URL}" ]; then
+              if [[ "${URL}" == *"discord.com/api/webhooks"* ]] && [[ "${URL}" != */slack ]]; then
+                URL="${URL}/slack"
+                info "Discord webhook detected. Appended '/slack' for compatibility."
+              fi
+              if [ "${DRY_RUN:-0}" = "1" ]; then
+                info "[dry-run] would write Slack/Discord receiver config to ${AM_CFG}"
+              else
+                run ${SUDO} cp -b "${AM_CFG}" "${AM_CFG}.bak"
+                printf "global:\n  resolve_timeout: 5m\nroute:\n  group_by: ['alertname']\n  group_wait: 10s\n  group_interval: 10s\n  repeat_interval: 1h\n  receiver: 'slack-notifications'\nreceivers:\n- name: 'slack-notifications'\n  slack_configs:\n  - api_url: '%s'\n    send_resolved: true\n" "${URL}" \
+                  | run ${SUDO} tee "${AM_CFG}" >/dev/null
+                ok "Configured Discord/Slack integration."
+              fi
+            else
+              warn "Webhook URL cannot be empty. Skipping."
+            fi
+            ;;
+          telegram)
+            TOKEN="$(asks_cfg CFG_AM_TELEGRAM_TOKEN "Telegram Bot Token (e.g. 12345:ABC-DEF...):")"
+            CHAT_ID="$(ask_cfg CFG_AM_TELEGRAM_CHAT_ID "Telegram Chat ID (e.g. -1001234567 or user ID):" "")"
+            if [ -n "${TOKEN}" ] && [ -n "${CHAT_ID}" ]; then
+              if [ "${DRY_RUN:-0}" = "1" ]; then
+                info "[dry-run] would write Telegram receiver config to ${AM_CFG}"
+              else
+                run ${SUDO} cp -b "${AM_CFG}" "${AM_CFG}.bak"
+                printf "global:\n  resolve_timeout: 5m\nroute:\n  group_by: ['alertname']\n  group_wait: 10s\n  group_interval: 10s\n  repeat_interval: 1h\n  receiver: 'telegram-notifications'\nreceivers:\n- name: 'telegram-notifications'\n  telegram_configs:\n  - bot_token: '%s'\n    chat_id: %s\n    send_resolved: true\n" "${TOKEN}" "${CHAT_ID}" \
+                  | run ${SUDO} tee "${AM_CFG}" >/dev/null
+                ok "Configured Telegram integration."
+              fi
+            else
+              warn "Token and Chat ID are required. Skipping."
+            fi
+            ;;
+          webhook)
+            URL="$(asks_cfg CFG_AM_WEBHOOK_URL "Generic Webhook URL:")"
+            if [ -n "${URL}" ]; then
+              if [ "${DRY_RUN:-0}" = "1" ]; then
+                info "[dry-run] would write generic Webhook receiver config to ${AM_CFG}"
+              else
+                run ${SUDO} cp -b "${AM_CFG}" "${AM_CFG}.bak"
+                printf "global:\n  resolve_timeout: 5m\nroute:\n  group_by: ['alertname']\n  group_wait: 10s\n  group_interval: 10s\n  repeat_interval: 1h\n  receiver: 'webhook-notifications'\nreceivers:\n- name: 'webhook-notifications'\n  webhook_configs:\n  - url: '%s'\n    send_resolved: true\n" "${URL}" \
+                  | run ${SUDO} tee "${AM_CFG}" >/dev/null
+                ok "Configured Webhook integration."
+              fi
+            else
+              warn "Webhook URL cannot be empty. Skipping."
+            fi
+            ;;
+          email)
+            SMTP_HOST="$(ask_cfg CFG_AM_SMTP_HOST "SMTP Server Host & Port (e.g. smtp.gmail.com:587):" "")"
+            SMTP_FROM="$(ask_cfg CFG_AM_SMTP_FROM "Sender Email (From):" "")"
+            SMTP_USER="$(ask_cfg CFG_AM_SMTP_USER "SMTP Username:" "")"
+            SMTP_PASS="$(asks_cfg CFG_AM_SMTP_PASS "SMTP Password:")"
+            SMTP_TO="$(ask_cfg CFG_AM_SMTP_TO "Recipient Email (To):" "")"
+            if [ -n "${SMTP_HOST}" ] && [ -n "${SMTP_FROM}" ] && [ -n "${SMTP_TO}" ]; then
+              if [ "${DRY_RUN:-0}" = "1" ]; then
+                info "[dry-run] would write Email receiver config to ${AM_CFG}"
+              else
+                run ${SUDO} cp -b "${AM_CFG}" "${AM_CFG}.bak"
+                printf "global:\n  resolve_timeout: 5m\n  smtp_smarthost: '%s'\n  smtp_from: '%s'\n  smtp_auth_username: '%s'\n  smtp_auth_password: '%s'\n  smtp_require_tls: true\nroute:\n  group_by: ['alertname']\n  group_wait: 10s\n  group_interval: 10s\n  repeat_interval: 1h\n  receiver: 'email-notifications'\nreceivers:\n- name: 'email-notifications'\n  email_configs:\n  - to: '%s'\n    send_resolved: true\n" "${SMTP_HOST}" "${SMTP_FROM}" "${SMTP_USER}" "${SMTP_PASS}" "${SMTP_TO}" \
+                  | run ${SUDO} tee "${AM_CFG}" >/dev/null
+                ok "Configured Email integration."
+              fi
+            else
+              warn "Host, From, and To emails are required. Skipping."
+            fi
+            ;;
+        esac
+        run ${SUDO} systemctl restart prometheus-alertmanager || true
+      fi
+      ;;
+  esac
+fi
+
+# configure prometheus.yml alerting target
+if has_key prometheus && has_key alertmanager && [ -f "${CFG}" ]; then
+  if ${SUDO} grep -qE "\-\s*localhost:9093" "${CFG}" 2>/dev/null; then
+    info "Alertmanager alerting target already configured."
+  else
+    step "Configure Alertmanager alerting target in prometheus.yml"
+    if [ "${DRY_RUN:-0}" = "1" ]; then
+      info "[dry-run] would uncomment Alertmanager target in prometheus.yml"
+    else
+      run ${SUDO} sed -i 's/#\s*-\s*localhost:9093/-\ localhost:9093/g' "${CFG}"
+      run ${SUDO} systemctl restart prometheus || true
+      ok "Configured alerting targets and restarted Prometheus."
+    fi
+  fi
+fi
+
 # firewall
 if has_key firewall; then
   step "Firewall"

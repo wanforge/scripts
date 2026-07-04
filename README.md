@@ -113,10 +113,12 @@ Select scripts to run:
   [✓] proxmox-toolkit      PVE: node/VM/CT resources, storage, realtime dashboard
   ── CI/CD ──
   [✓] install-github-runner GitHub Actions self-hosted runner (avoid billed minutes)
+  [✓] install-gitlab-runner GitLab CI/CD self-hosted runner
   ── Observability ──
   [✓] install-prometheus   Prometheus + node_exporter (+ Alertmanager)
   [✓] install-grafana      Grafana + Prometheus data source
   [✓] install-zabbix       Zabbix agent or server (official repo)
+  [✓] install-uptime-kuma  Uptime Kuma beautiful self-hosted status page
 ```
 
 ### Launcher Flow

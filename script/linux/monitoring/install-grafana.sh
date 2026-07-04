@@ -72,6 +72,43 @@ case "${DS}" in
       | run ${SUDO} tee /etc/grafana/provisioning/datasources/prometheus.yml >/dev/null
     run ${SUDO} systemctl restart grafana-server || true
     ok "Provisioned Prometheus data source (${PURL})."
+
+    # optional: provision Node Exporter Dashboard
+    DASH="$(ask_cfg CFG_GRAFANA_DASH "Auto-provision Node Exporter dashboard (ID 1860)? [Y/n]:" "y")"
+    case "${DASH}" in
+      n|N|no) info "Skipped dashboard provisioning." ;;
+      *)
+        step "Provisioning Node Exporter dashboard (ID 1860)"
+        if [ "${DRY_RUN:-0}" = "1" ]; then
+          info "[dry-run] would provision Node Exporter dashboard"
+        else
+          # Create directories
+          run ${SUDO} mkdir -p /etc/grafana/provisioning/dashboards
+          run ${SUDO} mkdir -p /var/lib/grafana/dashboards
+
+          # Create provider config
+          printf 'apiVersion: 1\nproviders:\n  - name: "default"\n    orgId: 1\n    folder: ""\n    type: file\n    disableDeletion: false\n    updateIntervalSeconds: 10\n    options:\n      path: /var/lib/grafana/dashboards\n' \
+            | run ${SUDO} tee /etc/grafana/provisioning/dashboards/node-exporter.yaml >/dev/null
+
+          # Download dashboard JSON
+          TMP_JSON="$(mktemp)"
+          if curl -fsSL "https://grafana.com/api/dashboards/1860/revisions/latest/download" -o "${TMP_JSON}" 2>/dev/null || \
+             wget -qO "${TMP_JSON}" "https://grafana.com/api/dashboards/1860/revisions/latest/download" 2>/dev/null; then
+            
+            # Clean template datasource inputs to point directly to "Prometheus"
+            sed -i 's/\${DS_PROMETHEUS}/Prometheus/g' "${TMP_JSON}"
+
+            run ${SUDO} cp "${TMP_JSON}" /var/lib/grafana/dashboards/node-exporter.json
+            run ${SUDO} chown -R grafana:grafana /etc/grafana/provisioning/dashboards /var/lib/grafana/dashboards
+            run ${SUDO} systemctl restart grafana-server || true
+            ok "Provisioned Node Exporter dashboard."
+          else
+            warn "Failed to download dashboard JSON. Skipping."
+          fi
+          rm -f "${TMP_JSON}"
+        fi
+        ;;
+    esac
     ;;
 esac
 

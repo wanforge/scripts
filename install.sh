@@ -62,9 +62,11 @@ SCRIPTS=(
   "Network|net-tools|script/linux/network/net-tools.sh|Local/public IP, ports, speedtest, ping, dig, scan"
   "Proxmox|proxmox-toolkit|script/linux/network/proxmox-toolkit.sh|PVE: node/VM/CT resources, storage, realtime dashboard"
   "CI/CD|install-github-runner|script/linux/cicd/install-github-runner.sh|Manage GitHub Actions self-hosted runners: install/list/status/logs/remove (avoid billed minutes)"
+  "CI/CD|install-gitlab-runner|script/linux/cicd/install-gitlab-runner.sh|Manage GitLab CI/CD self-hosted runners: install/list/status/logs/remove"
   "Observability|install-prometheus|script/linux/monitoring/install-prometheus.sh|Prometheus + node_exporter (+ Alertmanager)"
   "Observability|install-grafana|script/linux/monitoring/install-grafana.sh|Grafana + Prometheus data source"
   "Observability|install-zabbix|script/linux/monitoring/install-zabbix.sh|Zabbix agent or server (official repo)"
+  "Observability|install-uptime-kuma|script/linux/monitoring/install-uptime-kuma.sh|Uptime Kuma — beautiful self-hosted status page and service monitor"
 )
 # ------------------------------------------------------------------------
 
