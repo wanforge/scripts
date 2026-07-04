@@ -93,6 +93,7 @@ Select scripts to run:
   [✓] secure-ssh           Harden SSH: change port, disable root/password, pubkey
   [✓] generate-ssh-key     Generate an ed25519 SSH key (user-local)
   [✓] manage-users         Manage Linux users, sudo access & SSH keys
+  [✓] ssl-toolkit          SSL/TLS diagnostics & management: remote/local audit, self-signed SAN, TLS handshake debug, Certbot
   ── Panel & Console ──
   [✓] install-cloudpanel   Install CloudPanel CE v2 (Debian/Ubuntu only)
   [✓] clpctl-manager       Manage CloudPanel via clpctl (sites, db, users, certs)
@@ -106,6 +107,7 @@ Select scripts to run:
   [✓] install-python       Install Python 3 + pip, venv, dev, pipx
   [✓] install-composer     Install Composer (user-local, signature-verified)
   [✓] setup-pm2-app        Configure pm2-logrotate + register an app (ecosystem)
+  [✓] install-docker       Docker Engine & Docker Compose (with UFW security patch & container diagnostics)
   ── Monitoring ──
   [✓] monitor-system       CPU, RAM, storage, processes, network (snapshot or realtime)
   ── Network ──
@@ -280,6 +282,7 @@ bash install-grafana.sh --uninstall   # full removal (packages, repo, firewall r
 | `secure-ssh.sh`               |                    —                     |     —      |    —    |     —      |      —      |   —    |      —      | ✓ (restore backup) |
 | `generate-ssh-key.sh`         |                    —                     |     —      |    —    |     —      |      —      |   —    |      —      |         ✓          |
 | `install-cloudpanel.sh`       |                    —                     |     —      |    —    |     —      |      —      |   —    |      —      |  ✓ (manual steps)  |
+| `install-docker.sh`          |                    ✓                     |     ✓      |    ✓    |     ✓      |      ✓      |   ✓    |      —      |         ✓          |
 | `install-github-runner.sh`    |                    ✓                     |     ✓      |    ✓    |     —      |      —      |   ✓    |      —      |         ✓          |
 | `install-gitlab-runner.sh`    |                    ✓                     |     ✓      |    ✓    |     —      |      —      |   ✓    |      —      |         ✓          |
 
@@ -311,6 +314,7 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/security/install-fail2ban.
 curl -fsSL https://scripts.wanforge.asia/script/linux/security/secure-ssh.sh | bash
 curl -fsSL https://scripts.wanforge.asia/script/linux/security/generate-ssh-key.sh | bash
 curl -fsSL https://scripts.wanforge.asia/script/linux/security/manage-users.sh | bash
+curl -fsSL https://scripts.wanforge.asia/script/linux/security/ssl-toolkit.sh | bash
 
 # Panels & consoles
 curl -fsSL https://scripts.wanforge.asia/script/linux/cloud/install-cloudpanel.sh | bash
@@ -346,6 +350,7 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/runtime/install-nodejs.sh 
 curl -fsSL https://scripts.wanforge.asia/script/linux/runtime/install-python.sh | bash
 curl -fsSL https://scripts.wanforge.asia/script/linux/runtime/install-composer.sh | bash
 curl -fsSL https://scripts.wanforge.asia/script/linux/runtime/setup-pm2-app.sh | bash
+curl -fsSL https://scripts.wanforge.asia/script/linux/runtime/install-docker.sh | bash
 ```
 
 ## Scripts Overview
@@ -363,6 +368,7 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/runtime/setup-pm2-app.sh |
 | Security        | `secure-ssh.sh`            | Change SSH port, disable root/password login, enable pubkey                   | Yes  | Any (OpenSSH)   |
 | Security        | `manage-users.sh`          | Manage Linux users, sudo access, passwords, shells, and SSH keys              | Yes  | Any             |
 | Security        | `generate-ssh-key.sh`      | Generate an ed25519 SSH key, fix perms, print public key                      | No   | Any             |
+| Security        | `ssl-toolkit.sh`           | SSL/TLS diagnostics: remote/local audit, self-signed SAN, handshake, Certbot  | Yes  | Any             |
 | Panel & Console | `install-cloudpanel.sh`    | Install CloudPanel CE v2, choose DB engine, verify checksum                   | Yes  | Debian/Ubuntu   |
 | Panel & Console | `clpctl-manager.sh`        | Manage CloudPanel via `clpctl`: sites, db, users, certs, vhosts               | Yes  | CloudPanel      |
 | Panel & Console | `install-cockpit.sh`       | Install Cockpit + modules, reverse-proxy config, open port 9090               | Yes  | Debian/Ubuntu   |
@@ -373,6 +379,7 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/runtime/setup-pm2-app.sh |
 | App Runtime     | `install-python.sh`        | Python 3 + pip, venv/virtualenv, dev headers, pipx (multi-distro)             | Yes  | Multi           |
 | App Runtime     | `install-composer.sh`      | Install Composer to `~/.local/bin`, verify signature                          | No   | Any (needs PHP) |
 | App Runtime     | `setup-pm2-app.sh`         | Configure pm2-logrotate + register an app (ecosystem.config.js)               | No   | Any             |
+| App Runtime     | `install-docker.sh`        | Install Docker Engine + Docker Compose, run diagnostics, patch UFW bypass     | Yes  | Debian/Ubuntu   |
 | Monitoring      | `monitor-system.sh`        | CPU/RAM/storage/processes/network — snapshot or realtime watch                | Some | Any             |
 | Network         | `net-tools.sh`             | Local/public IP, ports, speedtest, ping/traceroute/dig/whois/scan             | Some | Any             |
 | Proxmox         | `proxmox-toolkit.sh`       | PVE node/VM/CT resources, storage, cluster, realtime dashboard                | Yes  | Proxmox VE      |
@@ -545,6 +552,17 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/runtime/setup-pm2-app.sh |
   `700`, the private key to `600`, the public key to `644`.
 - Prints the fingerprint and the public key to paste into GitHub/GitLab
   (Settings → SSH/Deploy Keys).
+
+### ssl-toolkit.sh
+
+- Diagnostics and helper utility for managing and troubleshooting SSL/TLS certificates.
+- **Features**:
+  - **Inspect Remote Certificates**: Scan any domain and port via OpenSSL to view expiration dates, issuers, and SANs.
+  - **Inspect Local Certificate Files**: Reads local `.crt` or `.pem` files and parses their metadata.
+  - **Generate Self-Signed Certificates**: Generates a standard RSA-2048 certificate with SAN support (including wildcard) acceptable in modern web browsers for local development.
+  - **SSL Handshake Debugger**: Connects via different TLS versions (TLS 1.0 - 1.3) to isolate cipher or version mismatch issues.
+  - **Provision Certbot**: Installs Certbot and the Nginx plugin (`certbot python3-certbot-nginx`) to auto-provision SSL certificates.
+
 
 ### install-cloudpanel.sh
 
@@ -800,6 +818,12 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/monitoring/install-uptime-
 - Registers an application by generating `ecosystem.config.js` (name, cwd, script,
   args, instances/cluster, `NODE_ENV`, memory restart limit), then runs
   `pm2 start` + `pm2 save`.
+
+### install-docker.sh
+
+- Debian/Ubuntu. Installs the official **Docker Engine** and **Docker Compose**.
+- **Diagnostics**: Audits running containers, memory/CPU usage stats, and identifies containers caught in crash loops. Provides automated cache and storage prune cleanups.
+- **UFW Security Patch**: Docker's default iptables routing exposes container ports directly to the internet, bypassing UFW firewall rules. The script includes a firewall security patch that updates `/etc/ufw/after.rules` to force Docker traffic through UFW routing, ensuring standard UFW rules apply to all container ports.
 
 ## Security Notes
 
