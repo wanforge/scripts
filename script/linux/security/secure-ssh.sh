@@ -58,15 +58,41 @@ a_uninstall() {
 }
 
 # ---- run ----------------------------------------------------------------
+a_install() {
+  hd "Install OpenSSH Server"
+  if ${SUDO} systemctl is-active ssh >/dev/null 2>&1 || ${SUDO} systemctl is-active sshd >/dev/null 2>&1; then
+    ok "OpenSSH server already running."; return 0
+  fi
+  info "Installing openssh-server..."
+  if have apt-get; then
+    run ${SUDO} apt-get update -qq
+    run ${SUDO} apt-get install -y openssh-server
+  elif have dnf; then
+    run ${SUDO} dnf install -y openssh-server
+  elif have yum; then
+    run ${SUDO} yum install -y openssh-server
+  elif have pacman; then
+    run ${SUDO} pacman -S --noconfirm openssh
+  else
+    err "Unsupported package manager."; return 1
+  fi
+  run ${SUDO} systemctl enable ssh 2>/dev/null || run ${SUDO} systemctl enable sshd 2>/dev/null || true
+  run ${SUDO} systemctl start ssh 2>/dev/null || run ${SUDO} systemctl start sshd 2>/dev/null || true
+  ok "OpenSSH server installed and started."
+}
+
+# ---- run ----------------------------------------------------------------
 [ "${1:-}" = "--uninstall" ] && { a_uninstall; exit $?; }
 banner
 if [ -z "${1:-}" ]; then
   MENU=(
+    "Setup|install|install and enable SSH server"
     "Manage|configure|harden SSH configuration"
     "Manage|rollback|restore original sshd_config from backup"
   )
-  menu_select "SSH Hardening — choose action:" || exit 0
+  menu_select "SSH Management — choose action:" || exit 0
   case "${MENU_KEY}" in
+    install)     a_install; exit $? ;;
     rollback)    a_uninstall; exit $? ;;
     configure|*) ;;
   esac

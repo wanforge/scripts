@@ -192,6 +192,39 @@ a_shell() {
 }
 a_sudo_add() { local u; u="$(ask 'Username:')"; req "$u" username || return 1; ensure_user "$u" || return 1; add_sudo "$u"; }
 a_sudo_remove() { local u; u="$(ask 'Username:')"; req "$u" username || return 1; ensure_user "$u" || return 1; remove_sudo "$u"; }
+
+a_sudo_nopasswd() {
+  local u file
+  u="$(ask 'Username for passwordless sudo:')"
+  req "$u" username || return 1
+  ensure_user "$u" || return 1
+  is_sudo_user "$u" || { warn "${u} has no sudo access. Granting first..."; add_sudo "$u" || return 1; }
+  file="/etc/sudoers.d/90-nopasswd-${u}"
+  if ${SUDO} test -f "$file"; then
+    info "Passwordless sudo already configured for ${u} (${file})."; return 0
+  fi
+  printf '%s ALL=(ALL) NOPASSWD:ALL\n' "$u" | run ${SUDO} tee "$file" >/dev/null
+  run ${SUDO} chmod 440 "$file"
+  if ${SUDO} visudo -cf "$file" >/dev/null 2>&1; then
+    ok "Passwordless sudo enabled for ${u}."
+  else
+    err "Sudoers syntax check failed. Removing ${file}."
+    run ${SUDO} rm -f "$file"; return 1
+  fi
+}
+
+a_sudo_nopasswd_remove() {
+  local u file
+  u="$(ask 'Username to remove passwordless sudo:')"
+  req "$u" username || return 1
+  ensure_user "$u" || return 1
+  file="/etc/sudoers.d/90-nopasswd-${u}"
+  if ! ${SUDO} test -f "$file"; then
+    info "No passwordless sudoers file for ${u}."; return 0
+  fi
+  run ${SUDO} rm -f "$file"
+  ok "Passwordless sudo removed for ${u}. Normal sudo still active if in $(sudo_group) group."
+}
 a_ssh_add() { local u; u="$(ask 'Username:')"; req "$u" username || return 1; ensure_user "$u" || return 1; add_ssh_key "$u"; }
 a_ssh_clear() { local u; u="$(ask 'Username:')"; req "$u" username || return 1; ensure_user "$u" || return 1; clear_ssh_keys "$u"; }
 a_view() {
@@ -221,6 +254,8 @@ MENU=(
   "Users|shell|change login shell"
   "Privileges|sudo_add|grant sudo access"
   "Privileges|sudo_remove|remove sudo access"
+  "Privileges|nopasswd|enable passwordless sudo"
+  "Privileges|nopasswd_rm|remove passwordless sudo"
   "SSH|ssh_add|add SSH public key"
   "SSH|ssh_clear|remove SSH keys"
   "Info|view|show user details"
@@ -242,6 +277,8 @@ while true; do
     shell) a_shell ;;
     sudo_add) a_sudo_add ;;
     sudo_remove) a_sudo_remove ;;
+    nopasswd) a_sudo_nopasswd ;;
+    nopasswd_rm) a_sudo_nopasswd_remove ;;
     ssh_add) a_ssh_add ;;
     ssh_clear) a_ssh_clear ;;
     view) a_view ;;
