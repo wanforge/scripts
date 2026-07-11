@@ -105,6 +105,9 @@ a_install() {
     npm run setup
   fi
 
+  step "Set up PM2 log rotation"
+  pm2 install pm2-logrotate 2>/dev/null || warn "pm2-logrotate install failed — optional."
+
   step "Register in PM2"
   if [ "${DRY_RUN:-0}" = "1" ]; then
     info "[dry-run] PORT=${PORT} pm2 start server/server.js --name ${PM2_NAME}"
@@ -278,14 +281,21 @@ server {
     client_max_body_size 50m;
 
     location / {
-        proxy_pass http://127.0.0.1:${port};
+        proxy_pass         http://127.0.0.1:${port};
         proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header   Upgrade \$http_upgrade;
+        proxy_set_header   Connection "upgrade";
+        proxy_set_header   Host \$host;
+        proxy_set_header   X-Real-IP \$remote_addr;
+        proxy_set_header   X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto \$scheme;
+
+        # WebSocket support
+        proxy_set_header   Sec-WebSocket-Key \$http_sec_websocket_key;
+        proxy_set_header   Sec-WebSocket-Version \$http_sec_websocket_version;
+        proxy_set_header   Sec-WebSocket-Extensions \$http_sec_websocket_extensions;
+
+        proxy_buffering    off;
         proxy_read_timeout 300s;
         proxy_connect_timeout 75s;
     }
