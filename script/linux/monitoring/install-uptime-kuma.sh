@@ -35,7 +35,7 @@ need_node() {
   if ! have node || ! have npm || ! have pm2; then
     err "This script requires Node.js, npm, and PM2."
     info "Run install-nodejs.sh first to install the Node environment."
-    exit 1
+    return 1
   fi
 }
 
@@ -421,9 +421,9 @@ a_uninstall() {
 # --- CLI flag dispatch ----------------------------------------------------
 for __a in "$@"; do
   case "${__a}" in
-    --install)   need_node; a_install; exit $? ;;
-    --uninstall) need_node; a_uninstall; exit $? ;;
-    --update)    need_node; a_update; exit $? ;;
+    --install)   need_node && a_install; exit $? ;;
+    --uninstall) need_node && a_uninstall; exit $? ;;
+    --update)    need_node && a_update; exit $? ;;
     --backup)    a_backup; exit $? ;;
     --restore)   a_restore; exit $? ;;
     --start)     pm2 start "${PM2_NAME}"; exit $? ;;
@@ -436,7 +436,6 @@ done
 
 # --- interactive menu -----------------------------------------------------
 banner
-need_node
 while true; do
   MENU=(
     "Setup|install|install / reinstall Uptime Kuma"
@@ -458,9 +457,9 @@ while true; do
     install)   a_install ;;
     update)    a_update ;;
     nginx)     a_nginx ;;
-    start)     pm2 start "${PM2_NAME}" && ok "Started." ;;
-    stop)      pm2 stop "${PM2_NAME}" && ok "Stopped." ;;
-    restart)   pm2 restart "${PM2_NAME}" && ok "Restarted." ;;
+    start)     need_node && pm2 start "${PM2_NAME}" && ok "Started." ;;
+    stop)      need_node && pm2 stop "${PM2_NAME}" && ok "Stopped." ;;
+    restart)   need_node && pm2 restart "${PM2_NAME}" && ok "Restarted." ;;
     status)    a_status ;;
     logs)      a_logs ;;
     backup)    a_backup ;;
