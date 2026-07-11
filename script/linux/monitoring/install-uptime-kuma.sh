@@ -32,11 +32,10 @@ nvm_load() {
 nvm_load
 
 need_node() {
-  if ! have node || ! have npm || ! have pm2; then
-    err "This script requires Node.js, npm, and PM2."
-    info "Run install-nodejs.sh first to install the Node environment."
-    return 1
-  fi
+  have node && have npm && have pm2 && return 0
+  err "Node.js, npm, and PM2 are required but not found."
+  info "Run install-nodejs.sh first, then come back here."
+  return 1
 }
 
 need_git() {
@@ -464,18 +463,18 @@ while true; do
   printf "\n" >&2
   menu_select "Uptime Kuma Manager:" || break
   case "${MENU_KEY}" in
-    install)   a_install ;;
-    update)    a_update ;;
-    nginx)     a_nginx ;;
-    start)     need_node && pm2 start "${PM2_NAME}" && ok "Started." ;;
-    stop)      need_node && pm2 stop "${PM2_NAME}" && ok "Stopped." ;;
-    restart)   need_node && pm2 restart "${PM2_NAME}" && ok "Restarted." ;;
-    status)    a_status ;;
-    logs)      a_logs ;;
-    backup)    a_backup ;;
-    restore)   a_restore ;;
-    uninstall) a_uninstall ;;
-    clear_cfg) cfg_clear && ok "Saved config cleared." ;;
+    install)   a_install || true ;;
+    update)    a_update || true ;;
+    nginx)     a_nginx || true ;;
+    start)     need_node && pm2 start "${PM2_NAME}" && ok "Started." || true ;;
+    stop)      need_node && pm2 stop "${PM2_NAME}" && ok "Stopped." || true ;;
+    restart)   need_node && pm2 restart "${PM2_NAME}" && ok "Restarted." || true ;;
+    status)    a_status || true ;;
+    logs)      a_logs || true ;;
+    backup)    a_backup || true ;;
+    restore)   a_restore || true ;;
+    uninstall) a_uninstall || true ;;
+    clear_cfg) cfg_clear && ok "Saved config cleared." || true ;;
   esac
 done
 
