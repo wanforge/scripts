@@ -43,6 +43,7 @@ SCRIPTS=(
   "System|set-timezone|script/linux/system/set-timezone.sh|Set timezone (UTC recommended for servers)"
   "System|backup-tools|script/linux/system/backup-tools.sh|Backup manager: S3 / FTP / SFTP — named profiles, cron, dry-run"
   "System|sys-troubleshoot|script/linux/system/sys-troubleshoot.sh|Diagnostics & troubleshooting: CPU, RAM, services, OOM, logs, firewall, network"
+  "System|hardware-info|script/linux/system/hardware-info.sh|Hardware audit: CPU, RAM, disks, GPU, firmware, NIC, sensors, virtualization"
   "Security|install-firewall|script/linux/system/install-firewall.sh|Install & configure ufw firewall"
   "Security|firewall-manager|script/linux/security/firewall-manager.sh|Full ufw manager: allow/deny IP/port, multiple, rate-limit"
   "Security|install-fail2ban|script/linux/security/install-fail2ban.sh|Install & enable Fail2Ban"

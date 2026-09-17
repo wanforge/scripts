@@ -1,6 +1,6 @@
 # wanforge/scripts
 
-Interactive Linux server automation toolkit — one launcher, 26 scripts across
+Interactive Linux server automation toolkit — one launcher, 27 scripts across
 8 categories: system setup, security hardening, cloud panels, databases, app
 runtimes, monitoring & observability, CI/CD, and network & Proxmox tooling.
 
@@ -86,6 +86,7 @@ Select scripts to run:
   [✓] set-timezone         Set timezone (UTC recommended for servers)
   [✓] backup-tools         Backup manager: S3 / FTP / SFTP — named profiles, cron, dry-run
   [✓] sys-troubleshoot     Diagnostics & troubleshooting: CPU, RAM, services, OOM, logs, firewall, network
+  [✓] hardware-info        Hardware audit: CPU, RAM, disks, GPU, firmware, NIC, sensors, virt
   ── Security ──
   [✓] install-firewall     Install & configure ufw firewall
   [✓] firewall-manager     Full ufw manager: allow/deny IP/port, multiple, rate-limit
@@ -307,6 +308,10 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/system/set-timezone.sh | b
 curl -fsSL https://scripts.wanforge.asia/script/linux/system/install-firewall.sh | bash
 curl -fsSL https://scripts.wanforge.asia/script/linux/system/backup-tools.sh | bash
 curl -fsSL https://scripts.wanforge.asia/script/linux/system/sys-troubleshoot.sh | bash
+curl -fsSL https://scripts.wanforge.asia/script/linux/system/hardware-info.sh | bash
+curl -fsSL https://scripts.wanforge.asia/script/linux/system/hardware-info.sh | bash -s -- --summary
+curl -fsSL https://scripts.wanforge.asia/script/linux/system/hardware-info.sh | bash -s -- --json
+curl -fsSL https://scripts.wanforge.asia/script/linux/system/hardware-info.sh | bash -s -- --markdown
 
 # Security
 curl -fsSL https://scripts.wanforge.asia/script/linux/security/firewall-manager.sh | bash
@@ -362,6 +367,7 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/runtime/install-docker.sh 
 | System          | `set-timezone.sh`          | Set timezone via `timedatectl` (default `Asia/Jakarta`)                       | Yes  | Any (systemd)   |
 | System          | `backup-tools.sh`          | Backup manager: S3 / FTP / SFTP — named profiles, cron, dry-run               | No   | Any             |
 | System          | `sys-troubleshoot.sh`      | Diagnostics & troubleshooting: CPU, RAM, services, OOM, logs, firewall, net   | Yes  | Any             |
+| System          | `hardware-info.sh`         | Hardware audit: CPU, RAM, disks, GPU, firmware, NIC, sensors, virt            | Some | Any             |
 | System          | `install-firewall.sh`      | Install `ufw`, open SSH/http/https, add custom ports, enable                  | Yes  | Mainly Deb/Ubu  |
 | Security        | `firewall-manager.sh`      | Full ufw manager: allow/deny IP & port, multi-IP, rate-limit                  | Yes  | Any (ufw)       |
 | Security        | `install-fail2ban.sh`      | Install and enable the Fail2Ban service                                       | Yes  | Multi           |
@@ -495,6 +501,26 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/runtime/install-docker.sh 
   - Reachability of database ports (checks MySQL 3306 and PostgreSQL 5432 socket listeners).
   - Fail2ban status (displays list of jails, active bans, and provides a TUI option to unban any blocked IP).
   - Internet connection latency and DNS resolution check.
+
+### hardware-info.sh
+
+- Comprehensive read-only hardware audit and system specifications inspector.
+- **Hardware Coverage**:
+  - **CPU**: Model, vendor, architecture, sockets, cores, threads, scaling governor, base/max/current frequencies, L1/L2/L3 cache, virtualization flags (VT-x / AMD-V / nested), and mitigation status for CPU vulnerabilities (`/sys/devices/system/cpu/vulnerabilities`).
+  - **Memory (RAM)**: Total, used, free, available, buffers, cached, swap usage, and physical DIMM slot details (type, speed, manufacturer, part number via `dmidecode -t 17` when root/sudo).
+  - **Storage & Disks**: Block device tree (`lsblk`), transport type (NVMe, SATA, USB, SCSI), SSD/NVMe vs HDD (rotational check), filesystem types, mount points, capacity, I/O schedulers, and SMART health/temperature status via `smartctl`.
+  - **GPU & Video**: Integrated and discrete GPU detection via `lspci`, active kernel drivers (`nvidia`, `amdgpu`, `i915`, `xe`, `nouveau`), and integration with `nvidia-smi` / `rocm-smi` if present.
+  - **Motherboard & BIOS/UEFI**: Board manufacturer and model, BIOS/UEFI vendor, version, and release date, chassis type, boot mode (UEFI vs Legacy BIOS), and Secure Boot state.
+  - **Network (NIC)**: Physical and virtual interfaces, MAC addresses, link speeds (1G/2.5G/10G), duplex, carrier state, driver module, firmware version via `ethtool`, and Wi-Fi chipset details.
+  - **PCI & USB Peripherals**: High-level PCI device summary and complete USB device hierarchy (`lsusb -t`).
+  - **Thermal & Sensors**: CPU package/core temperatures, GPU temperature, NVMe temperature, fan RPM, and laptop battery statistics (charging status, capacity, cycle count, health, and wear level).
+  - **Virtualization & Platform**: Hypervisor detection (bare-metal, KVM, Proxmox, VMware, Docker, LXC via `systemd-detect-virt`), OS release, Linux kernel, uptime, and load averages.
+- **Output Formats & Flags**:
+  - `(no flag)`: Full-color interactive CLI display styled with `lib.sh`.
+  - `--summary` or `-s`: Compact 1-page overview of key hardware specifications.
+  - `--json` or `-j`: Valid, machine-parseable JSON object for automation or API integration.
+  - `--markdown` or `-m`: Clean Markdown report ready for documentation or GitHub issues.
+- **Privilege & Safety**: Fully read-only, non-destructive, and executes safely as both root and non-root users. Automatically checks `sudo -n` for privileged tools (`dmidecode`, `smartctl`) without prompting for passwords or blocking execution.
 
 ### install-firewall.sh
 
