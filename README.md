@@ -1,15 +1,17 @@
 # wanforge/scripts
 
-Interactive Linux server automation toolkit — one launcher, 27 scripts across
-8 categories: system setup, security hardening, cloud panels, databases, app
-runtimes, monitoring & observability, CI/CD, and network & Proxmox tooling.
+Interactive Linux server automation toolkit — one unified launcher, 35 scripts
+across 9 categories: system setup, security hardening, databases, app runtimes,
+cloud panels, network & tunneling, monitoring, observability, and CI/CD runners.
 
-Run scripts individually or use `install.sh`, an interactive grouped checkbox
-launcher that fetches and runs the chosen scripts in order. No authentication
-required — public repo, served via GitHub Pages at `scripts.wanforge.asia`.
+Run scripts individually or use `install.sh`, a fast categorized interactive
+launcher featuring category submenus, single-key numeric jumps (`1`..`9`),
+instant keyword search, batch multi-select, and automatic local-or-remote execution.
+No authentication required — public repo, served via GitHub Pages at `scripts.wanforge.asia`.
 
 Scripts are organized under `script/linux/<category>/`, structured so future
 macOS or Windows scripts can be added alongside without changing the layout.
+
 
 ## Requirements
 
@@ -58,24 +60,36 @@ No `curl`? Use `wget` instead (present on many minimal images):
 wget -qO- https://scripts.wanforge.asia/install.sh | bash
 ```
 
-Menu controls:
+### Interactive Controls & Shortcuts
 
-| Key       | Action                   |
-| --------- | ------------------------ |
-| Up / Down | Move between rows        |
-| Space     | Toggle a selection       |
-| A         | Toggle all               |
-| Enter     | Run the selected scripts |
-| Q         | Cancel and exit          |
+| Key / Input     | Action                                                    |
+| --------------- | --------------------------------------------------------- |
+| `1` – `9`       | Direct numeric jump (instantly opens category / runs tool)|
+| `Up` / `Down`   | Move cursor between rows                                  |
+| `Enter`         | Select or execute highlighted item                        |
+| `s` or `/`      | Open interactive search mode                              |
+| `b`             | Enter batch multi-select mode                             |
+| `h`             | Show server health and diagnostic snapshot                |
+| `0` or `q`      | Back to previous menu or exit                             |
 
-The menu is grouped by category and runs the selected scripts in menu order. If
-one fails, the rest still continue. No authentication is needed — this is a
-public repository.
+### CLI Command Options
 
-**Navigation:** the launcher loops. After the chosen scripts finish you return to
-this menu (press Enter), so you can keep picking more. Inside a sub-script's own
-menu (firewall / database / CloudPanel / Proxmox / net-tools managers) press `Q`
-to go **back to the launcher**. Press `Q` at the launcher to quit entirely.
+You can also run commands directly from the terminal without interactive prompts:
+
+```bash
+# List all 35 scripts by category
+./install.sh list
+
+# Search for a script by keyword
+./install.sh search docker
+
+# Run a specific script directly
+./install.sh run install-docker     # or shorthand: ./install.sh docker
+
+# Quick server health & resource snapshot
+./install.sh info
+```
+
 
 ```text
 Select scripts to run:
