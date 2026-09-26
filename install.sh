@@ -5,9 +5,9 @@
 #
 # Usage:
 #   curl -fsSL https://scripts.wanforge.asia/install.sh | bash
-#   ./install.sh [run <name> | list | search <term> | help]
+#   ./install.sh [1-9 | run <name|num> | list | search <term> | help]
 #
-# Shows a fast, categorized interactive dashboard with search, single-key selection,
+# Shows a fast, categorized interactive dashboard with search, numeric input,
 # batch multi-select, and automatic local-or-remote execution.
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
@@ -128,22 +128,57 @@ for row in "${SCRIPTS[@]}"; do
   fi
 done
 
-# --- execute a script by path/label --------------------------------------
-run_script() {
-  local target_label="$1"
-  local found=0 g lbl rel_path dsc
+# --- script resolver (supports numbers 1-35, exact names, partial names) ---
+resolve_script() {
+  local target="$1"
+
+  # 1. Numeric global script index (1 to 35)
+  if [[ "${target}" =~ ^[0-9]+$ ]] && [ "${target}" -ge 1 ] && [ "${target}" -le "${#SCRIPTS[@]}" ]; then
+    IFS='|' read -r _ lbl _ _ <<< "${SCRIPTS[$((target-1))]}"
+    echo "${lbl}"
+    return 0
+  fi
+
+  # 2. Exact or normalized label match
   for row in "${SCRIPTS[@]}"; do
     IFS='|' read -r g lbl rel_path dsc <<< "${row}"
-    if [ "${lbl}" = "${target_label}" ] || [ "${lbl}" = "install-${target_label}" ] || [ "${target_label}" = "${rel_path}" ]; then
+    if [ "${lbl}" = "${target}" ] || [ "${lbl}" = "install-${target}" ] || [ "${target}" = "${rel_path}" ]; then
+      echo "${lbl}"
+      return 0
+    fi
+  done
+
+  # 3. Substring match
+  local target_lower; target_lower="$(echo "${target}" | tr '[:upper:]' '[:lower:]')"
+  for row in "${SCRIPTS[@]}"; do
+    IFS='|' read -r g lbl rel_path dsc <<< "${row}"
+    if [[ "${lbl}" == *"${target_lower}"* ]]; then
+      echo "${lbl}"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# --- execute a script by path/label --------------------------------------
+run_script() {
+  local target_input="$1"
+  local lbl
+  lbl="$(resolve_script "${target_input}" 2>/dev/null || echo "")"
+
+  if [ -z "${lbl}" ]; then
+    err "Script '${target_input}' tidak ditemukan. Gunakan './install.sh list' untuk melihat daftar."
+    return 1
+  fi
+
+  local found=0 g rel_path dsc
+  for row in "${SCRIPTS[@]}"; do
+    IFS='|' read -r g l rel_path dsc <<< "${row}"
+    if [ "${l}" = "${lbl}" ]; then
       found=1
       break
     fi
   done
-
-  if [ "$found" -eq 0 ]; then
-    err "Script '${target_label}' not found."
-    return 1
-  fi
 
   local exec_file=""
   local local_candidate="${__d}/${rel_path}"
@@ -163,9 +198,9 @@ run_script() {
     else
       wget -qO "${tmp_dl}" "${raw_url}" &
     fi
-    spinner $! "Fetching ${lbl}"
+    spinner $! "Mengunduh ${lbl}"
     if ! wait $!; then
-      err "Download failed: ${raw_url}"
+      err "Gagal mengunduh: ${raw_url}"
       rm -f "${tmp_dl}"
       return 1
     fi
@@ -174,7 +209,7 @@ run_script() {
     exec_file="${perm_file}"
   fi
 
-  printf "\n%b▶ Executing %s...%b\n" "${C_BOLD}${C_GREEN}" "${lbl}" "${C_RESET}" >&2
+  printf "\n%b▶ Menjalankan %s...%b\n" "${C_BOLD}${C_GREEN}" "${lbl}" "${C_RESET}" >&2
   printf "%b  %s%b\n\n" "${C_DIM}" "${dsc}" "${C_RESET}" >&2
 
   export WF_INSTALL_DIR="${WF_INSTALL_DIR}"
@@ -182,13 +217,13 @@ run_script() {
   bash "${exec_file}" || rc=$?
 
   if [ $rc -eq 0 ]; then
-    printf "\n%b✔ %s completed successfully.%b\n" "${C_GREEN}" "${lbl}" "${C_RESET}" >&2
+    printf "\n%b✔ %s selesai dengan sukses.%b\n" "${C_GREEN}" "${lbl}" "${C_RESET}" >&2
   else
-    printf "\n%b✖ %s exited with status %d.%b\n" "${C_RED}" "${lbl}" "$rc" "${C_RESET}" >&2
+    printf "\n%b✖ %s keluar dengan kode status %d.%b\n" "${C_RED}" "${lbl}" "$rc" "${C_RESET}" >&2
   fi
 
   if [ -t 0 ] || [ -c /dev/tty ]; then
-    printf "%bPress Enter to continue...%b" "${C_DIM}" "${C_RESET}" >&2
+    printf "%bTekan Enter untuk melanjutkan...%b" "${C_DIM}" "${C_RESET}" >&2
     read -r _ <&3 2>/dev/null || true
   fi
   return $rc
@@ -208,41 +243,34 @@ show_category_menu() {
   done
 
   local n=${#items[@]}
-  local cursor=0 key rest first=1
-  local h; h="$(term_lines)"
 
   while true; do
     printf "\033[H\033[2J" >&2
-    printf "%b── %s ──%b\n" "${C_BOLD}${C_CYAN}" "${target_cat}" "${C_RESET}" >&2
-    printf "%b  [1-%d] Direct run  ·  ↑/↓ Move  ·  ENTER Select  ·  0/b Back%b\n\n" "$n" "${C_DIM}" "${C_RESET}" >&2
+    printf "%b── %s (%d tools) ──%b\n\n" "${C_BOLD}${C_CYAN}" "${target_cat}" "$n" "${C_RESET}" >&2
 
     for ((i = 0; i < n; i++)); do
-      local pfx="$((i+1))) "
-      if [ "$i" -eq "$cursor" ]; then
-        printf "%b❯ %s%-22s %s%b\n" "${C_BOLD}${C_CYAN}" "$pfx" "${labels[i]}" "${descs[i]}" "${C_RESET}" >&2
-      else
-        printf "  %s%-22s %b%s%b\n" "$pfx" "${labels[i]}" "${C_DIM}" "${descs[i]}" "${C_RESET}" >&2
-      fi
+      printf "  %b[%d]%b %-22s %b%s%b\n" \
+        "${C_YELLOW}" "$((i+1))" "${C_RESET}" \
+        "${labels[i]}" \
+        "${C_DIM}" "${descs[i]}" "${C_RESET}" >&2
     done
-    printf "\n  %b[0] ⬅ Back to Categories%b\n" "${C_YELLOW}" "${C_RESET}" >&2
+    printf "\n  %b[0] ⬅ Kembali ke Menu Kategori%b\n\n" "${C_CYAN}" "${C_RESET}" >&2
 
-    IFS= read -rsn1 key <&3 || break
-    [ "$key" = $'\x1b' ] && { IFS= read -rsn2 -t 0.1 rest <&3 || rest=""; key+="$rest"; }
+    printf "%b› Masukkan nomor script [1-%d] atau [0] kembali: %b" "${C_YELLOW}" "$n" "${C_RESET}" >&2
+    local choice=""
+    read -r choice <&3 || break
+    choice="$(echo "${choice}" | tr -d '[:space:]')"
 
-    case "$key" in
-      $'\x1b[A'|k) cursor=$(( (cursor - 1 + n) % n )) ;;
-      $'\x1b[B'|j) cursor=$(( (cursor + 1) % n )) ;;
-      [1-9])
-        local idx=$((key - 1))
-        if [ "$idx" -ge 0 ] && [ "$idx" -lt "$n" ]; then
-          run_script "${labels[idx]}" || true
-          break
-        fi
-        ;;
+    case "${choice}" in
       0|b|B|q|Q) break ;;
-      '')
-        run_script "${labels[cursor]}" || true
-        break
+      "") ;; # Empty Enter: redraw
+      *)
+        if [[ "${choice}" =~ ^[0-9]+$ ]] && [ "${choice}" -ge 1 ] && [ "${choice}" -le "$n" ]; then
+          run_script "${labels[$((choice-1))]}" || true
+        else
+          printf "\n%b⚠ Pilihan '%s' tidak valid. Masukkan nomor 1 sampai %d.%b\n" "${C_RED}" "${choice}" "$n" "${C_RESET}" >&2
+          sleep 1.2
+        fi
         ;;
     esac
   done
@@ -251,8 +279,8 @@ show_category_menu() {
 # --- Search Mode ----------------------------------------------------------
 search_interactive() {
   printf "\033[H\033[2J" >&2
-  printf "%b── Search Scripts ──%b\n\n" "${C_BOLD}${C_CYAN}" "${C_RESET}" >&2
-  printf "Ketik nama atau kata kunci (contoh: 'docker', 'ssh', 'db', 'firewall'): " >&2
+  printf "%b── Pencarian Script ──%b\n\n" "${C_BOLD}${C_CYAN}" "${C_RESET}" >&2
+  printf "Ketik kata kunci (contoh: 'docker', 'ssh', 'db', 'firewall', 'cloud'): " >&2
   local query
   read -r query <&3 || query=""
   query="$(echo "${query}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
@@ -275,7 +303,7 @@ search_interactive() {
   local m=${#matched_labels[@]}
   if [ "$m" -eq 0 ]; then
     printf "\n%b✖ Tidak ada script yang cocok dengan '%s'.%b\n" "${C_RED}" "${query}" "${C_RESET}" >&2
-    printf "%bPress Enter to return...%b" "${C_DIM}" "${C_RESET}" >&2
+    printf "%bTekan Enter untuk kembali...%b" "${C_DIM}" "${C_RESET}" >&2
     read -r _ <&3 2>/dev/null || true
     return 0
   fi
@@ -292,6 +320,8 @@ search_interactive() {
 
   printf "Pilih nomor script untuk dijalankan [1-%d]: " "$m" >&2
   local sel; read -r sel <&3 || sel=""
+  sel="$(echo "${sel}" | tr -d '[:space:]')"
+
   if [[ "${sel}" =~ ^[0-9]+$ ]] && [ "${sel}" -ge 1 ] && [ "${sel}" -le "$m" ]; then
     local target="${matched_labels[$((sel-1))]}"
     run_script "${target}" || true
@@ -322,15 +352,16 @@ batch_select_mode() {
 
 # --- CLI List -------------------------------------------------------------
 cli_list() {
-  printf "\n%bWANFORGE SCRIPTS REPOSITORY — AVAILABLE TOOLS%b\n\n" "${C_BOLD}${C_CYAN}" "${C_RESET}"
-  local cur_g=""
+  printf "\n%bWANFORGE SCRIPTS REPOSITORY — AVAILABLE TOOLS (35 TOOLS)%b\n\n" "${C_BOLD}${C_CYAN}" "${C_RESET}"
+  local cur_g="" idx=0
   for row in "${SCRIPTS[@]}"; do
+    idx=$((idx + 1))
     IFS='|' read -r g lbl rel_path dsc <<< "${row}"
     if [ "$g" != "$cur_g" ]; then
       printf "\n%b── %s ──%b\n" "${C_BOLD}${C_YELLOW}" "$g" "${C_RESET}"
       cur_g="$g"
     fi
-    printf "  %-24s %s\n" "${lbl}" "${dsc}"
+    printf "  %b[%2d]%b %-24s %s\n" "${C_YELLOW}" "$idx" "${C_RESET}" "${lbl}" "${dsc}"
   done
   printf "\n"
 }
@@ -339,12 +370,15 @@ cli_list() {
 cli_help() {
   printf "WANFORGE Server Management & Ops Toolkit\n\n"
   printf "Usage:\n"
-  printf "  %s                      Launch interactive menu\n" "$0"
-  printf "  %s list                 List all 35 scripts by category\n" "$0"
-  printf "  %s search <keyword>     Search script by name or description\n" "$0"
-  printf "  %s run <script_name>    Run specific script directly\n" "$0"
-  printf "  %s info                 Display system snapshot (OS, RAM, Load)\n" "$0"
-  printf "  %s --help               Show this help\n\n" "$0"
+  printf "  %s                      Jalankan menu interaktif\n" "$0"
+  printf "  %s 1-9                  Buka kategori 1 sampai 9 langsung\n" "$0"
+  printf "  %s 1-35                 Jalankan script nomor 1 sampai 35 langsung\n" "$0"
+  printf "  %s <script_name>        Jalankan script berdasarkan nama (contoh: docker)\n" "$0"
+  printf "  %s list                 Tampilkan seluruh 35 tools dengan nomor indeks\n" "$0"
+  printf "  %s search <keyword>     Cari script berdasarkan nama/deskripsi\n" "$0"
+  printf "  %s run <name|number>    Jalankan script spesifik\n" "$0"
+  printf "  %s info                 Ringkasan status server (OS, RAM, CPU Load)\n" "$0"
+  printf "  %s --help               Tampilkan panduan ini\n\n" "$0"
 }
 
 # --- Main Interactive Loop ------------------------------------------------
@@ -385,19 +419,13 @@ interactive_main() {
     printf "  %b[h]%b  ℹ️   Audit Sistem Cepat\n" "${C_YELLOW}" "${C_RESET}" >&2
     printf "  %b[q]%b  🚪  Keluar (Exit)\n\n" "${C_RED}" "${C_RESET}" >&2
 
-    printf "%b› Pilih kategori [1-%d] atau menu [s/b/h/q]: %b" "${C_YELLOW}" "${#CATEGORIES[@]}" "${C_RESET}" >&2
+    printf "%b› Masukkan nomor kategori [1-%d] atau menu [s/b/h/q]: %b" "${C_YELLOW}" "${#CATEGORIES[@]}" "${C_RESET}" >&2
 
-    local key=""
-    IFS= read -rsn1 key <&3 || break
-    printf "\n" >&2
+    local choice=""
+    read -r choice <&3 || break
+    choice="$(echo "${choice}" | tr -d '[:space:]')"
 
-    case "$key" in
-      [1-9])
-        local idx=$((key - 1))
-        if [ "$idx" -ge 0 ] && [ "$idx" -lt "${#CATEGORIES[@]}" ]; then
-          show_category_menu "${CATEGORIES[idx]}"
-        fi
-        ;;
+    case "${choice}" in
       s|S|/) search_interactive ;;
       b|B)   batch_select_mode ;;
       h|H)
@@ -411,11 +439,34 @@ interactive_main() {
         printf "\n" >&2
         pause
         ;;
-      q|Q|0)
+      q|Q|0|exit)
         printf "\n%bSampai jumpa! 👋%b\n\n" "${C_CYAN}" "${C_RESET}" >&2
         break
         ;;
-      *) ;;
+      "") ;; # Empty Enter: redraw cleanly
+      *)
+        if [[ "${choice}" =~ ^[0-9]+$ ]]; then
+          if [ "${choice}" -ge 1 ] && [ "${choice}" -le "${#CATEGORIES[@]}" ]; then
+            show_category_menu "${CATEGORIES[$((choice-1))]}"
+          elif [ "${choice}" -ge 1 ] && [ "${choice}" -le "${#SCRIPTS[@]}" ]; then
+            local target_lbl
+            target_lbl="$(resolve_script "${choice}")"
+            run_script "${target_lbl}" || true
+          else
+            printf "\n%b⚠ Nomor '%s' tidak valid. Masukkan 1 sampai %d.%b\n" "${C_RED}" "${choice}" "${#CATEGORIES[@]}" "${C_RESET}" >&2
+            sleep 1.2
+          fi
+        else
+          local resolved
+          resolved="$(resolve_script "${choice}" 2>/dev/null || echo "")"
+          if [ -n "${resolved}" ]; then
+            run_script "${resolved}" || true
+          else
+            printf "\n%b⚠ Pilihan '%s' tidak dikenali. Masukkan nomor kategori [1-%d] atau menu [s/b/h/q].%b\n" "${C_RED}" "${choice}" "${#CATEGORIES[@]}" "${C_RESET}" >&2
+            sleep 1.2
+          fi
+        fi
+        ;;
     esac
   done
 }
@@ -437,18 +488,19 @@ case "${1:-}" in
   search|find)
     shift
     q="$*"
-    if [ -z "$q" ]; then err "Please provide a search term."; exit 1; fi
-    cli_list | grep -iE "$q" || echo "No scripts matching '$q'"
+    if [ -z "$q" ]; then err "Masukkan kata kunci pencarian."; exit 1; fi
+    cli_list | grep -iE "$q" || echo "Tidak ada script yang cocok dengan '$q'"
     exit 0
     ;;
   run)
     shift
-    if [ -z "${1:-}" ]; then err "Script name required. Use: $0 run <script_name>"; exit 1; fi
-    run_script "$1"
+    if [ -z "${1:-}" ]; then err "Nama atau nomor script diperlukan. Contoh: $0 run docker"; exit 1; fi
+    target_lbl="$(resolve_script "$1" 2>/dev/null || echo "")"
+    if [ -z "${target_lbl}" ]; then err "Script '$1' tidak ditemukan."; exit 1; fi
+    run_script "${target_lbl}"
     exit $?
     ;;
   "")
-    # If not a terminal and no input available, print help
     if [ ! -t 0 ] && [ ! -c /dev/tty ]; then
       cli_list
       exit 0
@@ -456,8 +508,35 @@ case "${1:-}" in
     interactive_main
     ;;
   *)
-    # Direct label shorthand, e.g. `./install.sh docker`
-    run_script "$1"
-    exit $?
+    # Numeric category index: `./install.sh 1` opens Category 1
+    if [[ "$1" =~ ^[0-9]+$ ]] && [ "$1" -ge 1 ] && [ "$1" -le "${#CATEGORIES[@]}" ] && [ -z "${2:-}" ]; then
+      show_category_menu "${CATEGORIES[$(($1-1))]}"
+      exit 0
+    elif [[ "$1" =~ ^[0-9]+$ ]] && [ "$1" -ge 1 ] && [ "$1" -le "${#CATEGORIES[@]}" ] && [ -n "${2:-}" ]; then
+      # `./install.sh 1 2` -> runs category 1, script 2
+      target_cat="${CATEGORIES[$(($1-1))]}"
+      sub_items=()
+      for row in "${SCRIPTS[@]}"; do
+        IFS='|' read -r g lbl _ _ <<< "${row}"
+        [ "$g" = "${target_cat}" ] && sub_items+=("${lbl}")
+      done
+      if [ "$2" -ge 1 ] && [ "$2" -le "${#sub_items[@]}" ]; then
+        run_script "${sub_items[$(($2-1))]}"
+        exit $?
+      else
+        err "Nomor script $2 tidak valid untuk kategori $1 (1-${#sub_items[@]})."
+        exit 1
+      fi
+    fi
+
+    # Global resolution (number 1..35 or script name)
+    target_lbl="$(resolve_script "$1" 2>/dev/null || echo "")"
+    if [ -n "${target_lbl}" ]; then
+      run_script "${target_lbl}"
+      exit $?
+    else
+      err "Pilihan '$1' tidak ditemukan. Gunakan './install.sh list' untuk melihat daftar script."
+      exit 1
+    fi
     ;;
 esac
