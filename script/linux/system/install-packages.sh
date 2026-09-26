@@ -35,7 +35,7 @@ pm_install() { local pkgs="$*"; [ -z "$pkgs" ] && return 0; case "${PM}" in apt-
 pm_cleanup() { case "${PM}" in apt-get) run ${SUDO} apt-get autoremove -y; run ${SUDO} apt-get autoclean ;; dnf) run ${SUDO} dnf -y autoremove; run ${SUDO} dnf clean all ;; yum) run ${SUDO} yum -y autoremove || true; run ${SUDO} yum clean all ;; pacman) run ${SUDO} pacman -Qtdq 2>/dev/null | run ${SUDO} pacman -Rns --noconfirm - 2>/dev/null || true ;; zypper) run ${SUDO} zypper clean --all ;; apk) : ;; esac; }
 
 # resolve a logical package key to the distro package name (empty = skip)
-pkg_name() { case "$1" in micro|curl|wget|git) echo "$1" ;; esac; }
+pkg_name() { case "$1" in micro|curl|wget|git|tmux) echo "$1" ;; esac; }
 
 # ---- menu ---------------------------------------------------------------
 # Base essentials only. Python lives in install-python.sh; speedtest in net-tools.
@@ -47,6 +47,7 @@ MENU=(
   "Network|curl|transfer data / fetch URLs"
   "Network|wget|download files over HTTP/FTP"
   "VCS|git|distributed version control"
+  "Terminal|tmux|terminal multiplexer & background workspace"
 )
 
 # ---- run ----------------------------------------------------------------
@@ -60,10 +61,26 @@ has_key upgrade && { info "Upgrading installed packages..."; pm_upgrade; }
 
 # collect selected packages (resolved per distro)
 PKGS=""
-for key in micro curl wget git; do
+for key in micro curl wget git tmux; do
   if has_key "$key"; then p="$(pkg_name "$key")"; [ -n "$p" ] && PKGS="${PKGS} ${p}"; fi
 done
 if [ -n "${PKGS# }" ]; then info "Installing:${PKGS}"; pm_install ${PKGS}; fi
+
+if has_key tmux; then
+  tmux_conf="${HOME}/.tmux.conf"
+  if [ ! -f "${tmux_conf}" ]; then
+    info "Configuring default ~/.tmux.conf (mouse, 50k scrollback, truecolor)..."
+    cat > "${tmux_conf}" << 'EOF'
+set -g mouse on
+set -g history-limit 50000
+set -s escape-time 0
+set -g default-terminal "screen-256color"
+set -ga terminal-overrides ",xterm-256color:Tc"
+setw -g mode-keys vi
+EOF
+    ok "Tuned ~/.tmux.conf created."
+  fi
+fi
 
 has_key cleanup && { info "Cleaning up..."; pm_cleanup; }
 
