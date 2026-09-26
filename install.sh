@@ -253,12 +253,12 @@ show_category_menu() {
     printf "%b── %s (%d tools) ──%b\n\n" "${C_BOLD}${C_CYAN}" "${target_cat}" "$n" "${C_RESET}" >&2
 
     for ((i = 0; i < n; i++)); do
-      printf "  %b[%d]%b %-22s %b%s%b\n" \
+      printf "  %b[%2d]%b  %-24s  %b%s%b\n" \
         "${C_YELLOW}" "$((i+1))" "${C_RESET}" \
         "${labels[i]}" \
         "${C_DIM}" "${descs[i]}" "${C_RESET}" >&2
     done
-    printf "\n  %b[0] ⬅ Kembali ke Menu Kategori%b\n\n" "${C_CYAN}" "${C_RESET}" >&2
+    printf "\n  %b[ 0]%b  ⬅ Kembali ke Menu Kategori\n\n" "${C_CYAN}" "${C_RESET}" >&2
 
     printf "%b› Masukkan nomor script [1-%d] atau [0] kembali: %b" "${C_YELLOW}" "$n" "${C_RESET}" >&2
     local choice=""
@@ -314,13 +314,13 @@ search_interactive() {
 
   printf "\n%bDitemukan %d script cocok:%b\n\n" "${C_GREEN}" "$m" "${C_RESET}" >&2
   for ((i = 0; i < m; i++)); do
-    printf "  %b[%d]%b %-22s %b[%s]%b %s\n" \
+    printf "  %b[%2d]%b  %-24s  %b[%-20s]%b  %s\n" \
       "${C_YELLOW}" "$((i+1))" "${C_RESET}" \
       "${matched_labels[i]}" \
       "${C_CYAN}" "${matched_cats[i]}" "${C_RESET}" \
       "${matched_descs[i]}" >&2
   done
-  printf "\n  %b[0] Batal / Kembali%b\n\n" "${C_DIM}" "${C_RESET}" >&2
+  printf "\n  %b[ 0]%b  Batal / Kembali\n\n" "${C_DIM}" "${C_RESET}" >&2
 
   printf "Pilih nomor script untuk dijalankan [1-%d]: " "$m" >&2
   local sel; read -r sel <&3 || sel=""
@@ -356,7 +356,7 @@ batch_select_mode() {
 
 # --- CLI List -------------------------------------------------------------
 cli_list() {
-  printf "\n%bWANFORGE SCRIPTS REPOSITORY — AVAILABLE TOOLS (%d TOOLS)%b\n\n" "${C_BOLD}${C_CYAN}" "${#SCRIPTS[@]}" "${C_RESET}"
+  printf "\n%bWANFORGE SCRIPTS REPOSITORY — AVAILABLE TOOLS (%d TOOLS)%b\n" "${C_BOLD}${C_CYAN}" "${#SCRIPTS[@]}" "${C_RESET}"
   local cur_g="" idx=0
   for row in "${SCRIPTS[@]}"; do
     idx=$((idx + 1))
@@ -365,7 +365,7 @@ cli_list() {
       printf "\n%b── %s ──%b\n" "${C_BOLD}${C_YELLOW}" "$g" "${C_RESET}"
       cur_g="$g"
     fi
-    printf "  %b[%2d]%b %-24s %s\n" "${C_YELLOW}" "$idx" "${C_RESET}" "${lbl}" "${dsc}"
+    printf "  %b[%2d]%b  %-24s  %s\n" "${C_YELLOW}" "$idx" "${C_RESET}" "${lbl}" "${dsc}"
   done
   printf "\n"
 }
@@ -400,29 +400,16 @@ interactive_main() {
         IFS='|' read -r g _ <<< "${r}"
         [ "$g" = "$c" ] && count=$((count + 1))
       done
-      local icon="📦"
-      case "$c" in
-        "System") icon="🖥️ " ;;
-        "Security") icon="🛡️ " ;;
-        "Database") icon="🗄️ " ;;
-        "App Runtime") icon="🚀" ;;
-        "Panel & Console") icon="☁️ " ;;
-        "Network & Tunnel") icon="🌐" ;;
-        "Monitoring & Metrics") icon="📊" ;;
-        "Observability Stack") icon="📈" ;;
-        "CI/CD Runners") icon="🔄" ;;
-        "AI & Agents") icon="🤖" ;;
-      esac
-      printf "  %b[%d]%b  %s %-24s %b(%d tools)%b\n" \
+      printf "  %b[%2d]%b  %-24s  %b(%d tools)%b\n" \
         "${C_CYAN}" "$((i+1))" "${C_RESET}" \
-        "$icon" "$c" "${C_DIM}" "$count" "${C_RESET}" >&2
+        "$c" "${C_DIM}" "$count" "${C_RESET}" >&2
     done
 
     printf "\n%bNAVIGASI CEPAT:%b\n" "${C_DIM}" "${C_RESET}" >&2
-    printf "  %b[s]%b  🔍  Cari Script (Search keyword)\n" "${C_YELLOW}" "${C_RESET}" >&2
-    printf "  %b[b]%b  📋  Batch Mode (Jalankan banyak script sekaligus)\n" "${C_YELLOW}" "${C_RESET}" >&2
-    printf "  %b[h]%b  ℹ️   Audit Sistem Cepat\n" "${C_YELLOW}" "${C_RESET}" >&2
-    printf "  %b[q]%b  🚪  Keluar (Exit)\n\n" "${C_RED}" "${C_RESET}" >&2
+    printf "  %b[ s]%b  Cari Script (Search keyword)\n" "${C_YELLOW}" "${C_RESET}" >&2
+    printf "  %b[ b]%b  Batch Mode (Jalankan banyak script sekaligus)\n" "${C_YELLOW}" "${C_RESET}" >&2
+    printf "  %b[ h]%b  Audit Sistem Cepat\n" "${C_YELLOW}" "${C_RESET}" >&2
+    printf "  %b[ q]%b  Keluar (Exit)\n\n" "${C_RED}" "${C_RESET}" >&2
 
     printf "%b› Masukkan nomor kategori [1-%d] atau menu [s/b/h/q]: %b" "${C_YELLOW}" "${#CATEGORIES[@]}" "${C_RESET}" >&2
 
