@@ -258,15 +258,20 @@ show_category_menu() {
         "${labels[i]}" \
         "${C_DIM}" "${descs[i]}" "${C_RESET}" >&2
     done
-    printf "\n  %b[ 0]%b  ⬅ Kembali ke Menu Kategori\n\n" "${C_CYAN}" "${C_RESET}" >&2
+    printf "\n  %b[ 0]%b  ⬅ Kembali ke Menu Kategori (Back)\n" "${C_CYAN}" "${C_RESET}" >&2
+    printf "  %b[ q]%b  Keluar dari Program (Quit)\n\n" "${C_RED}" "${C_RESET}" >&2
 
-    printf "%b› Masukkan nomor script [1-%d] atau [0] kembali: %b" "${C_YELLOW}" "$n" "${C_RESET}" >&2
+    printf "%b› Masukkan nomor script [1-%d], [0] kembali, [q] keluar: %b" "${C_YELLOW}" "$n" "${C_RESET}" >&2
     local choice=""
     read -r choice <&3 || break
     choice="$(echo "${choice}" | tr -d '[:space:]')"
 
     case "${choice}" in
-      0|b|B|q|Q) break ;;
+      0|b|B|back|BACK) break ;;
+      q|Q|exit|EXIT)
+        printf "\n%bSampai jumpa! 👋%b\n\n" "${C_CYAN}" "${C_RESET}" >&2
+        exit 0
+        ;;
       "") ;; # Empty Enter: redraw
       *)
         if [[ "${choice}" =~ ^[0-9]+$ ]] && [ "${choice}" -ge 1 ] && [ "${choice}" -le "$n" ]; then
@@ -284,14 +289,14 @@ show_category_menu() {
 search_interactive() {
   printf "\033[H\033[2J" >&2
   printf "%b── Pencarian Script ──%b\n\n" "${C_BOLD}${C_CYAN}" "${C_RESET}" >&2
-  printf "Ketik kata kunci (contoh: 'docker', 'ssh', 'db', 'firewall', 'cloud'): " >&2
+  printf "Ketik kata kunci (atau ketik '0'/'q' untuk kembali): " >&2
   local query
   read -r query <&3 || query=""
   query="$(echo "${query}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
 
-  if [ -z "${query}" ]; then
-    return 0
-  fi
+  case "${query}" in
+    0|q|back|exit|"") return 0 ;;
+  esac
 
   local matched_labels=() matched_descs=() matched_cats=()
   for row in "${SCRIPTS[@]}"; do
@@ -320,16 +325,26 @@ search_interactive() {
       "${C_CYAN}" "${matched_cats[i]}" "${C_RESET}" \
       "${matched_descs[i]}" >&2
   done
-  printf "\n  %b[ 0]%b  Batal / Kembali\n\n" "${C_DIM}" "${C_RESET}" >&2
+  printf "\n  %b[ 0]%b  ⬅ Kembali ke Menu Utama (Back)\n" "${C_CYAN}" "${C_RESET}" >&2
+  printf "  %b[ q]%b  Keluar dari Program (Quit)\n\n" "${C_RED}" "${C_RESET}" >&2
 
-  printf "Pilih nomor script untuk dijalankan [1-%d]: " "$m" >&2
+  printf "%b› Jalankan nomor script [1-%d], [0] kembali, [q] keluar: %b" "${C_YELLOW}" "$m" "${C_RESET}" >&2
   local sel; read -r sel <&3 || sel=""
   sel="$(echo "${sel}" | tr -d '[:space:]')"
 
-  if [[ "${sel}" =~ ^[0-9]+$ ]] && [ "${sel}" -ge 1 ] && [ "${sel}" -le "$m" ]; then
-    local target="${matched_labels[$((sel-1))]}"
-    run_script "${target}" || true
-  fi
+  case "${sel}" in
+    0|b|B|back|BACK) return 0 ;;
+    q|Q|exit|EXIT)
+      printf "\n%bSampai jumpa! 👋%b\n\n" "${C_CYAN}" "${C_RESET}" >&2
+      exit 0
+      ;;
+    *)
+      if [[ "${sel}" =~ ^[0-9]+$ ]] && [ "${sel}" -ge 1 ] && [ "${sel}" -le "$m" ]; then
+        local target="${matched_labels[$((sel-1))]}"
+        run_script "${target}" || true
+      fi
+      ;;
+  esac
 }
 
 # --- Batch Multi-Select Mode ----------------------------------------------
@@ -409,9 +424,10 @@ interactive_main() {
     printf "  %b[ s]%b  Cari Script (Search keyword)\n" "${C_YELLOW}" "${C_RESET}" >&2
     printf "  %b[ b]%b  Batch Mode (Jalankan banyak script sekaligus)\n" "${C_YELLOW}" "${C_RESET}" >&2
     printf "  %b[ h]%b  Audit Sistem Cepat\n" "${C_YELLOW}" "${C_RESET}" >&2
+    printf "  %b[ 0]%b  Keluar (Exit)\n" "${C_RED}" "${C_RESET}" >&2
     printf "  %b[ q]%b  Keluar (Exit)\n\n" "${C_RED}" "${C_RESET}" >&2
 
-    printf "%b› Masukkan nomor kategori [1-%d] atau menu [s/b/h/q]: %b" "${C_YELLOW}" "${#CATEGORIES[@]}" "${C_RESET}" >&2
+    printf "%b› Masukkan nomor kategori [1-%d] atau menu [s/b/h/0/q]: %b" "${C_YELLOW}" "${#CATEGORIES[@]}" "${C_RESET}" >&2
 
     local choice=""
     read -r choice <&3 || break
@@ -480,7 +496,10 @@ case "${1:-}" in
   search|find)
     shift
     q="$*"
-    if [ -z "$q" ]; then err "Masukkan kata kunci pencarian."; exit 1; fi
+    if [ -z "$q" ]; then
+      search_interactive
+      exit 0
+    fi
     cli_list | grep -iE "$q" || echo "Tidak ada script yang cocok dengan '$q'"
     exit 0
     ;;
