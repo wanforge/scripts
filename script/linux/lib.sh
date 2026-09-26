@@ -288,7 +288,7 @@ checkbox() {
   local groups=0 pg=""
   for ((i = 0; i < n; i++)); do IFS='|' read -r g _ <<< "${MENU[i]}"; [ "$g" != "$pg" ] && { groups=$((groups + 1)); pg="$g"; }; done
   local total=$((n + groups))
-  printf "%b%s%b\n%b  [1-%d] toggle nomor · SPACE toggle kursor · A semua · ENTER konfirmasi · Q batal%b\n\n" \
+  printf "%b%s%b\n%b  [1-%d] Toggle nomor · SPACE Centang · A Semua · ENTER Lanjut · 0 Kembali · Q Batal%b\n\n" \
     "${C_BOLD}${C_CYAN}" "${title}" "${C_RESET}" "${C_DIM}" "$n" "${C_RESET}" >&2
   local h; h="$(term_lines)"
   while true; do
@@ -337,7 +337,7 @@ checkbox() {
         ;;
       ' ') checked[cursor]=$(( 1 - checked[cursor] )) ;;
       a|A) local all=1; for ((i = 0; i < n; i++)); do [ "${checked[i]}" -eq 0 ] && all=0; done; for ((i = 0; i < n; i++)); do checked[i]=$(( 1 - all )); done ;;
-      q|Q) CHOSEN_KEYS=(); return 1 ;;
+      0|q|Q) CHOSEN_KEYS=(); return 1 ;;
       '') break ;;
     esac
   done
@@ -359,7 +359,7 @@ menu_select() {
   local groups=0 pg=""
   for ((i = 0; i < n; i++)); do IFS='|' read -r g _ <<< "${MENU[i]}"; [ "$g" != "$pg" ] && { groups=$((groups + 1)); pg="$g"; }; done
   local total=$((n + groups))
-  printf "%b%s%b\n%b  [1-%d] pilih nomor · ↑/↓ pindah · ENTER pilih · 0/Q kembali%b\n\n" \
+  printf "%b%s%b\n%b  [1-%d] Pilih nomor · ↑/↓ Pindah · ENTER Pilih · 0 Kembali · Q Keluar%b\n\n" \
     "${C_BOLD}${C_CYAN}" "${title}" "${C_RESET}" "${C_DIM}" "$n" "${C_RESET}" >&2
   local h; h="$(term_lines)"
   while true; do
