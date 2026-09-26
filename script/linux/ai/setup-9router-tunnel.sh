@@ -96,7 +96,7 @@ action_quick_tunnel() {
 # --- Action: Named Tunnel & Custom Domain ---------------------------------
 action_named_tunnel() {
   check_cloudflared || return 1
-  
+
   info "Konfigurasi Named Tunnel Cloudflare dengan Custom Domain (contoh: ai.wanforge.asia)."
   local domain; domain="$(ask_cfg "Masukkan Domain / Subdomain yang diarahkan ke 9Router" "ai.wanforge.asia")"
   if [ -z "${domain}" ]; then

@@ -43,7 +43,7 @@ install_base_and_tmux() {
 
   local pkgs=(curl wget git jq tmux python3 python3-pip)
   sub "Memeriksa dan memperbarui paket: ${pkgs[*]}..."
-  
+
   if command -v pkg_install >/dev/null 2>&1; then
     pkg_install "${pkgs[@]}" || true
   elif [ -n "${SUDO}" ] && command -v apt-get >/dev/null 2>&1; then
