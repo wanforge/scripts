@@ -15,8 +15,13 @@ TASK="install-fail2ban"
 # --- shared library: banner, colors, logging, prompts, checkbox ----------
 __LIB="https://scripts.wanforge.asia/script/linux/lib.sh"
 __d="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
-if [ -r "${__d}/../lib.sh" ]; then . "${__d}/../lib.sh"
-else if command -v curl >/dev/null 2>&1; then . <(curl -fsSL "${__LIB}"); else . <(wget -qO- "${__LIB}"); fi; fi
+if   [ -r "${__d}/../lib.sh" ]; then . "${__d}/../lib.sh"
+elif [ -r "${__d}/lib.sh" ]; then . "${__d}/lib.sh"
+elif [ -n "${WF_INSTALL_DIR:-}" ] && [ -r "${WF_INSTALL_DIR}/lib.sh" ]; then . "${WF_INSTALL_DIR}/lib.sh"
+elif [ -r "/opt/wanforge-scripts/lib.sh" ]; then . "/opt/wanforge-scripts/lib.sh"
+elif [ -r "${HOME:-}/.local/lib/wanforge-scripts/lib.sh" ]; then . "${HOME}/.local/lib/wanforge-scripts/lib.sh"
+elif command -v curl >/dev/null 2>&1; then . <(curl -fsSL "${__LIB}")
+else . <(wget -qO- "${__LIB}"); fi
 
 detect_pm() { for pm in apt-get dnf yum pacman zypper apk; do command -v "$pm" >/dev/null 2>&1 && { echo "$pm"; return 0; }; done; return 1; }
 pm_install() {
