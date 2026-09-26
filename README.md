@@ -148,7 +148,7 @@ Select scripts to run:
   [✓] install-loki         Loki + Promtail log aggregator & forwarding agent
   [✓] install-goaccess     GoAccess real-time web log analyzer (terminal & HTML daemon)
   ── AI & Agents ──
-  [✓] install-ai-agents    Full AI stack: Hermes, Claude Code, AGY, 9Router, Tmux
+  [✓] install-ai-agents    Modular AI stack: Hermes, Claude Code, AGY, 9Router
   [✓] setup-hermes-telegram Setup Telegram bot, user/group whitelist, optimizations
   [✓] setup-9router-tunnel Cloudflare Tunnel & custom domain reverse proxy for 9Router
 ```
@@ -434,7 +434,7 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/ai/setup-9router-tunnel.sh
 | Observability   | `install-uptime-kuma.sh`   | Uptime Kuma status page & endpoint monitor (Node.js + PM2)                    | No   | Linux           |
 | Observability   | `install-loki.sh`          | Loki + Promtail log aggregator & forwarding agent                             | Yes  | Debian/Ubuntu   |
 | Observability   | `install-goaccess.sh`      | GoAccess real-time web log analyzer (terminal & HTML daemon)                 | Yes  | Debian/Ubuntu   |
-| AI & Agents     | `install-ai-agents.sh`     | Full AI stack: Hermes, Claude Code, AGY, 9Router, Tmux, token optimization     | Some | Linux           |
+| AI & Agents     | `install-ai-agents.sh`     | Modular AI stack: Hermes, Claude Code, AGY, 9Router, token optimization       | Some | Linux           |
 | AI & Agents     | `setup-hermes-telegram.sh` | Configure Hermes Telegram Bot: token, whitelist, group policy, 9Router backend | No   | Linux           |
 | AI & Agents     | `setup-9router-tunnel.sh`  | Cloudflare Tunnel & custom domain reverse proxy for 9Router & AI agents       | Some | Linux           |
 
@@ -445,7 +445,7 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/ai/setup-9router-tunnel.sh
 - Detects the package manager: `apt`, `dnf`, `yum`, `pacman`, `zypper`, `apk`.
 - **Grouped checkbox menu** (default all on, uncheck to skip): System actions
   (update / upgrade / cleanup) plus base essentials — `micro`, `curl`, `wget`,
-  `git`. Package names are resolved per distro.
+  `git`, `tmux` (with tuned `~/.tmux.conf`). Package names are resolved per distro.
 - Python lives in `install-python.sh`; `speedtest-cli` is in `net-tools.sh`.
 
 ### install-python.sh
@@ -901,8 +901,7 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/monitoring/install-uptime-
 
 ### install-ai-agents.sh
 
-- Full-stack autonomous AI coding and messaging environment installer and auditor:
-  - **Tmux**: Installs and configures optimized `~/.tmux.conf` (mouse support, 50,000 lines scrollback, 24-bit truecolor, vi copy-mode).
+- Modular autonomous AI coding and messaging environment installer and auditor (pilih satu per satu):
   - **9Router**: Installs `9router` AI gateway, creates `9router.service` systemd daemon on port `20128`, configures multi-provider models (Anthropic, OpenAI, DeepSeek, Google Gemini) with automated fallback combos.
   - **Claude Code CLI**: Installs `@anthropic-ai/claude-code`, configures `~/.claude/settings.json` with 9Router base URL, 998k context window, and permission whitelist for automated execution.
   - **Antigravity CLI**: Installs `agy` agent and configures RTK hooks.
