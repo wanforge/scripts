@@ -354,6 +354,7 @@ has_key() { local x; for x in "${CHOSEN_KEYS[@]:-}"; do [ "$x" = "$1" ] && retur
 # Caller fills MENU=("group|key|label" ...). ↑/↓ move, ENTER select, Q back.
 # The chosen key lands in MENU_KEY; returns 1 (and empty MENU_KEY) on quit.
 MENU_KEY=""
+MENU=()
 menu_select() {
   local title="${1:-Select:}"
   local n=${#MENU[@]} i cursor=0 first=1 key rest prev g k lbl
