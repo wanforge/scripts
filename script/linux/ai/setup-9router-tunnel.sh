@@ -36,7 +36,7 @@ mkdir -p "${CF_DIR}"
 check_cloudflared() {
   if ! command -v cloudflared >/dev/null 2>&1; then
     warn "Biner 'cloudflared' belum terpasang di sistem."
-    if ask "Pasang cloudflared sekarang via installer wanforge?" 1; then
+    if ask_yn "Pasang cloudflared sekarang via installer wanforge?" "y"; then
       local cf_installer="${__d}/../network/install-cloudflared.sh"
       if [ -x "${cf_installer}" ]; then
         bash "${cf_installer}"
@@ -98,13 +98,13 @@ action_named_tunnel() {
   check_cloudflared || return 1
 
   info "Konfigurasi Named Tunnel Cloudflare dengan Custom Domain (contoh: ai.wanforge.asia)."
-  local domain; domain="$(ask_cfg "Masukkan Domain / Subdomain yang diarahkan ke 9Router" "ai.wanforge.asia")"
+  local domain; domain="$(ask "Masukkan Domain / Subdomain yang diarahkan ke 9Router" "ai.wanforge.asia")"
   if [ -z "${domain}" ]; then
     err "Domain tidak boleh kosong."
     return 1
   fi
 
-  local tunnel_name; tunnel_name="$(ask_cfg "Nama Tunnel Cloudflare" "9router-tunnel")"
+  local tunnel_name; tunnel_name="$(ask "Nama Tunnel Cloudflare" "9router-tunnel")"
 
   # 1. Login check
   if [ ! -f "${CF_DIR}/cert.pem" ]; then
@@ -147,14 +147,14 @@ EOF
   ok "Konfigurasi ingress Cloudflare Tunnel tersimpan di ${conf_file}."
 
   # 4. Route DNS
-  if ask "Buat DNS CNAME '${domain}' otomatis di Cloudflare?" 1; then
+  if ask_yn "Buat DNS CNAME '${domain}' otomatis di Cloudflare?" "y"; then
     sub "Mengarahkan DNS ${domain} ke tunnel ${tunnel_name}..."
     cloudflared tunnel route dns "${tunnel_name}" "${domain}" || true
     ok "Rute DNS dibuat untuk ${domain}."
   fi
 
   # 5. Service setup
-  if ask "Pasang service daemon untuk tunnel ini?" 1; then
+  if ask_yn "Pasang service daemon untuk tunnel ini?" "y"; then
     if [ "$(id -u)" -eq 0 ]; then
       cloudflared --config "${conf_file}" service install || true
       systemctl enable --now cloudflared 2>/dev/null || true
@@ -187,7 +187,7 @@ EOF
   fi
 
   # 6. Offer updating Hermes & Claude configurations
-  if ask "Perbarui konfigurasi Hermes & Claude Code agar menggunakan custom domain 'https://${domain}/v1'?" 1; then
+  if ask_yn "Perbarui konfigurasi Hermes & Claude Code agar menggunakan custom domain 'https://${domain}/v1'?" "y"; then
     update_agent_endpoints "https://${domain}/v1"
   fi
 
@@ -300,7 +300,7 @@ EOF
 
 # --- Action: Test Endpoint ------------------------------------------------
 action_test_endpoint() {
-  local ep; ep="$(ask_cfg "Masukkan URL endpoint untuk diuji" "http://${ROUTER_HOST}:${ROUTER_PORT}/api/health")"
+  local ep; ep="$(ask "Masukkan URL endpoint untuk diuji" "http://${ROUTER_HOST}:${ROUTER_PORT}/api/health")"
   sub "Menguji koneksi ke ${ep}..."
   local res; res="$(curl -s -w "\nHTTP_STATUS:%{http_code}" --max-time 10 "${ep}" || true)"
   printf "\n%bHasil Uji Koneksi:%b\n%s\n\n" "${C_CYAN}" "${C_RESET}" "${res}"
@@ -325,7 +325,7 @@ while true; do
       quick)  action_quick_tunnel ;;
       token)  action_token_service ;;
       update)
-        ep="$(ask_cfg "Masukkan URL Proxy Custom Domain" "https://ai.wanforge.asia/v1")"
+        ep="$(ask "Masukkan URL Proxy Custom Domain" "https://ai.wanforge.asia/v1")"
         update_agent_endpoints "${ep}"
         ;;
       health)
