@@ -82,7 +82,7 @@ if [ -z "${TG_TOKEN}" ]; then
   if [ -n "${CURRENT_TOKEN}" ]; then
     masked_tok="${CURRENT_TOKEN:0:8}...${CURRENT_TOKEN: -5}"
     info "Token saat ini terpasang: ${masked_tok}"
-    if ask "Gunakan token Telegram yang tersimpan?" 1; then
+    if ask_yn "Gunakan token Telegram yang tersimpan?" "y"; then
       TG_TOKEN="${CURRENT_TOKEN}"
     else
       TG_TOKEN="$(ask_secret "Masukkan Token Bot Telegram baru dari @BotFather")"
@@ -109,23 +109,26 @@ ok "Token tersimpan di ${ENV_FILE} (chmod 600)"
 # --- Allowed Users (allow_from) -------------------------------------------
 TG_USERS="${ARG_USER}"
 if [ -z "${TG_USERS}" ]; then
+  printf "\n" >&2
   info "Daftar User ID / Username Telegram yang diizinkan mengakses agent (DM & Admin)."
   info "Pisahkan dengan koma jika lebih dari satu. Contoh: 310068528, @username"
-  TG_USERS="$(ask_cfg "Telegram Allowed Users (ID atau @username)" "${USER_TG_ID:-310068528}")"
+  TG_USERS="$(ask "Telegram Allowed Users (ID atau @username)" "${USER_TG_ID:-310068528}")"
 fi
 
 # --- Allowed Group Chats (allowed_chats) -----------------------------------
 TG_CHATS="${ARG_CHAT}"
 if [ -z "${TG_CHATS}" ]; then
+  printf "\n" >&2
   info "Daftar Chat ID Group Telegram yang diizinkan (format grup umumnya berawalan -100)."
   info "Kosongkan jika hanya ingin mengizinkan pesan DM / Private."
-  TG_CHATS="$(ask_cfg "Telegram Allowed Groups (contoh: -100123456789 atau kosong)" "")"
+  TG_CHATS="$(ask "Telegram Allowed Groups (contoh: -100123456789 atau kosong)" "")"
 fi
 
 # --- Group Policies -------------------------------------------------------
 REQ_MENTION="${ARG_REQUIRE_MENTION}"
 if [ -z "${ARG_USER}" ] && [ -n "${TG_CHATS}" ]; then
-  if ask "Wajibkan mention (@botname atau reply) di dalam Group agar bot tidak spam?" 1; then
+  printf "\n" >&2
+  if ask_yn "Wajibkan mention (@botname atau reply) di dalam Group agar bot tidak spam?" "y"; then
     REQ_MENTION="true"
   else
     REQ_MENTION="false"
@@ -135,9 +138,10 @@ fi
 # --- AI Backend URL (9Router / Cloudflare Proxy) --------------------------
 BACKEND_URL="${ARG_API_URL}"
 if [ -z "${ARG_USER}" ]; then
+  printf "\n" >&2
   info "URL AI Gateway untuk Hermes Agent."
   info "Pilihan: Lokal 9Router (http://127.0.0.1:20128/v1) atau Cloudflare Tunnel domain (https://ai.domain.com/v1)"
-  BACKEND_URL="$(ask_cfg "AI Gateway Base URL" "http://127.0.0.1:20128/v1")"
+  BACKEND_URL="$(ask "AI Gateway Base URL" "http://127.0.0.1:20128/v1")"
 fi
 
 # --- Update config.yaml with Python safely --------------------------------
