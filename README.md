@@ -77,14 +77,23 @@ wget -qO- https://scripts.wanforge.asia/install.sh | bash
 You can also run commands directly from the terminal without interactive prompts:
 
 ```bash
-# List all 35 scripts by category
+# List all 35 scripts with index numbers
 ./install.sh list
 
-# Search for a script by keyword
-./install.sh search docker
+# Open a category directly by number (1-9)
+./install.sh 1                      # System category
+./install.sh 2                      # Security category
 
-# Run a specific script directly
-./install.sh run install-docker     # or shorthand: ./install.sh docker
+# Run a specific script by category & tool number
+./install.sh 1 5                    # Category 1 (System), Tool 5 (hardware-info)
+
+# Run a specific script directly by global number or name
+./install.sh 16                     # Global #16 (install-docker)
+./install.sh docker                 # Direct name shorthand
+./install.sh run install-docker
+
+# Search for a script by keyword
+./install.sh search cloudflared
 
 # Quick server health & resource snapshot
 ./install.sh info
