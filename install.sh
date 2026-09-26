@@ -5,7 +5,7 @@
 #
 # Usage:
 #   curl -fsSL https://scripts.wanforge.asia/install.sh | bash
-#   ./install.sh [1-9 | run <name|num> | list | search <term> | help]
+#   ./install.sh [1-10 | run <name|num> | list | search <term> | help]
 #
 # Shows a fast, categorized interactive dashboard with search, numeric input,
 # batch multi-select, and automatic local-or-remote execution.
@@ -115,6 +115,10 @@ SCRIPTS=(
 
   "CI/CD Runners|install-github-runner|script/linux/cicd/install-github-runner.sh|GitHub Actions self-hosted runner as a systemd service"
   "CI/CD Runners|install-gitlab-runner|script/linux/cicd/install-gitlab-runner.sh|GitLab CI/CD self-hosted runner as a systemd service"
+
+  "AI & Agents|install-ai-agents|script/linux/ai/install-ai-agents.sh|Full AI stack: Hermes, Claude Code, AGY, 9Router, Tmux"
+  "AI & Agents|setup-hermes-telegram|script/linux/ai/setup-hermes-telegram.sh|Configure Hermes Telegram bot: token, allowed users, groups & topics"
+  "AI & Agents|setup-9router-tunnel|script/linux/ai/setup-9router-tunnel.sh|Integrate 9Router with Cloudflare Tunnel & custom domain proxy"
 )
 
 # Extract unique categories
@@ -352,7 +356,7 @@ batch_select_mode() {
 
 # --- CLI List -------------------------------------------------------------
 cli_list() {
-  printf "\n%bWANFORGE SCRIPTS REPOSITORY — AVAILABLE TOOLS (35 TOOLS)%b\n\n" "${C_BOLD}${C_CYAN}" "${C_RESET}"
+  printf "\n%bWANFORGE SCRIPTS REPOSITORY — AVAILABLE TOOLS (%d TOOLS)%b\n\n" "${C_BOLD}${C_CYAN}" "${#SCRIPTS[@]}" "${C_RESET}"
   local cur_g="" idx=0
   for row in "${SCRIPTS[@]}"; do
     idx=$((idx + 1))
@@ -371,10 +375,10 @@ cli_help() {
   printf "WANFORGE Server Management & Ops Toolkit\n\n"
   printf "Usage:\n"
   printf "  %s                      Jalankan menu interaktif\n" "$0"
-  printf "  %s 1-9                  Buka kategori 1 sampai 9 langsung\n" "$0"
-  printf "  %s 1-35                 Jalankan script nomor 1 sampai 35 langsung\n" "$0"
+  printf "  %s 1-10                 Buka kategori 1 sampai 10 langsung\n" "$0"
+  printf "  %s 1-38                 Jalankan script nomor 1 sampai 38 langsung\n" "$0"
   printf "  %s <script_name>        Jalankan script berdasarkan nama (contoh: docker)\n" "$0"
-  printf "  %s list                 Tampilkan seluruh 35 tools dengan nomor indeks\n" "$0"
+  printf "  %s list                 Tampilkan seluruh tools (%d) dengan nomor indeks\n" "$0" "${#SCRIPTS[@]}"
   printf "  %s search <keyword>     Cari script berdasarkan nama/deskripsi\n" "$0"
   printf "  %s run <name|number>    Jalankan script spesifik\n" "$0"
   printf "  %s info                 Ringkasan status server (OS, RAM, CPU Load)\n" "$0"
@@ -407,6 +411,7 @@ interactive_main() {
         "Monitoring & Metrics") icon="📊" ;;
         "Observability Stack") icon="📈" ;;
         "CI/CD Runners") icon="🔄" ;;
+        "AI & Agents") icon="🤖" ;;
       esac
       printf "  %b[%d]%b  %s %-24s %b(%d tools)%b\n" \
         "${C_CYAN}" "$((i+1))" "${C_RESET}" \
