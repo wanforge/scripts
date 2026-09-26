@@ -1,6 +1,6 @@
 # wanforge/scripts
 
-Interactive Linux server automation toolkit — one unified launcher, 38 scripts
+Interactive Linux server automation toolkit — one unified launcher, 39 scripts
 across 10 categories: system setup, security hardening, databases, app runtimes,
 cloud panels, network & tunneling, monitoring, observability, CI/CD runners, and AI & agents.
 
@@ -108,6 +108,7 @@ Select scripts to run:
   [✓] backup-tools         Backup manager: S3 / FTP / SFTP — named profiles, cron, dry-run
   [✓] sys-troubleshoot     Diagnostics & troubleshooting: CPU, RAM, services, OOM, logs, firewall, network
   [✓] hardware-info        Hardware audit: CPU, RAM, disks, GPU, firmware, NIC, sensors, virt
+  [✓] setup-motd           Custom dynamic SSH login banner (MOTD) with live system KPIs
   ── Security ──
   [✓] install-firewall     Install & configure ufw firewall
   [✓] firewall-manager     Full ufw manager: allow/deny IP/port, multiple, rate-limit
@@ -404,10 +405,11 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/ai/setup-9router-tunnel.sh
 | System          | `backup-tools.sh`          | Backup manager: S3 / FTP / SFTP — named profiles, cron, dry-run               | No   | Any             |
 | System          | `sys-troubleshoot.sh`      | Diagnostics & troubleshooting: CPU, RAM, services, OOM, logs, firewall, net   | Yes  | Any             |
 | System          | `hardware-info.sh`         | Hardware audit: CPU, RAM, disks, GPU, firmware, NIC, sensors, virt            | Some | Any             |
-| System          | `install-firewall.sh`      | Install `ufw`, open SSH/http/https, add custom ports, enable                  | Yes  | Mainly Deb/Ubu  |
+| System          | `setup-motd.sh`            | Custom dynamic SSH login banner (MOTD) with live system KPIs                  | Yes  | Any             |
+| Security        | `install-firewall.sh`      | Install `ufw`, open SSH/http/https, add custom ports, enable                  | Yes  | Mainly Deb/Ubu  |
 | Security        | `firewall-manager.sh`      | Full ufw manager: allow/deny IP & port, multi-IP, rate-limit                  | Yes  | Any (ufw)       |
 | Security        | `install-fail2ban.sh`      | Install and enable the Fail2Ban service                                       | Yes  | Multi           |
-| Security        | `secure-ssh.sh`            | Audit, change port, disable root/pw, CIS directives, SELinux & firewall       | Yes  | Any (OpenSSH)   |
+| Security        | `secure-ssh.sh`            | Audit, port change, root/pw lockdown, passwordless sudo, CIS, SELinux/fw      | Yes  | Any (OpenSSH)   |
 | Security        | `manage-users.sh`          | Manage Linux users, sudo access, passwords, shells, and SSH keys              | Yes  | Any             |
 | Security        | `generate-ssh-key.sh`      | Generate an ed25519 SSH key, fix perms, print public key                      | No   | Any             |
 | Security        | `ssl-toolkit.sh`           | SSL/TLS diagnostics: remote/local audit, self-signed SAN, handshake, Certbot  | Yes  | Any             |
@@ -421,7 +423,7 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/ai/setup-9router-tunnel.sh
 | App Runtime     | `install-python.sh`        | Python 3 + pip, venv/virtualenv, dev headers, pipx (multi-distro)             | Yes  | Multi           |
 | App Runtime     | `install-composer.sh`      | Install Composer to `~/.local/bin`, verify signature                          | No   | Any (needs PHP) |
 | App Runtime     | `setup-pm2-app.sh`         | Configure pm2-logrotate + register an app (ecosystem.config.js)               | No   | Any             |
-| App Runtime     | `install-docker.sh`        | Install Docker Engine + Docker Compose, run diagnostics, patch UFW bypass     | Yes  | Debian/Ubuntu   |
+| App Runtime     | `install-docker.sh`        | Container runtimes: Docker & Podman, docker CLI alias/socket, diagnostics, UFW | Yes  | Multi           |
 | Monitoring      | `monitor-system.sh`        | CPU/RAM/storage/processes/network — snapshot or realtime watch                | Some | Any             |
 | Network         | `net-tools.sh`             | Local/public IP, ports, speedtest, ping/traceroute/dig/whois/scan             | Some | Any             |
 | Network         | `install-cloudflared.sh`   | Install & configure Cloudflare Tunnel daemon (named / quick / token)          | Yes  | Multi           |
@@ -562,6 +564,15 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/ai/setup-9router-tunnel.sh
   - `--markdown` or `-m`: Clean Markdown report ready for documentation or GitHub issues.
 - **Privilege & Safety**: Fully read-only, non-destructive, and executes safely as both root and non-root users. Automatically checks `sudo -n` for privileged tools (`dmidecode`, `smartctl`) without prompting for passwords or blocking execution.
 
+### setup-motd.sh
+
+- Custom dynamic SSH login banner (MOTD) with live system KPIs:
+  - **Dynamic System Metrics**: Displays hostname, distro, kernel, uptime, CPU cores, load averages, memory usage (RAM), root disk usage (`/`), private IP, SSH listening port, active user sessions, and service status badges (`sshd`, `docker`, `podman`, `firewall`, `9router`).
+  - **Ultra-Fast & Lightweight**: Pure bash and `/proc` inspection executing in under 0.05 seconds with zero external network bloat or login lag.
+  - **Spam Silencer**: Automatically disables annoying Ubuntu Pro / ESM promotional spam scripts (`10-help-text`, `50-motd-news`, `88-esm-announce`, `91-release-upgrade`).
+  - **Multi-Distro**: Integrates natively with `/etc/update-motd.d/` (Debian/Ubuntu) or `/etc/profile.d/` (Fedora/RHEL/CentOS/Arch).
+  - **Actions**: `preview` (instant test render), `install` (set up system-wide), `clean` (silence Ubuntu ads only), `uninstall` (restore stock distro MOTD).
+
 ### install-firewall.sh
 
 - Installs `ufw` if missing, allows OpenSSH, http, https.
@@ -596,6 +607,7 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/ai/setup-9router-tunnel.sh
 - Hardening and security auditing wizard for OpenSSH server:
   - **Audit Mode (`status`)**: Inspects active daemon status, listening ports, effective directives (`PermitRootLogin`, `PubkeyAuthentication`, `PasswordAuthentication`, `X11Forwarding`, `MaxAuthTries`), registered keys in `authorized_keys`, firewall state, and SELinux enforcement.
   - **Port Configuration**: Changes the SSH port (default `22` — keep it or set custom `1-65535`).
+  - **Passwordless Sudo (VPS Standard)**: Option to configure `/etc/sudoers.d/99-wanforge-nopasswd` with `NOPASSWD: ALL` (validated with `visudo`), allowing `sudo su` and root commands without password prompts (default cloud VPS behavior).
   - **Multi-Distro Firewall**: Opens the new port in `ufw` (Ubuntu/Debian) or `firewalld` (RHEL/Fedora/Rocky/AlmaLinux) *before* restarting sshd.
   - **SELinux Support**: Automatically registers custom SSH ports into SELinux policy (`semanage port -a -t ssh_port_t -p tcp <port>`) to prevent permission denied bind errors.
   - **Modern Systemd Socket Activation**: Handles Ubuntu 24.04 `ssh.socket` migration to `ssh.service` so custom ports take effect immediately.
@@ -888,9 +900,13 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/monitoring/install-uptime-
 
 ### install-docker.sh
 
-- Debian/Ubuntu. Installs the official **Docker Engine** and **Docker Compose**.
-- **Diagnostics**: Audits running containers, memory/CPU usage stats, and identifies containers caught in crash loops. Provides automated cache and storage prune cleanups.
-- **UFW Security Patch**: Docker's default iptables routing exposes container ports directly to the internet, bypassing UFW firewall rules. The script includes a firewall security patch that updates `/etc/ufw/after.rules` to force Docker traffic through UFW routing, ensuring standard UFW rules apply to all container ports.
+- Container runtimes and management suite for **Docker Engine** & **Podman**:
+  - **Multi-Distro Engine Support**: Installs official Docker Engine and Docker Compose plugins across Debian, Ubuntu, Fedora, RHEL, CentOS, Rocky Linux, AlmaLinux, Arch, and Alpine.
+  - **Podman Runtime**: Installs rootless and daemonless Podman + Podman Compose.
+  - **Podman as Docker CLI & Socket**: Configures `podman-docker` package or symlinks `/usr/local/bin/docker -> podman`, installs global shell aliases (`alias docker=podman`), silences emulation notice (`/etc/containers/nodocker`), configures default registries (`docker.io`, `quay.io`), and enables Podman API socket (`systemctl enable --now podman.socket`) linked to `/var/run/docker.sock` for seamless compatibility with Docker-dependent tools and SDKs.
+  - **Container Diagnostics**: Audits running containers across either active engine, inspects resource usage snapshots (`stats --no-stream`), and detects containers caught in restart loops or exited with non-zero error codes.
+  - **Storage Cleanup**: Automated prune of stopped containers, unused networks, dangling images, and build caches (`system prune -a --volumes`).
+  - **UFW Security Patch**: Fixes Docker's default iptables routing that exposes container ports directly to the internet by routing container traffic through `/etc/ufw/after.rules`.
 
 ### install-cloudflared.sh
 
