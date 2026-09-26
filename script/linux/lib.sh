@@ -137,6 +137,7 @@ fi
 
 term_lines() { local l; l="$(tput lines 2>/dev/null || true)"; echo "${l:-${LINES:-24}}"; }
 term_cols()  { local c; c="$(tput cols 2>/dev/null || true)";  echo "${c:-${COLUMNS:-80}}"; }
+have()       { command -v "$1" >/dev/null 2>&1; }
 ask()  { local p="$1" d="${2:-}" a; if [ "${ASSUME_YES:-0}" = "1" ]; then echo "${d}"; return 0; fi; if [ -n "${d}" ]; then printf "%b›%b %s %b[%s]%b " "${C_YELLOW}" "${C_RESET}" "${p}" "${C_DIM}" "${d}" "${C_RESET}" >&2; else printf "%b›%b %s " "${C_YELLOW}" "${C_RESET}" "${p}" >&2; fi; read -r a <&3 || a=""; echo "${a:-$d}"; }
 asks() { local p="$1" a; printf "%b›%b %s " "${C_YELLOW}" "${C_RESET}" "${p}" >&2; read -rs a <&3 || a=""; printf "\n" >&2; echo "${a}"; }
 ask_secret() { asks "$@"; }
