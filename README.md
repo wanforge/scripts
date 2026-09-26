@@ -112,7 +112,7 @@ Select scripts to run:
   [✓] install-firewall     Install & configure ufw firewall
   [✓] firewall-manager     Full ufw manager: allow/deny IP/port, multiple, rate-limit
   [✓] install-fail2ban     Install & enable Fail2Ban
-  [✓] secure-ssh           Harden SSH: change port, disable root/password, pubkey
+  [✓] secure-ssh           Harden SSH: audit, port change, root/pw lockdown, SELinux & firewall
   [✓] generate-ssh-key     Generate an ed25519 SSH key (user-local)
   [✓] manage-users         Manage Linux users, sudo access & SSH keys
   [✓] ssl-toolkit          SSL/TLS diagnostics & management: remote/local audit, self-signed SAN, TLS handshake debug, Certbot
@@ -407,7 +407,7 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/ai/setup-9router-tunnel.sh
 | System          | `install-firewall.sh`      | Install `ufw`, open SSH/http/https, add custom ports, enable                  | Yes  | Mainly Deb/Ubu  |
 | Security        | `firewall-manager.sh`      | Full ufw manager: allow/deny IP & port, multi-IP, rate-limit                  | Yes  | Any (ufw)       |
 | Security        | `install-fail2ban.sh`      | Install and enable the Fail2Ban service                                       | Yes  | Multi           |
-| Security        | `secure-ssh.sh`            | Change SSH port, disable root/password login, enable pubkey                   | Yes  | Any (OpenSSH)   |
+| Security        | `secure-ssh.sh`            | Audit, change port, disable root/pw, CIS directives, SELinux & firewall       | Yes  | Any (OpenSSH)   |
 | Security        | `manage-users.sh`          | Manage Linux users, sudo access, passwords, shells, and SSH keys              | Yes  | Any             |
 | Security        | `generate-ssh-key.sh`      | Generate an ed25519 SSH key, fix perms, print public key                      | No   | Any             |
 | Security        | `ssl-toolkit.sh`           | SSL/TLS diagnostics: remote/local audit, self-signed SAN, handshake, Certbot  | Yes  | Any             |
@@ -593,13 +593,15 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/ai/setup-9router-tunnel.sh
 
 ### secure-ssh.sh
 
-- Changes the SSH port (default `22` — keep it or set a custom one), disables
-  root login, optionally disables password auth, enables pubkey auth.
-- Uses a drop-in file under `sshd_config.d/` when `Include` is active, otherwise
-  edits the main config. Backs up `sshd_config` first.
-- **Anti-lockout**: opens the new port in `ufw` before restarting, validates with
-  `sshd -t`, and refuses to disable password auth when no `authorized_keys` exists.
-- Asks before restarting and before removing the old port-22 rule.
+- Hardening and security auditing wizard for OpenSSH server:
+  - **Audit Mode (`status`)**: Inspects active daemon status, listening ports, effective directives (`PermitRootLogin`, `PubkeyAuthentication`, `PasswordAuthentication`, `X11Forwarding`, `MaxAuthTries`), registered keys in `authorized_keys`, firewall state, and SELinux enforcement.
+  - **Port Configuration**: Changes the SSH port (default `22` — keep it or set custom `1-65535`).
+  - **Multi-Distro Firewall**: Opens the new port in `ufw` (Ubuntu/Debian) or `firewalld` (RHEL/Fedora/Rocky/AlmaLinux) *before* restarting sshd.
+  - **SELinux Support**: Automatically registers custom SSH ports into SELinux policy (`semanage port -a -t ssh_port_t -p tcp <port>`) to prevent permission denied bind errors.
+  - **Modern Systemd Socket Activation**: Handles Ubuntu 24.04 `ssh.socket` migration to `ssh.service` so custom ports take effect immediately.
+  - **Anti-Lockout Protection**: Scans `~/.ssh/authorized_keys` and `/root/.ssh/authorized_keys` before allowing password authentication to be disabled; offers on-the-spot key paste or `ed25519` key generation if missing.
+  - **CIS Hardening Directives**: Disables root login (`no` / `prohibit-password`), enforces `PubkeyAuthentication yes`, disables password auth, disables PAM keyboard-interactive fallback, disables `X11Forwarding`, sets `MaxAuthTries 3`, `LoginGraceTime 30`, and keeps sessions alive (`ClientAliveInterval 300`, `ClientAliveCountMax 2`).
+  - **Safe Architecture**: Uses drop-in `/etc/ssh/sshd_config.d/99-wanforge-hardening.conf`, automatically backs up configurations, tests syntax with `sshd -t`, and offers rollback (`--uninstall` / `rollback`).
 
 ### manage-users.sh
 
