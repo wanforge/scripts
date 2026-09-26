@@ -81,7 +81,7 @@ SCRIPTS=(
   "Security|install-firewall|script/linux/system/install-firewall.sh|Install & configure ufw firewall with base ports"
   "Security|firewall-manager|script/linux/security/firewall-manager.sh|Interactive firewall manager: allow/deny IP/port, rich rules"
   "Security|install-fail2ban|script/linux/security/install-fail2ban.sh|Install & enable Fail2Ban with sane jail defaults"
-  "Security|secure-ssh|script/linux/security/secure-ssh.sh|Harden SSH: change port, disable root/password, pubkey"
+  "Security|secure-ssh|script/linux/security/secure-ssh.sh|Harden SSH: audit, port change, root/pw lockdown, SELinux & firewall"
   "Security|generate-ssh-key|script/linux/security/generate-ssh-key.sh|Generate an ed25519 SSH key (user-local)"
   "Security|manage-users|script/linux/security/manage-users.sh|Manage Linux users, sudo access & SSH keys"
   "Security|ssl-toolkit|script/linux/security/ssl-toolkit.sh|SSL/TLS certificates: Certbot Let's Encrypt & self-signed"
