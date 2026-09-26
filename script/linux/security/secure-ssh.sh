@@ -213,6 +213,13 @@ a_status() {
     local se_status; se_status="$(getenforce 2>/dev/null || echo 'Unknown')"
     info "Status SELinux: ${se_status}"
   fi
+
+  printf "\n%b[5] Status Akses Sudo (NOPASSWD):%b\n" "${C_BOLD}${C_CYAN}" "${C_RESET}"
+  if ${SUDO} grep -rhE 'NOPASSWD:\s*ALL' /etc/sudoers /etc/sudoers.d/ 2>/dev/null | grep -v '^[#[:space:]]*#' | grep -q .; then
+    ok "Passwordless sudo aktif: 'sudo su' bebas password (standar Cloud VPS)."
+  else
+    info "Sudo masih memerlukan password (belum diatur NOPASSWD)."
+  fi
   printf "\n"
 }
 
@@ -369,14 +376,24 @@ a_configure() {
     fi
   fi
 
-  # 5. Advanced hardening parameters
+  # 5. Passwordless Sudo (Cloud VPS Standard)
+  printf "\n"
+  info "Sudoers Policy (Cloud VPS Standard):"
+  info "  Mengizinkan 'sudo su' atau perintah root tanpa meminta password lagi (seperti VPS cloud default)."
+  local nopasswd_ans; nopasswd_ans="$(ask_cfg CFG_SSH_NOPASSWD "Aktifkan sudo tanpa password (NOPASSWD untuk sudo / sudo su)? [Y/n]" "y")"
+  local enable_nopasswd=0
+  if [[ "${nopasswd_ans}" =~ ^(y|Y|yes|1)$ ]]; then
+    enable_nopasswd=1
+  fi
+
+  # 6. Advanced hardening parameters
   local max_tries="3"
   local grace_time="30"
   local x11_fwd="no"
   local alive_interval="300"
   local alive_count="2"
 
-  # 6. Target Config Resolution & Backup
+  # 7. Target Config Resolution & Backup
   local target_file=""
   local ts; ts="$(date +%Y%m%d_%H%M%S)"
   local backup_file="${SSHD_MAIN}.bak.${ts}"
@@ -478,7 +495,33 @@ EOF
     info "SSH belum di-restart. Terapkan nanti dengan: sudo systemctl restart ssh"
   fi
 
-  # 13. Optional Cleanup Old Port 22 Rule
+  # 13. Passwordless Sudo Deployment
+  if [ "${enable_nopasswd}" -eq 1 ]; then
+    sub "Mengonfigurasi passwordless sudo (/etc/sudoers.d/99-wanforge-nopasswd)..."
+    local cur_u; cur_u="$(id -un)"
+    local sudoers_file="/etc/sudoers.d/99-wanforge-nopasswd"
+    local sudoers_tmp; sudoers_tmp="$(mktemp)"
+    cat > "${sudoers_tmp}" << 'EOF'
+# WanForge VPS Standard Passwordless Sudo
+%sudo ALL=(ALL) NOPASSWD: ALL
+%wheel ALL=(ALL) NOPASSWD: ALL
+EOF
+    if [ "${cur_u}" != "root" ]; then
+      echo "${cur_u} ALL=(ALL) NOPASSWD: ALL" >> "${sudoers_tmp}"
+    fi
+    chmod 440 "${sudoers_tmp}"
+    if command -v visudo >/dev/null 2>&1 && ${SUDO} visudo -cf "${sudoers_tmp}" >/dev/null 2>&1; then
+      run ${SUDO} mkdir -p /etc/sudoers.d
+      run ${SUDO} cp "${sudoers_tmp}" "${sudoers_file}"
+      run ${SUDO} chmod 440 "${sudoers_file}"
+      ok "Passwordless sudo aktif ('sudo su' bebas password seperti cloud VPS)."
+    else
+      warn "Validasi visudo gagal; konfigurasi sudoers dibatalkan demi keselamatan."
+    fi
+    rm -f "${sudoers_tmp}"
+  fi
+
+  # 14. Optional Cleanup Old Port 22 Rule
   local fw; fw="$(detect_firewall)"
   if [ "${fw}" != "none" ] && [ "${port}" != "22" ]; then
     printf "\n"
@@ -495,6 +538,7 @@ EOF
   printf "  • Port Baru            : %b%s%b\n" "${C_BOLD}${C_YELLOW}" "${port}" "${C_RESET}"
   printf "  • Root Login           : %b%s%b\n" "${C_YELLOW}" "${root_choice}" "${C_RESET}"
   printf "  • Password Auth        : %b%s%b\n" "${C_YELLOW}" "${pw_val}" "${C_RESET}"
+  printf "  • Passwordless Sudo    : %b%s%b\n" "${C_YELLOW}" "$([ "${enable_nopasswd}" -eq 1 ] && echo 'Aktif (NOPASSWD)' || echo 'Tidak diubah')" "${C_RESET}"
   printf "\n%bPERHATIAN: UJI SEKARANG DI TERMINAL BARU:%b\n" "${C_BOLD}${C_RED}" "${C_RESET}"
   printf "  %bssh -p %s %s@<IP_SERVER>%b\n" "${C_BOLD}${C_CYAN}" "${port}" "$(id -un)" "${C_RESET}"
   printf "%bJANGAN TUTUP SESI TERMINAL INI sampai login di atas berhasil!%b\n" "${C_DIM}" "${C_RESET}"
@@ -518,6 +562,13 @@ a_uninstall() {
 
   [ -n "${backup}" ] && run ${SUDO} cp "${backup}" "${SSHD_MAIN}"
   [ -f "${DROPIN}" ]  && run ${SUDO} rm -f "${DROPIN}"
+
+  if [ -f "/etc/sudoers.d/99-wanforge-nopasswd" ]; then
+    if ask_yn "Hapus konfigurasi passwordless sudo (/etc/sudoers.d/99-wanforge-nopasswd)?" "y"; then
+      run ${SUDO} rm -f "/etc/sudoers.d/99-wanforge-nopasswd"
+      ok "Konfigurasi passwordless sudo dihapus."
+    fi
+  fi
 
   sub "Menguji sintaks sshd setelah restore..."
   if ${SUDO} sshd -t; then
