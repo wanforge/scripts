@@ -1,17 +1,16 @@
 # wanforge/scripts
 
-Interactive Linux server automation toolkit — one unified launcher, 35 scripts
-across 9 categories: system setup, security hardening, databases, app runtimes,
-cloud panels, network & tunneling, monitoring, observability, and CI/CD runners.
+Interactive Linux server automation toolkit — one unified launcher, 38 scripts
+across 10 categories: system setup, security hardening, databases, app runtimes,
+cloud panels, network & tunneling, monitoring, observability, CI/CD runners, and AI & agents.
 
 Run scripts individually or use `install.sh`, a fast categorized interactive
-launcher featuring category submenus, single-key numeric jumps (`1`..`9`),
+launcher featuring category submenus, single-key numeric jumps (`1`..`10`),
 instant keyword search, batch multi-select, and automatic local-or-remote execution.
 No authentication required — public repo, served via GitHub Pages at `scripts.wanforge.asia`.
 
 Scripts are organized under `script/linux/<category>/`, structured so future
 macOS or Windows scripts can be added alongside without changing the layout.
-
 
 ## Requirements
 
@@ -99,7 +98,6 @@ You can also run commands directly from the terminal without interactive prompts
 ./install.sh info
 ```
 
-
 ```text
 Select scripts to run:
   ↑/↓ move · SPACE toggle · A all · ENTER confirm · Q quit
@@ -136,6 +134,7 @@ Select scripts to run:
   [✓] monitor-system       CPU, RAM, storage, processes, network (snapshot or realtime)
   ── Network ──
   [✓] net-tools            Local/public IP, ports, speedtest, ping, dig, scan
+  [✓] install-cloudflared  Install and configure Cloudflare Tunnel daemon
   ── Proxmox ──
   [✓] proxmox-toolkit      PVE: node/VM/CT resources, storage, realtime dashboard
   ── CI/CD ──
@@ -148,6 +147,10 @@ Select scripts to run:
   [✓] install-uptime-kuma  Uptime Kuma beautiful self-hosted status page
   [✓] install-loki         Loki + Promtail log aggregator & forwarding agent
   [✓] install-goaccess     GoAccess real-time web log analyzer (terminal & HTML daemon)
+  ── AI & Agents ──
+  [✓] install-ai-agents    Full AI stack: Hermes, Claude Code, AGY, 9Router, Tmux
+  [✓] setup-hermes-telegram Setup Telegram bot, user/group whitelist, optimizations
+  [✓] setup-9router-tunnel Cloudflare Tunnel & custom domain reverse proxy for 9Router
 ```
 
 ### Launcher Flow
@@ -307,6 +310,7 @@ bash install-grafana.sh --uninstall   # full removal (packages, repo, firewall r
 | `generate-ssh-key.sh`         |                    —                     |     —      |    —    |     —      |      —      |   —    |      —      |         ✓          |
 | `install-cloudpanel.sh`       |                    —                     |     —      |    —    |     —      |      —      |   —    |      —      |  ✓ (manual steps)  |
 | `install-docker.sh`          |                    ✓                     |     ✓      |    ✓    |     ✓      |      ✓      |   ✓    |      —      |         ✓          |
+| `install-cloudflared.sh`      |                    ✓                     |     ✓      |    ✓    |     ✓      |      ✓      |   ✓    |      —      |         ✓          |
 | `install-github-runner.sh`    |                    ✓                     |     ✓      |    ✓    |     —      |      —      |   ✓    |      —      |         ✓          |
 | `install-gitlab-runner.sh`    |                    ✓                     |     ✓      |    ✓    |     —      |      —      |   ✓    |      —      |         ✓          |
 
@@ -379,6 +383,15 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/runtime/install-python.sh 
 curl -fsSL https://scripts.wanforge.asia/script/linux/runtime/install-composer.sh | bash
 curl -fsSL https://scripts.wanforge.asia/script/linux/runtime/setup-pm2-app.sh | bash
 curl -fsSL https://scripts.wanforge.asia/script/linux/runtime/install-docker.sh | bash
+
+# Network & Tunnel
+curl -fsSL https://scripts.wanforge.asia/script/linux/network/net-tools.sh | bash
+curl -fsSL https://scripts.wanforge.asia/script/linux/network/install-cloudflared.sh | bash
+
+# AI & Agents
+curl -fsSL https://scripts.wanforge.asia/script/linux/ai/install-ai-agents.sh | bash
+curl -fsSL https://scripts.wanforge.asia/script/linux/ai/setup-hermes-telegram.sh | bash
+curl -fsSL https://scripts.wanforge.asia/script/linux/ai/setup-9router-tunnel.sh | bash
 ```
 
 ## Scripts Overview
@@ -411,6 +424,7 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/runtime/install-docker.sh 
 | App Runtime     | `install-docker.sh`        | Install Docker Engine + Docker Compose, run diagnostics, patch UFW bypass     | Yes  | Debian/Ubuntu   |
 | Monitoring      | `monitor-system.sh`        | CPU/RAM/storage/processes/network — snapshot or realtime watch                | Some | Any             |
 | Network         | `net-tools.sh`             | Local/public IP, ports, speedtest, ping/traceroute/dig/whois/scan             | Some | Any             |
+| Network         | `install-cloudflared.sh`   | Install & configure Cloudflare Tunnel daemon (named / quick / token)          | Yes  | Multi           |
 | Proxmox         | `proxmox-toolkit.sh`       | PVE node/VM/CT resources, storage, cluster, realtime dashboard                | Yes  | Proxmox VE      |
 | CI/CD           | `install-github-runner.sh` | GitHub Actions self-hosted runner as a systemd service (avoid billed minutes) | Yes  | Linux           |
 | CI/CD           | `install-gitlab-runner.sh` | GitLab CI/CD self-hosted runner manager                                       | Yes  | Linux           |
@@ -614,7 +628,6 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/runtime/install-docker.sh 
   - **Generate Self-Signed Certificates**: Generates a standard RSA-2048 certificate with SAN support (including wildcard) acceptable in modern web browsers for local development.
   - **SSL Handshake Debugger**: Connects via different TLS versions (TLS 1.0 - 1.3) to isolate cipher or version mismatch issues.
   - **Provision Certbot**: Installs Certbot and the Nginx plugin (`certbot python3-certbot-nginx`) to auto-provision SSL certificates.
-
 
 ### install-cloudpanel.sh
 
@@ -876,6 +889,44 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/monitoring/install-uptime-
 - Debian/Ubuntu. Installs the official **Docker Engine** and **Docker Compose**.
 - **Diagnostics**: Audits running containers, memory/CPU usage stats, and identifies containers caught in crash loops. Provides automated cache and storage prune cleanups.
 - **UFW Security Patch**: Docker's default iptables routing exposes container ports directly to the internet, bypassing UFW firewall rules. The script includes a firewall security patch that updates `/etc/ufw/after.rules` to force Docker traffic through UFW routing, ensuring standard UFW rules apply to all container ports.
+
+### install-cloudflared.sh
+
+- Installs official Cloudflare Tunnel client (`cloudflared`) on Debian/Ubuntu/RHEL/Arch.
+- **Modes**:
+  - **Quick Tunnel**: Ephemeral `trycloudflare.com` tunnel for instant testing without an account.
+  - **Named Tunnel**: Authenticated persistent tunnel with custom domain DNS routing and local ingress rules.
+  - **Service Token**: Headless one-liner installation using Cloudflare Zero Trust tunnel connector token.
+- Fully integrated with systemd service lifecycle (`--start`, `--stop`, `--restart`, `--status`, `--uninstall`).
+
+### install-ai-agents.sh
+
+- Full-stack autonomous AI coding and messaging environment installer and auditor:
+  - **Tmux**: Installs and configures optimized `~/.tmux.conf` (mouse support, 50,000 lines scrollback, 24-bit truecolor, vi copy-mode).
+  - **9Router**: Installs `9router` AI gateway, creates `9router.service` systemd daemon on port `20128`, configures multi-provider models (Anthropic, OpenAI, DeepSeek, Google Gemini) with automated fallback combos.
+  - **Claude Code CLI**: Installs `@anthropic-ai/claude-code`, configures `~/.claude/settings.json` with 9Router base URL, 998k context window, and permission whitelist for automated execution.
+  - **Antigravity CLI**: Installs `agy` agent and configures RTK hooks.
+  - **Hermes Agent**: Official installer, virtualenv bootstrap, and user systemd service setup.
+  - **Token Optimization**: Integrates Caveman CLI (`@caveman-ai/cli`) and prompt compression tools.
+  - **Doctor Mode**: Runs comprehensive health check verifying node, python, tmux, agent binaries, port availability, and AI proxy latency.
+
+### setup-hermes-telegram.sh
+
+- Interactive setup and hardening wizard for Hermes Agent Telegram gateway:
+  - **Credential Security**: Saves bot tokens with restricted file permissions (`chmod 600`) in `~/.hermes/.env`.
+  - **Access Control & Whitelist**: Restricts direct messages to authorized Telegram user IDs (`allowed_users`) to prevent unauthorized command execution.
+  - **Telegram Groups Protection**: Configures allowed group chat IDs (`allowed_chats`) and optional mention enforcement (`require_mention: true`) to prevent agent runaway in active groups.
+  - **9Router Proxy Routing**: Automatically wires `model.base_url` to local or remote 9Router endpoints.
+  - **Context & Memory Tuning**: Tunes compression thresholds, context window limits, and secret redaction guards.
+  - **Daemonization**: Manages user systemd unit `hermes-gateway.service` and enables persistent linger via `loginctl`.
+
+### setup-9router-tunnel.sh
+
+- Dedicated Cloudflare Tunnel integration and custom domain proxy for 9Router:
+  - Generates Cloudflare ingress rules mapping public HTTPS endpoints (e.g., `ai.wanforge.asia`) to local 9Router port `20128`.
+  - Automatically adds Cloudflare DNS CNAME records.
+  - Updates Hermes Agent and Claude Code configuration to use the public secure domain URL.
+  - Manages background tunnel daemon via systemd.
 
 ## Security Notes
 
