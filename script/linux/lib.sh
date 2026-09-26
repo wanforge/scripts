@@ -126,7 +126,16 @@ pause() { printf "  %b↵ Press Enter to continue…%b" "${C_DIM}" "${C_RESET}" 
 
 # ---- prompts (read from the terminal even under `curl | bash`) -----------
 # Open the terminal on FD 3; fall back to stdin if /dev/tty is not available.
-if ! { [ -e /dev/tty ] && exec 3</dev/tty; } 2>/dev/null; then exec 3<&0; fi
+if [ -t 0 ]; then
+  exec 3<&0
+elif (exec 3</dev/tty) 2>/dev/null; then
+  exec 3</dev/tty
+else
+  exec 3<&0
+fi
+
+term_lines() { local l; l="$(tput lines 2>/dev/null || true)"; echo "${l:-${LINES:-24}}"; }
+term_cols()  { local c; c="$(tput cols 2>/dev/null || true)";  echo "${c:-${COLUMNS:-80}}"; }
 ask()  { local p="$1" d="${2:-}" a; if [ "${ASSUME_YES:-0}" = "1" ]; then echo "${d}"; return 0; fi; if [ -n "${d}" ]; then printf "%b›%b %s %b[%s]%b " "${C_YELLOW}" "${C_RESET}" "${p}" "${C_DIM}" "${d}" "${C_RESET}" >&2; else printf "%b›%b %s " "${C_YELLOW}" "${C_RESET}" "${p}" >&2; fi; read -r a <&3 || a=""; echo "${a:-$d}"; }
 asks() { local p="$1" a; printf "%b›%b %s " "${C_YELLOW}" "${C_RESET}" "${p}" >&2; read -rs a <&3 || a=""; printf "\n" >&2; echo "${a}"; }
 
@@ -247,24 +256,37 @@ checkbox() {
   local total=$((n + groups))
   printf "%b%s%b\n%b  ↑/↓ move · SPACE toggle · A all · ENTER confirm · Q quit%b\n\n" \
     "${C_BOLD}${C_CYAN}" "${title}" "${C_RESET}" "${C_DIM}" "${C_RESET}" >&2
+  local h; h="$(term_lines)"
   while true; do
-    [ "$first" -eq 0 ] && printf "\033[%dA" "$total" >&2
+    if [ "$total" -ge "$h" ]; then
+      printf "\033[H\033[2J" >&2
+    elif [ "$first" -eq 0 ]; then
+      printf "\033[%dA" "$total" >&2
+    fi
     first=0; prev=""
     for ((i = 0; i < n; i++)); do
       IFS='|' read -r g lbl dsc <<< "${MENU[i]}"
       if [ "$g" != "$prev" ]; then printf "\033[2K%b  ── %s ──%b\n" "${C_BOLD}${C_YELLOW}" "$g" "${C_RESET}" >&2; prev="$g"; fi
       local box="[ ]"; [ "${checked[i]}" -eq 1 ] && box="[✓]"
+      local num_pfx=""
+      [ "$n" -le 9 ] && num_pfx="$((i+1))) "
       if [ "$i" -eq "$cursor" ]; then
-        printf "\033[2K%b❯ %s %-20s  %s%b\n" "${C_BOLD}${C_CYAN}" "$box" "$lbl" "$dsc" "${C_RESET}" >&2
+        printf "\033[2K%b❯ %s%s %-20s  %s%b\n" "${C_BOLD}${C_CYAN}" "$num_pfx" "$box" "$lbl" "$dsc" "${C_RESET}" >&2
       else
-        printf "\033[2K  %b%s%b %-20s  %b%s%b\n" "${C_GREEN}" "$box" "${C_RESET}" "$lbl" "${C_DIM}" "$dsc" "${C_RESET}" >&2
+        printf "\033[2K  %s%b%s%b %-20s  %b%s%b\n" "$num_pfx" "${C_GREEN}" "$box" "${C_RESET}" "$lbl" "${C_DIM}" "$dsc" "${C_RESET}" >&2
       fi
     done
     IFS= read -rsn1 key <&3 || break
-    [ "$key" = $'\x1b' ] && { IFS= read -rsn2 -t 0.01 rest <&3 || rest=""; key+="$rest"; }
+    [ "$key" = $'\x1b' ] && { IFS= read -rsn2 -t 0.1 rest <&3 || rest=""; key+="$rest"; }
     case "$key" in
       $'\x1b[A'|k) cursor=$(( (cursor - 1 + n) % n )) ;;
       $'\x1b[B'|j) cursor=$(( (cursor + 1) % n )) ;;
+      [1-9])
+        local idx=$((key - 1))
+        if [ "$idx" -ge 0 ] && [ "$idx" -lt "$n" ]; then
+          checked[idx]=$(( 1 - checked[idx] ))
+        fi
+        ;;
       ' ') checked[cursor]=$(( 1 - checked[cursor] )) ;;
       a|A) local all=1; for ((i = 0; i < n; i++)); do [ "${checked[i]}" -eq 0 ] && all=0; done; for ((i = 0; i < n; i++)); do checked[i]=$(( 1 - all )); done ;;
       q|Q) CHOSEN_KEYS=(); return 1 ;;
@@ -290,24 +312,38 @@ menu_select() {
   for ((i = 0; i < n; i++)); do IFS='|' read -r g _ <<< "${MENU[i]}"; [ "$g" != "$pg" ] && { groups=$((groups + 1)); pg="$g"; }; done
   local total=$((n + groups))
   printf "%b%s%b\n%b  ↑/↓ move · ENTER select · Q back%b\n\n" "${C_BOLD}${C_CYAN}" "${title}" "${C_RESET}" "${C_DIM}" "${C_RESET}" >&2
+  local h; h="$(term_lines)"
   while true; do
-    [ "$first" -eq 0 ] && printf "\033[%dA" "$total" >&2
+    if [ "$total" -ge "$h" ]; then
+      printf "\033[H\033[2J" >&2
+    elif [ "$first" -eq 0 ]; then
+      printf "\033[%dA" "$total" >&2
+    fi
     first=0; prev=""
     for ((i = 0; i < n; i++)); do
       IFS='|' read -r g k lbl <<< "${MENU[i]}"
       if [ "$g" != "$prev" ]; then printf "\033[2K%b  ── %s ──%b\n" "${C_BOLD}${C_YELLOW}" "$g" "${C_RESET}" >&2; prev="$g"; fi
+      local num_pfx=""
+      [ "$n" -le 9 ] && num_pfx="$((i+1))) "
       if [ "$i" -eq "$cursor" ]; then
-        printf "\033[2K%b❯ %-20s  %s%b\n" "${C_BOLD}${C_CYAN}" "$k" "$lbl" "${C_RESET}" >&2
+        printf "\033[2K%b❯ %s%-20s  %s%b\n" "${C_BOLD}${C_CYAN}" "$num_pfx" "$k" "$lbl" "${C_RESET}" >&2
       else
-        printf "\033[2K  %-20s  %b%s%b\n" "$k" "${C_DIM}" "$lbl" "${C_RESET}" >&2
+        printf "\033[2K  %s%-20s  %b%s%b\n" "$num_pfx" "$k" "${C_DIM}" "$lbl" "${C_RESET}" >&2
       fi
     done
     IFS= read -rsn1 key <&3 || break
-    [ "$key" = $'\x1b' ] && { IFS= read -rsn2 -t 0.01 rest <&3 || rest=""; key+="$rest"; }
+    [ "$key" = $'\x1b' ] && { IFS= read -rsn2 -t 0.1 rest <&3 || rest=""; key+="$rest"; }
     case "$key" in
       $'\x1b[A'|k) cursor=$(( (cursor - 1 + n) % n )) ;;
       $'\x1b[B'|j) cursor=$(( (cursor + 1) % n )) ;;
-      q|Q) MENU_KEY=""; return 1 ;;
+      [1-9])
+        local idx=$((key - 1))
+        if [ "$idx" -ge 0 ] && [ "$idx" -lt "$n" ]; then
+          IFS='|' read -r _ MENU_KEY _ <<< "${MENU[idx]}"
+          return 0
+        fi
+        ;;
+      0|q|Q) MENU_KEY=""; return 1 ;;
       '') IFS='|' read -r _ MENU_KEY _ <<< "${MENU[cursor]}"; return 0 ;;
     esac
   done
@@ -457,3 +493,67 @@ wf_svc_menu() {
     install|*)   return 0 ;;
   esac
 }
+
+# ---- distro & package manager helpers -----------------------------------
+os_detect() {
+  OS_ID="unknown"
+  OS_NAME="Linux"
+  OS_VER=""
+  OS_CODENAME=""
+  if [ -f /etc/os-release ]; then
+    # shellcheck disable=SC1091
+    . /etc/os-release
+    OS_ID="${ID:-unknown}"
+    OS_NAME="${PRETTY_NAME:-${NAME:-Linux}}"
+    OS_VER="${VERSION_ID:-}"
+    OS_CODENAME="${UBUNTU_CODENAME:-${VERSION_CODENAME:-}}"
+  fi
+}
+
+detect_pm() {
+  local pm
+  for pm in apt-get dnf yum pacman zypper apk; do
+    command -v "$pm" >/dev/null 2>&1 && { echo "$pm"; return 0; }
+  done
+  return 1
+}
+
+pm_update() {
+  local pm; pm="$(detect_pm 2>/dev/null || true)"
+  case "$pm" in
+    apt-get) run ${SUDO} apt-get update -y ;;
+    dnf)     run ${SUDO} dnf makecache ;;
+    yum)     run ${SUDO} yum makecache ;;
+    pacman)  run ${SUDO} pacman -Sy --noconfirm ;;
+    zypper)  run ${SUDO} zypper refresh ;;
+    apk)     run ${SUDO} apk update ;;
+    *) warn "No supported package manager found." ;;
+  esac
+}
+
+pm_install() {
+  local pm; pm="$(detect_pm 2>/dev/null || true)"
+  case "$pm" in
+    apt-get) run ${SUDO} apt-get update -y && run ${SUDO} apt-get install -y "$@" ;;
+    dnf)     run ${SUDO} dnf -y install "$@" ;;
+    yum)     run ${SUDO} yum -y install "$@" ;;
+    pacman)  run ${SUDO} pacman -S --noconfirm --needed "$@" ;;
+    zypper)  run ${SUDO} zypper --non-interactive install "$@" ;;
+    apk)     run ${SUDO} apk add "$@" ;;
+    *) warn "No supported package manager found to install: $*" ;;
+  esac
+}
+
+sys_snapshot() {
+  os_detect
+  local up load ram
+  up="$(uptime -p 2>/dev/null || uptime 2>/dev/null | awk -F'up ' '{print $2}' | awk -F',' '{print $1}' || echo "unknown")"
+  load="$(cat /proc/loadavg 2>/dev/null | awk '{print $1, $2, $3}' || echo "-")"
+  ram="$(free -h 2>/dev/null | awk '/^Mem:/ {print $3 "/" $2}' || echo "-")"
+  printf "%bHost:%b %s  %bOS:%b %s  %bRAM:%b %s  %bLoad:%b %s\n" \
+    "${C_CYAN}" "${C_RESET}" "$(hostname -s 2>/dev/null || echo "host")" \
+    "${C_CYAN}" "${C_RESET}" "${OS_NAME}" \
+    "${C_CYAN}" "${C_RESET}" "${ram}" \
+    "${C_CYAN}" "${C_RESET}" "${load}" >&2
+}
+
