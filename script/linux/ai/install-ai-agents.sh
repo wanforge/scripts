@@ -37,43 +37,9 @@ export PATH="${USER_BIN}:${HOME}/.local/share/lerd/bin:/usr/local/bin:${PATH}"
 SUDO=""
 [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1 && SUDO="sudo"
 
-# --- 1. System Base Dependencies & Tmux ------------------------------------
-install_base_and_tmux() {
-  hd "1. Memasang Dependensi Sistem & Tmux"
-
-  local pkgs=(curl wget git jq tmux python3 python3-pip)
-  sub "Memeriksa dan memperbarui paket: ${pkgs[*]}..."
-
-  if command -v pkg_install >/dev/null 2>&1; then
-    pkg_install "${pkgs[@]}" || true
-  elif [ -n "${SUDO}" ] && command -v apt-get >/dev/null 2>&1; then
-    ${SUDO} apt-get update -y && ${SUDO} apt-get install -y "${pkgs[@]}" build-essential || true
-  elif [ -n "${SUDO}" ] && command -v dnf >/dev/null 2>&1; then
-    ${SUDO} dnf install -y "${pkgs[@]}" || true
-  fi
-
-  # Optimized ~/.tmux.conf for AI agents
-  sub "Mengonfigurasi ~/.tmux.conf teroptimasi untuk coding agent..."
-  cat > "${HOME}/.tmux.conf" <<'EOF'
-# WanForge AI Agent tmux configuration
-set -g mouse on
-set -g history-limit 50000
-set -s escape-time 10
-set -g focus-events on
-set -g default-terminal "screen-256color"
-set-option -sa terminal-overrides ',xterm-256color:RGB'
-set -g status-interval 5
-set -g status-style "bg=#1e1e2e,fg=#cdd6f4"
-set -g status-left "#[fg=#89b4fa,bold] [Agent tmux] #[default]"
-set -g status-right "#[fg=#a6e3a1]%H:%M #[fg=#f9e2af]%d-%b-%y "
-setw -g mode-keys vi
-EOF
-  ok "Tmux terpasang dan ~/.tmux.conf berhasil dikonfigurasi."
-}
-
-# --- 2. Node.js & 9Router AI Gateway --------------------------------------
+# --- 1. Node.js & 9Router AI Gateway --------------------------------------
 install_9router() {
-  hd "2. Setup 9Router AI Gateway (Port 20128)"
+  hd "1. Setup 9Router AI Gateway (Port 20128)"
 
   # Ensure Node.js & npm
   if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
@@ -417,22 +383,8 @@ run_doctor() {
 
 # --- CLI Dispatch ---------------------------------------------------------
 case "${1:-}" in
-  --all)
-    install_base_and_tmux
-    install_9router
-    install_claude_code
-    install_antigravity
-    install_hermes_agent
-    install_optimization_stack
-    run_doctor
-    exit 0
-    ;;
   doctor|audit)
     run_doctor
-    exit 0
-    ;;
-  tmux)
-    install_base_and_tmux
     exit 0
     ;;
   9router)
@@ -451,12 +403,22 @@ case "${1:-}" in
     install_hermes_agent
     exit 0
     ;;
+  telegram)
+    bash "${__d}/setup-hermes-telegram.sh"
+    exit 0
+    ;;
+  tunnel)
+    bash "${__d}/setup-9router-tunnel.sh"
+    exit 0
+    ;;
+  tools|optimize)
+    install_optimization_stack
+    exit 0
+    ;;
 esac
 
 # --- Interactive Main Menu ------------------------------------------------
 MENU=(
-  "Full|all|Pasang Seluruh Stack AI Otomatis (Hermes + Claude + AGY + 9Router + Tmux)"
-  "Install|tmux|Pasang & Tuning Tmux untuk Agent Orchestration"
   "Install|9router|Pasang 9Router AI Gateway & Systemd Service (Port 20128)"
   "Install|claude|Pasang Claude Code CLI & Pengaturan 9Router Backend"
   "Install|agy|Pasang Antigravity CLI (AGY) & Hook Konfigurasi"
@@ -470,17 +432,6 @@ MENU=(
 while true; do
   if menu_select "Pilih komponen AI Agent Stack yang ingin dikonfigurasi:"; then
     case "${MENU_KEY}" in
-      all)
-        install_base_and_tmux
-        install_9router
-        install_claude_code
-        install_antigravity
-        install_hermes_agent
-        install_optimization_stack
-        run_doctor
-        pause
-        ;;
-      tmux)     install_base_and_tmux; pause ;;
       9router)  install_9router; pause ;;
       claude)   install_claude_code; pause ;;
       agy)      install_antigravity; pause ;;
