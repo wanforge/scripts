@@ -72,7 +72,7 @@ spinner() {
 # --- script registry ------------------------------------------------------
 # Format: "group|label|path-in-repo|description"
 SCRIPTS=(
-  "System|install-packages|script/linux/system/install-packages.sh|Update system + install base essentials (micro, curl, wget, git, htop)"
+  "System|install-packages|script/linux/system/install-packages.sh|Update system + install base essentials (micro, curl, wget, git, tmux)"
   "System|set-timezone|script/linux/system/set-timezone.sh|Set timezone (UTC recommended for servers)"
   "System|backup-tools|script/linux/system/backup-tools.sh|Backup manager: S3 / FTP / SFTP — named profiles, cron, dry-run"
   "System|sys-troubleshoot|script/linux/system/sys-troubleshoot.sh|Diagnostics: CPU, RAM, services, OOM, logs, firewall, network"
@@ -116,7 +116,7 @@ SCRIPTS=(
   "CI/CD Runners|install-github-runner|script/linux/cicd/install-github-runner.sh|GitHub Actions self-hosted runner as a systemd service"
   "CI/CD Runners|install-gitlab-runner|script/linux/cicd/install-gitlab-runner.sh|GitLab CI/CD self-hosted runner as a systemd service"
 
-  "AI & Agents|install-ai-agents|script/linux/ai/install-ai-agents.sh|Full AI stack: Hermes, Claude Code, AGY, 9Router, Tmux"
+  "AI & Agents|install-ai-agents|script/linux/ai/install-ai-agents.sh|Modular AI stack: Hermes, Claude Code, AGY, 9Router"
   "AI & Agents|setup-hermes-telegram|script/linux/ai/setup-hermes-telegram.sh|Configure Hermes Telegram bot: token, allowed users, groups & topics"
   "AI & Agents|setup-9router-tunnel|script/linux/ai/setup-9router-tunnel.sh|Integrate 9Router with Cloudflare Tunnel & custom domain proxy"
 )
