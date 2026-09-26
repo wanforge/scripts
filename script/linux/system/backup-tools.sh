@@ -24,6 +24,10 @@ TASK="backup-tools"
 __LIB="https://scripts.wanforge.asia/script/linux/lib.sh"
 __d="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
 if   [ -r "${__d}/../lib.sh" ]; then . "${__d}/../lib.sh"
+elif [ -r "${__d}/lib.sh" ]; then . "${__d}/lib.sh"
+elif [ -n "${WF_INSTALL_DIR:-}" ] && [ -r "${WF_INSTALL_DIR}/lib.sh" ]; then . "${WF_INSTALL_DIR}/lib.sh"
+elif [ -r "/opt/wanforge-scripts/lib.sh" ]; then . "/opt/wanforge-scripts/lib.sh"
+elif [ -r "${HOME:-}/.local/lib/wanforge-scripts/lib.sh" ]; then . "${HOME}/.local/lib/wanforge-scripts/lib.sh"
 elif command -v curl >/dev/null 2>&1; then . <(curl -fsSL "${__LIB}")
 else . <(wget -qO- "${__LIB}"); fi
 cfg_load
@@ -44,6 +48,9 @@ case "${_BT_SELF}" in
     _BT_PERM="${_BT_PERM_DIR}/backup-tools.sh"
     mkdir -p "${_BT_PERM_DIR}"
     cp "${_BT_SELF}" "${_BT_PERM}" && chmod +x "${_BT_PERM}"
+    if [ -f "${__d}/backup-engine.py" ]; then
+      cp "${__d}/backup-engine.py" "${_BT_PERM_DIR}/backup-engine.py" 2>/dev/null || true
+    fi
     exec bash "${_BT_PERM}" "$@"
     ;;
 esac
@@ -52,7 +59,13 @@ unset _BT_SELF _BT_PERM_DIR _BT_PERM
 # --- engine detection -----------------------------------------------------
 # backup-engine.py: Python engine with SQLite resume, parallel workers.
 # Lives alongside this script; falls back to native tools if absent.
-ENGINE="${__d}/backup-engine.py"
+if   [ -f "${__d}/backup-engine.py" ]; then ENGINE="${__d}/backup-engine.py"
+elif [ -f "${__d}/../system/backup-engine.py" ]; then ENGINE="${__d}/../system/backup-engine.py"
+elif [ -n "${WF_INSTALL_DIR:-}" ] && [ -f "${WF_INSTALL_DIR}/backup-engine.py" ]; then ENGINE="${WF_INSTALL_DIR}/backup-engine.py"
+elif [ -f "/opt/wanforge-scripts/backup-engine.py" ]; then ENGINE="/opt/wanforge-scripts/backup-engine.py"
+elif [ -f "${HOME:-}/.local/lib/wanforge-scripts/backup-engine.py" ]; then ENGINE="${HOME}/.local/lib/wanforge-scripts/backup-engine.py"
+else ENGINE="${__d}/backup-engine.py"; fi
+
 _has_engine() { [ -f "${ENGINE}" ] && have python3; }
 
 # State dir for engine SQLite DB (per-profile, under WF_DATA_DIR)
