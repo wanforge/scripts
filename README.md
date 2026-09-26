@@ -420,6 +420,9 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/runtime/install-docker.sh 
 | Observability   | `install-uptime-kuma.sh`   | Uptime Kuma status page & endpoint monitor (Node.js + PM2)                    | No   | Linux           |
 | Observability   | `install-loki.sh`          | Loki + Promtail log aggregator & forwarding agent                             | Yes  | Debian/Ubuntu   |
 | Observability   | `install-goaccess.sh`      | GoAccess real-time web log analyzer (terminal & HTML daemon)                 | Yes  | Debian/Ubuntu   |
+| AI & Agents     | `install-ai-agents.sh`     | Full AI stack: Hermes, Claude Code, AGY, 9Router, Tmux, token optimization     | Some | Linux           |
+| AI & Agents     | `setup-hermes-telegram.sh` | Configure Hermes Telegram Bot: token, whitelist, group policy, 9Router backend | No   | Linux           |
+| AI & Agents     | `setup-9router-tunnel.sh`  | Cloudflare Tunnel & custom domain reverse proxy for 9Router & AI agents       | Some | Linux           |
 
 ## Script Details
 
