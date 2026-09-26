@@ -77,6 +77,7 @@ SCRIPTS=(
   "System|backup-tools|script/linux/system/backup-tools.sh|Backup manager: S3 / FTP / SFTP — named profiles, cron, dry-run"
   "System|sys-troubleshoot|script/linux/system/sys-troubleshoot.sh|Diagnostics: CPU, RAM, services, OOM, logs, firewall, network"
   "System|hardware-info|script/linux/system/hardware-info.sh|Hardware audit: CPU, RAM, disks, GPU, NIC, sensors, virtualization"
+  "System|setup-motd|script/linux/system/setup-motd.sh|Custom dynamic SSH login banner (MOTD) with live system KPIs"
 
   "Security|install-firewall|script/linux/system/install-firewall.sh|Install & configure ufw firewall with base ports"
   "Security|firewall-manager|script/linux/security/firewall-manager.sh|Interactive firewall manager: allow/deny IP/port, rich rules"
@@ -90,7 +91,7 @@ SCRIPTS=(
   "Database|enable-mysql-remote|script/linux/database/enable-mysql-remote.sh|Allow remote MySQL/MariaDB access securely"
   "Database|database-toolkit|script/linux/database/database-toolkit.sh|Monitor, optimize, config, datetime (MySQL/PostgreSQL)"
 
-  "App Runtime|install-docker|script/linux/runtime/install-docker.sh|Docker Engine & Docker Compose (with UFW security patch)"
+  "App Runtime|install-docker|script/linux/runtime/install-docker.sh|Container runtimes: Docker & Podman, docker CLI alias/socket, diagnostics & UFW patch"
   "App Runtime|install-nodejs|script/linux/runtime/install-nodejs.sh|Install Node.js via nvm (user-local) + PM2"
   "App Runtime|install-python|script/linux/runtime/install-python.sh|Install Python 3 + pip, venv, dev, pipx"
   "App Runtime|install-composer|script/linux/runtime/install-composer.sh|Install Composer (user-local, signature-verified)"
@@ -391,7 +392,7 @@ cli_help() {
   printf "Usage:\n"
   printf "  %s                      Jalankan menu interaktif\n" "$0"
   printf "  %s 1-10                 Buka kategori 1 sampai 10 langsung\n" "$0"
-  printf "  %s 1-38                 Jalankan script nomor 1 sampai 38 langsung\n" "$0"
+  printf "  %s 1-39                 Jalankan script nomor 1 sampai 39 langsung\n" "$0"
   printf "  %s <script_name>        Jalankan script berdasarkan nama (contoh: docker)\n" "$0"
   printf "  %s list                 Tampilkan seluruh tools (%d) dengan nomor indeks\n" "$0" "${#SCRIPTS[@]}"
   printf "  %s search <keyword>     Cari script berdasarkan nama/deskripsi\n" "$0"
