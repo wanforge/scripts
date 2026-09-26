@@ -121,6 +121,7 @@ warn()  { [ "${LOG_LEVEL:-1}" -ge 1 ] || return 0; __log "  ${C_YELLOW}⚠${C_RE
 err()   { __log "  ${C_RED}✖${C_RESET} $1"; }
 dbg()   { [ "${LOG_LEVEL:-1}" -ge 2 ] || return 0; __log "  ${C_DIM}⋯${C_RESET} $1"; }
 step()  { [ "${LOG_LEVEL:-1}" -ge 1 ] || return 0; __log "\n  ${C_BOLD}${C_YELLOW}[$1]${C_RESET} $2"; }
+sub()   { [ "${LOG_LEVEL:-1}" -ge 1 ] || return 0; __log "    ${C_DIM}↳${C_RESET} $1"; }
 hr()    { [ "${LOG_LEVEL:-1}" -ge 1 ] || return 0; __log "${C_DIM}$(printf '%.0s─' {1..72})${C_RESET}"; }
 pause() { printf "  %b↵ Press Enter to continue…%b" "${C_DIM}" "${C_RESET}" >&2; read -r _ <&3 2>/dev/null || true; }
 
@@ -138,6 +139,22 @@ term_lines() { local l; l="$(tput lines 2>/dev/null || true)"; echo "${l:-${LINE
 term_cols()  { local c; c="$(tput cols 2>/dev/null || true)";  echo "${c:-${COLUMNS:-80}}"; }
 ask()  { local p="$1" d="${2:-}" a; if [ "${ASSUME_YES:-0}" = "1" ]; then echo "${d}"; return 0; fi; if [ -n "${d}" ]; then printf "%b›%b %s %b[%s]%b " "${C_YELLOW}" "${C_RESET}" "${p}" "${C_DIM}" "${d}" "${C_RESET}" >&2; else printf "%b›%b %s " "${C_YELLOW}" "${C_RESET}" "${p}" >&2; fi; read -r a <&3 || a=""; echo "${a:-$d}"; }
 asks() { local p="$1" a; printf "%b›%b %s " "${C_YELLOW}" "${C_RESET}" "${p}" >&2; read -rs a <&3 || a=""; printf "\n" >&2; echo "${a}"; }
+ask_secret() { asks "$@"; }
+ask_yn() {
+  local p="$1" d="${2:-y}" a
+  if [ "${ASSUME_YES:-0}" = "1" ]; then
+    [[ "${d}" =~ ^[yY1] ]] && return 0 || return 1
+  fi
+  local hint="[Y/n]"
+  [[ "${d}" =~ ^[nN0] ]] && hint="[y/N]"
+  printf "%b›%b %s %b%s%b " "${C_YELLOW}" "${C_RESET}" "${p}" "${C_DIM}" "${hint}" "${C_RESET}" >&2
+  read -r a <&3 || a=""
+  a="${a:-$d}"
+  case "${a}" in
+    y|Y|yes|YES|1) return 0 ;;
+    *) return 1 ;;
+  esac
+}
 
 # ---- config persistence -------------------------------------------------
 # Per-script config saved at ~/.config/wanforge-scripts/<TASK>.conf (chmod 600).
@@ -196,25 +213,42 @@ cfg_clear() {
 
 # ask_cfg KEY "prompt" [default]  — show saved value as default; save on answer
 ask_cfg() {
-  local key="$1" prompt="$2" default="${3:-}"
-  local saved; saved="${!key:-}"
+  local key="$1" prompt="${2:-}" default="${3:-}"
+  local saved=""
+  if [[ "${key}" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
+    saved="${!key:-}"
+  else
+    prompt="$1"
+    default="${2:-}"
+    key=""
+  fi
   local val; val="$(ask "${prompt}" "${saved:-${default}}")"
-  cfg_set "${key}" "${val}"
+  [ -n "${key}" ] && cfg_set "${key}" "${val}"
   printf '%s\n' "${val}"
 }
 
 # asks_cfg KEY "prompt"  — hidden input; press Enter to keep the saved secret
 asks_cfg() {
-  local key="$1" prompt="$2"
-  local saved; saved="${!key:-}"
+  local key="$1" prompt="${2:-}"
+  local saved=""
+  if [[ "${key}" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
+    saved="${!key:-}"
+  else
+    prompt="$1"
+    key=""
+  fi
   if [ -n "${saved}" ]; then
     info "${C_DIM}${key}: saved value on file — press Enter to keep, or type to replace${C_RESET}"
     local val; val="$(asks "${prompt}")"
-    if [ -n "${val}" ]; then cfg_set "${key}" "${val}"; printf '%s\n' "${val}"
-    else printf '%s\n' "${saved}"; fi
+    if [ -n "${val}" ]; then
+      [ -n "${key}" ] && cfg_set "${key}" "${val}"
+      printf '%s\n' "${val}"
+    else
+      printf '%s\n' "${saved}"
+    fi
   else
     local val; val="$(asks "${prompt}")"
-    [ -n "${val}" ] && cfg_set "${key}" "${val}"
+    [ -n "${key}" ] && [ -n "${val}" ] && cfg_set "${key}" "${val}"
     printf '%s\n' "${val}"
   fi
 }
@@ -269,11 +303,15 @@ checkbox() {
       if [ "$g" != "$prev" ]; then printf "\033[2K%b  ── %s ──%b\n" "${C_BOLD}${C_YELLOW}" "$g" "${C_RESET}" >&2; prev="$g"; fi
       local box="[ ]"; [ "${checked[i]}" -eq 1 ] && box="[✓]"
       local num_pfx=""
-      [ "$n" -le 9 ] && num_pfx="$((i+1))) "
-      if [ "$i" -eq "$cursor" ]; then
-        printf "\033[2K%b❯ %s%s %-20s  %s%b\n" "${C_BOLD}${C_CYAN}" "$num_pfx" "$box" "$lbl" "$dsc" "${C_RESET}" >&2
+      if [ "$n" -le 9 ]; then
+        num_pfx="$((i+1))) "
       else
-        printf "\033[2K  %s%b%s%b %-20s  %b%s%b\n" "$num_pfx" "${C_GREEN}" "$box" "${C_RESET}" "$lbl" "${C_DIM}" "$dsc" "${C_RESET}" >&2
+        num_pfx="$(printf "%2d) " "$((i+1))")"
+      fi
+      if [ "$i" -eq "$cursor" ]; then
+        printf "\033[2K%b❯ %s%s %-24s  %s%b\n" "${C_BOLD}${C_CYAN}" "$num_pfx" "$box" "$lbl" "$dsc" "${C_RESET}" >&2
+      else
+        printf "\033[2K  %s%b%s%b %-24s  %b%s%b\n" "$num_pfx" "${C_GREEN}" "$box" "${C_RESET}" "$lbl" "${C_DIM}" "$dsc" "${C_RESET}" >&2
       fi
     done
     IFS= read -rsn1 key <&3 || break
@@ -282,7 +320,16 @@ checkbox() {
       $'\x1b[A'|k) cursor=$(( (cursor - 1 + n) % n )) ;;
       $'\x1b[B'|j) cursor=$(( (cursor + 1) % n )) ;;
       [1-9])
-        local idx=$((key - 1))
+        local num_str="${key}"
+        if [ "$n" -ge 10 ]; then
+          local next_ch=""
+          if IFS= read -rsn1 -t 0.2 next_ch <&3 2>/dev/null; then
+            if [[ "${next_ch}" =~ ^[0-9]$ ]]; then
+              num_str="${key}${next_ch}"
+            fi
+          fi
+        fi
+        local idx=$(( 10#${num_str} - 1 ))
         if [ "$idx" -ge 0 ] && [ "$idx" -lt "$n" ]; then
           checked[idx]=$(( 1 - checked[idx] ))
           cursor=$idx
@@ -326,11 +373,15 @@ menu_select() {
       IFS='|' read -r g k lbl <<< "${MENU[i]}"
       if [ "$g" != "$prev" ]; then printf "\033[2K%b  ── %s ──%b\n" "${C_BOLD}${C_YELLOW}" "$g" "${C_RESET}" >&2; prev="$g"; fi
       local num_pfx=""
-      [ "$n" -le 9 ] && num_pfx="$((i+1))) "
-      if [ "$i" -eq "$cursor" ]; then
-        printf "\033[2K%b❯ %s%-20s  %s%b\n" "${C_BOLD}${C_CYAN}" "$num_pfx" "$k" "$lbl" "${C_RESET}" >&2
+      if [ "$n" -le 9 ]; then
+        num_pfx="$((i+1))) "
       else
-        printf "\033[2K  %s%-20s  %b%s%b\n" "$num_pfx" "$k" "${C_DIM}" "$lbl" "${C_RESET}" >&2
+        num_pfx="$(printf "%2d) " "$((i+1))")"
+      fi
+      if [ "$i" -eq "$cursor" ]; then
+        printf "\033[2K%b❯ %s%-24s  %s%b\n" "${C_BOLD}${C_CYAN}" "$num_pfx" "$k" "$lbl" "${C_RESET}" >&2
+      else
+        printf "\033[2K  %s%-24s  %b%s%b\n" "$num_pfx" "$k" "${C_DIM}" "$lbl" "${C_RESET}" >&2
       fi
     done
     IFS= read -rsn1 key <&3 || break
@@ -339,7 +390,16 @@ menu_select() {
       $'\x1b[A'|k) cursor=$(( (cursor - 1 + n) % n )) ;;
       $'\x1b[B'|j) cursor=$(( (cursor + 1) % n )) ;;
       [1-9])
-        local idx=$((key - 1))
+        local num_str="${key}"
+        if [ "$n" -ge 10 ]; then
+          local next_ch=""
+          if IFS= read -rsn1 -t 0.2 next_ch <&3 2>/dev/null; then
+            if [[ "${next_ch}" =~ ^[0-9]$ ]]; then
+              num_str="${key}${next_ch}"
+            fi
+          fi
+        fi
+        local idx=$(( 10#${num_str} - 1 ))
         if [ "$idx" -ge 0 ] && [ "$idx" -lt "$n" ]; then
           read -rsn1 -t 0.05 _drain <&3 2>/dev/null || true
           IFS='|' read -r _ MENU_KEY _ <<< "${MENU[idx]}"
