@@ -9,11 +9,14 @@
 #   ./wf (symlink to install.sh)
 #
 # Features:
-#   - Interactive keyboard-driven dual-pane TUI (Zero external dependencies)
-#   - 100% Portable: runs in-place from repo or isolated user-space cache
-#   - Real-time search filter across all 39 ops tools
-#   - Direct tool runner, code inspector (v), batch mode (b), sys snapshot (i)
-#   - Full CLI fallback for CI/CD and automated terminal pipelines
+#   - 100% Portable: runs in-place from cloned repo or user-space cache
+#   - Zero system pollution: never touches /opt or /usr without explicit instruction
+#   - Rock-solid TUI: keyboard-driven (arrows, numeric, Enter, search, batch)
+#   - Pure Bash & ANSI: no external curses, python, or package dependencies
+#   - Dual-view hierarchy: Category Dashboard -> Script Submenu -> Action
+#   - Realtime search filter across all 39 tools
+#   - Code viewer (v) to inspect source before running
+#   - Batch multi-select runner (b)
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2026 Sugeng Sulistiyawan
@@ -61,7 +64,7 @@ if [ -r "${__d}/script/linux/lib.sh" ]; then
   WF_INSTALL_DIR="${__d}"
   WF_PORTABLE_MODE="repo"
 else
-  # Remote curl mode — user-space portable cache, no root pollution!
+  # Remote curl mode — isolated user-space cache, no root pollution!
   WF_INSTALL_DIR="${XDG_CACHE_HOME:-${HOME:-/tmp}/.cache}/wanforge-scripts"
   WF_PORTABLE_MODE="cache"
   mkdir -p "${WF_INSTALL_DIR}" 2>/dev/null || WF_INSTALL_DIR="/tmp/wanforge-$UID-scripts"
@@ -85,7 +88,7 @@ spinner() {
   printf "\r%b✔%b %s\n" "${C_GREEN}" "${C_RESET}" "$msg" >&2
 }
 
-# --- script registry ------------------------------------------------------
+# --- script registry (39 tools across 10 categories) ----------------------
 # Format: "group|label|path-in-repo|description"
 SCRIPTS=(
   "System|install-packages|script/linux/system/install-packages.sh|Update system + install base essentials (micro, curl, wget, git, tmux)"
@@ -149,6 +152,23 @@ for row in "${SCRIPTS[@]}"; do
   fi
 done
 
+# Category summaries for TUI overview
+cat_summary() {
+  case "$1" in
+    "System") echo "Utilitas dasar OS, audit hardware & MOTD" ;;
+    "Security") echo "Firewall, Fail2Ban, SSH hardening & SSL" ;;
+    "Database") echo "PostgreSQL, MariaDB/MySQL remote & tools" ;;
+    "App Runtime") echo "Docker/Podman, Node.js, Python, Composer" ;;
+    "Panel & Console") echo "CloudPanel CE v2, clpctl, Cockpit" ;;
+    "Network & Tunnel") echo "Cloudflared, net-tools, Proxmox toolkit" ;;
+    "Monitoring & Metrics") echo "Monitor realtime, Prometheus, GoAccess" ;;
+    "Observability Stack") echo "Grafana, Uptime Kuma, Loki, Zabbix" ;;
+    "CI/CD Runners") echo "GitHub Actions & GitLab CI runners" ;;
+    "AI & Agents") echo "Hermes Agent, Claude Code, 9Router" ;;
+    *) echo "Kumpulan tools otomatisasi server" ;;
+  esac
+}
+
 # --- script resolver ------------------------------------------------------
 resolve_script() {
   local target="$1"
@@ -188,7 +208,7 @@ run_script() {
   lbl="$(resolve_script "${target_input}" 2>/dev/null || echo "")"
 
   if [ -z "${lbl}" ]; then
-    err "Script '${target_input}' tidak ditemukan. Gunakan './install.sh list' untuk melihat daftar."
+    err "Script '${target_input}' tidak ditemukan. Gunakan './wf list' untuk melihat daftar."
     return 1
   fi
 
@@ -279,6 +299,7 @@ tui_view_code() {
     abs_path="${WF_INSTALL_DIR}/${rel_path##*/}"
   fi
 
+  # Temporarily exit alternate buffer for standard pager
   printf "\033[?1049l\033[?25h" >&2
   stty sane 2>/dev/null || true
 
@@ -293,11 +314,12 @@ tui_view_code() {
       read -r _ <&3 2>/dev/null || true
     fi
   else
-    printf "\n%bFile script belum terunduh: %s%b\n" "${C_RED}" "${rel_path}" "${C_RESET}" >&2
+    printf "\n%bFile script belum terunduh secara lokal: %s%b\n" "${C_RED}" "${rel_path}" "${C_RESET}" >&2
     printf "%bTekan Enter untuk kembali...%b" "${C_DIM}" "${C_RESET}" >&2
     read -r _ <&3 2>/dev/null || true
   fi
 
+  # Return to alternate buffer
   printf "\033[?1049h\033[?25l" >&2
   stty -echo -icanon min 1 time 0 2>/dev/null || true
 }
@@ -345,7 +367,7 @@ cli_list() {
 cli_help() {
   printf "WANFORGE Server Ops Toolkit v2.5 (Portable TUI & CLI)\n\n"
   printf "Penggunaan:\n"
-  printf "  %s                      Jalankan TUI interaktif keyboard (Dual-Pane)\n" "$0"
+  printf "  %s                      Jalankan TUI interaktif keyboard\n" "$0"
   printf "  %s 1-10                 Buka kategori 1 sampai 10 langsung\n" "$0"
   printf "  %s 1-39                 Jalankan script nomor 1 sampai 39 langsung\n" "$0"
   printf "  %s <script_name>        Jalankan script berdasarkan nama (contoh: setup-motd)\n" "$0"
@@ -357,322 +379,420 @@ cli_help() {
   printf "  %s --help               Tampilkan bantuan ini\n\n" "$0"
 }
 
-# --- TUI Engine (Interactive Dual-Pane, Zero-Dependency) -------------------
+# --- Single Key Input Reader ----------------------------------------------
+read_tui_key() {
+  local k rest
+  IFS= read -rsn1 k <&3 || return 1
+  if [ "$k" = $'\x1b' ]; then
+    IFS= read -rsn2 -t 0.05 rest <&3 || rest=""
+    k+="$rest"
+    if [ "$k" = $'\x1b[' ]; then
+      IFS= read -rsn1 -t 0.05 rest <&3 || rest=""
+      k+="$rest"
+    fi
+  fi
+  printf "%s" "$k"
+}
+
+# --- TUI Level 3: Realtime Search Screen ----------------------------------
+tui_search_screen() {
+  local query=""
+  local cursor=0
+  local scroll=0
+
+  while true; do
+    local matched=() m_labels=() m_paths=() m_descs=() m_cats=()
+    local q_lower; q_lower="$(echo "${query}" | tr '[:upper:]' '[:lower:]')"
+
+    for row in "${SCRIPTS[@]}"; do
+      IFS='|' read -r g lbl rel dsc <<< "${row}"
+      local search_space; search_space="$(echo "${g} ${lbl} ${dsc}" | tr '[:upper:]' '[:lower:]')"
+      if [ -z "${query}" ] || [[ "${search_space}" == *"${q_lower}"* ]]; then
+        matched+=("${row}")
+        m_cats+=("${g}")
+        m_labels+=("${lbl}")
+        m_paths+=("${rel}")
+        m_descs+=("${dsc}")
+      fi
+    done
+
+    local total=${#matched[@]}
+    if [ "$cursor" -ge "$total" ]; then
+      cursor=$(( total > 0 ? total - 1 : 0 ))
+    fi
+
+    local lines; lines="$(tput lines 2>/dev/null || echo 24)"
+    local max_items=$(( lines - 14 ))
+    [ "$max_items" -lt 6 ] && max_items=6
+
+    if [ "$cursor" -lt "$scroll" ]; then
+      scroll=$cursor
+    elif [ "$cursor" -ge "$((scroll + max_items))" ]; then
+      scroll=$(( cursor - max_items + 1 ))
+    fi
+
+    # Render frame
+    local frame="\033[H"
+    append_frame() { local _l; printf -v _l "$@"; frame+="${_l}"; }
+
+    append_frame " %b╔════════════════════════════════════════════════════════════════════════╗%b\033[K\n" "${C_CYAN}" "${C_RESET}"
+    append_frame " %b║%b  %bPENCARIAN MODUL TOOLKIT%b                            %b● REALTIME FILTER%b  %b║%b\033[K\n" \
+      "${C_CYAN}" "${C_RESET}" "${C_BOLD}${C_WHITE}" "${C_RESET}" "${C_BOLD}${C_YELLOW}" "${C_RESET}" "${C_CYAN}" "${C_RESET}"
+    append_frame " %b╚════════════════════════════════════════════════════════════════════════╝%b\033[K\n" "${C_CYAN}" "${C_RESET}"
+    append_frame "  %bKetik kata kunci untuk memfilter tools:%b\033[K\n" "${C_DIM}" "${C_RESET}"
+    local q_display="${query}█"
+    append_frame "  %b🔍 Query:%b [%-45.45s] %b(%d ditemukan)%b\033[K\n" \
+      "${C_BOLD}${C_YELLOW}" "${C_RESET}" "${q_display}" "${C_CYAN}" "$total" "${C_RESET}"
+    append_frame " %b──────────────────────────────────────────────────────────────────────────%b\033[K\n" "${C_DIM}" "${C_RESET}"
+
+    for ((i = 0; i < max_items; i++)); do
+      local idx=$(( scroll + i ))
+      if [ "$idx" -lt "$total" ]; then
+        local lbl="${m_labels[idx]}"
+        local cat="${m_cats[idx]}"
+        local dsc="${m_descs[idx]}"
+        local is_sel=0; [ "$idx" -eq "$cursor" ] && is_sel=1
+
+        local max_d=26
+        local short_dsc="${dsc:0:max_d}"
+        [ "${#dsc}" -gt "$max_d" ] && short_dsc="${short_dsc:0:$((max_d-1))}…"
+
+        if [ "$is_sel" -eq 1 ]; then
+          append_frame "%b❯ %2d) %-20.20s %b[%-13.13s]%b %b%s%b\033[K\n" \
+            "${C_BOLD}${C_GREEN}" "$((idx+1))" "$lbl" \
+            "${C_CYAN}" "$cat" "${C_RESET}" \
+            "${C_WHITE}" "$short_dsc" "${C_RESET}"
+        else
+          append_frame "  %2d) %-20.20s %b[%-13.13s]%b %b%s%b\033[K\n" \
+            "$((idx+1))" "$lbl" \
+            "${C_DIM}" "$cat" "${C_RESET}" \
+            "${C_DIM}" "$short_dsc" "${C_RESET}"
+        fi
+      else
+        append_frame "\033[K\n"
+      fi
+    done
+
+    append_frame " %b──────────────────────────────────────────────────────────────────────────%b\033[K\n" "${C_DIM}" "${C_RESET}"
+    if [ "$total" -gt 0 ] && [ "$cursor" -lt "$total" ]; then
+      local sel_lbl="${m_labels[cursor]}"
+      local sel_rel="${m_paths[cursor]}"
+      append_frame "  %bPath :%b %-60.60s\033[K\n" "${C_DIM}" "${C_RESET}" "${sel_rel}"
+    else
+      append_frame "  %bInfo : Tidak ada tools yang cocok dengan kata kunci '%s'%b\033[K\n" "${C_YELLOW}" "${query}" "${C_RESET}"
+    fi
+    append_frame " %b──────────────────────────────────────────────────────────────────────────%b\033[K\n" "${C_DIM}" "${C_RESET}"
+    append_frame "  %b[Enter]%b Jalankan   %b[v]%b Lihat Kode   %b[↑/↓]%b Pindah   %b[Esc / 0]%b Kembali\033[K\n" \
+      "${C_GREEN}" "${C_RESET}" "${C_CYAN}" "${C_RESET}" "${C_YELLOW}" "${C_RESET}" "${C_RED}" "${C_RESET}"
+    append_frame "\033[J"
+
+    printf "%b" "$frame" >&2
+
+    local k
+    k="$(read_tui_key)" || break
+
+    case "$k" in
+      $'\x1b'|$'\x1b\x1b')
+        if [ -n "${query}" ]; then
+          query=""
+          cursor=0; scroll=0
+        else
+          return 0
+        fi
+        ;;
+
+      $'\x1b[A'|k) # UP
+        [ "$cursor" -gt 0 ] && cursor=$((cursor - 1))
+        ;;
+
+      $'\x1b[B'|j) # DOWN
+        [ "$cursor" -lt "$((total - 1))" ] && cursor=$((cursor + 1))
+        ;;
+
+      $'\n'|$'\r') # ENTER
+        if [ "$total" -gt 0 ] && [ "$cursor" -lt "$total" ]; then
+          local chosen="${m_labels[cursor]}"
+          printf "\033[?1049l\033[?25h" >&2
+          stty sane 2>/dev/null || true
+          run_script "${chosen}" || true
+          printf "\n%bTekan Enter untuk kembali ke WanForge TUI...%b" "${C_BOLD}${C_CYAN}" "${C_RESET}" >&2
+          read -r _ <&3 2>/dev/null || true
+          printf "\033[?1049h\033[?25l" >&2
+          stty -echo -icanon min 1 time 0 2>/dev/null || true
+        fi
+        ;;
+
+      v|V) # VIEW CODE
+        if [ "$total" -gt 0 ] && [ "$cursor" -lt "$total" ]; then
+          tui_view_code "${m_paths[cursor]}"
+        fi
+        ;;
+
+      $'\x7f'|$'\x08') # BACKSPACE
+        if [ ${#query} -gt 0 ]; then
+          query="${query:0:-1}"
+          cursor=0; scroll=0
+        else
+          return 0
+        fi
+        ;;
+
+      [[:print:]])
+        query+="$k"
+        cursor=0; scroll=0
+        ;;
+    esac
+  done
+}
+
+# --- TUI Level 2: Submenu (Category Tools) --------------------------------
+tui_category_submenu() {
+  local target_cat="$1"
+  local items=() labels=() paths=() descs=()
+
+  for row in "${SCRIPTS[@]}"; do
+    IFS='|' read -r g lbl rel dsc <<< "${row}"
+    if [ "$g" = "$target_cat" ]; then
+      items+=("${row}")
+      labels+=("${lbl}")
+      paths+=("${rel}")
+      descs+=("${dsc}")
+    fi
+  done
+
+  local n=${#items[@]}
+  local cursor=0
+  local scroll=0
+
+  while true; do
+    local lines; lines="$(tput lines 2>/dev/null || echo 24)"
+    local max_items=$(( lines - 14 ))
+    [ "$max_items" -lt 6 ] && max_items=6
+
+    if [ "$cursor" -lt "$scroll" ]; then
+      scroll=$cursor
+    elif [ "$cursor" -ge "$((scroll + max_items))" ]; then
+      scroll=$(( cursor - max_items + 1 ))
+    fi
+
+    # Render frame
+    local frame="\033[H"
+    append_frame() { local _l; printf -v _l "$@"; frame+="${_l}"; }
+
+    local cat_title="KATEGORI: ${target_cat^^} (${n} TOOLS)"
+    local t_len=${#cat_title}
+    local cat_spaces=$(( 72 - 4 - t_len - 15 ))
+    [ "$cat_spaces" -lt 2 ] && cat_spaces=2
+    local cat_sp; cat_sp="$(printf "%*s" "$cat_spaces" "")"
+
+    append_frame " %b╔════════════════════════════════════════════════════════════════════════╗%b\033[K\n" "${C_CYAN}" "${C_RESET}"
+    append_frame " %b║%b  %b%s%b%s%b● PORTABLE MODE%b  %b║%b\033[K\n" \
+      "${C_CYAN}" "${C_RESET}" "${C_BOLD}${C_WHITE}" "${cat_title}" "${C_RESET}" "${cat_sp}" "${C_BOLD}${C_GREEN}" "${C_RESET}" "${C_CYAN}" "${C_RESET}"
+    append_frame " %b╚════════════════════════════════════════════════════════════════════════╝%b\033[K\n" "${C_CYAN}" "${C_RESET}"
+    append_frame "  %b[1-%d] Nomor · ↑/↓ Pindah · ENTER Jalankan · V Lihat Kode · 0 Kembali%b\033[K\n\n" \
+      "${C_DIM}" "$n" "${C_RESET}"
+    append_frame "  %b── Daftar Script ──%b\033[K\n" "${C_BOLD}${C_YELLOW}" "${C_RESET}"
+
+    for ((i = 0; i < max_items; i++)); do
+      local idx=$(( scroll + i ))
+      if [ "$idx" -lt "$n" ]; then
+        local lbl="${labels[idx]}"
+        local dsc="${descs[idx]}"
+        local is_sel=0; [ "$idx" -eq "$cursor" ] && is_sel=1
+
+        local max_d=40
+        local short_dsc="${dsc:0:max_d}"
+        [ "${#dsc}" -gt "$max_d" ] && short_dsc="${short_dsc:0:$((max_d-1))}…"
+
+        if [ "$is_sel" -eq 1 ]; then
+          append_frame "%b❯ %2d) %-22.22s %b%s%b\033[K\n" \
+            "${C_BOLD}${C_GREEN}" "$((idx+1))" "$lbl" "${C_WHITE}" "$short_dsc" "${C_RESET}"
+        else
+          append_frame "  %2d) %-22.22s %b%s%b\033[K\n" \
+            "$((idx+1))" "$lbl" "${C_DIM}" "$short_dsc" "${C_RESET}"
+        fi
+      else
+        append_frame "\033[K\n"
+      fi
+    done
+
+    local sel_lbl="${labels[cursor]}"
+    local sel_rel="${paths[cursor]}"
+    local sel_dsc="${descs[cursor]}"
+
+    append_frame " %b──────────────────────────────────────────────────────────────────────────%b\033[K\n" "${C_DIM}" "${C_RESET}"
+    append_frame "  %bPath :%b %-60.60s\033[K\n" "${C_DIM}" "${C_RESET}" "${sel_rel}"
+    append_frame "  %bDesc :%b %-60.60s\033[K\n" "${C_DIM}" "${C_RESET}" "${sel_dsc}"
+    append_frame " %b──────────────────────────────────────────────────────────────────────────%b\033[K\n" "${C_DIM}" "${C_RESET}"
+    append_frame "  %b[Enter]%b Jalankan Tool   %b[v]%b Lihat Source Code   %b[0 / q]%b Kembali\033[K\n" \
+      "${C_GREEN}" "${C_RESET}" "${C_CYAN}" "${C_RESET}" "${C_RED}" "${C_RESET}"
+    append_frame "\033[J"
+
+    printf "%b" "$frame" >&2
+
+    local k
+    k="$(read_tui_key)" || break
+
+    case "$k" in
+      $'\x1b[A'|k) # UP
+        [ "$cursor" -gt 0 ] && cursor=$((cursor - 1))
+        ;;
+
+      $'\x1b[B'|j) # DOWN
+        [ "$cursor" -lt "$((n - 1))" ] && cursor=$((cursor + 1))
+        ;;
+
+      [1-9])
+        local num_str="${k}"
+        if [ "$n" -ge 10 ]; then
+          local next_ch=""
+          if IFS= read -rsn1 -t 0.2 next_ch <&3 2>/dev/null; then
+            if [[ "${next_ch}" =~ ^[0-9]$ ]]; then
+              num_str="${k}${next_ch}"
+            fi
+          fi
+        fi
+        local target_idx=$(( 10#${num_str} - 1 ))
+        if [ "$target_idx" -ge 0 ] && [ "$target_idx" -lt "$n" ]; then
+          cursor=$target_idx
+        fi
+        ;;
+
+      $'\n'|$'\r') # ENTER
+        local chosen="${labels[cursor]}"
+        printf "\033[?1049l\033[?25h" >&2
+        stty sane 2>/dev/null || true
+        run_script "${chosen}" || true
+        printf "\n%bTekan Enter untuk kembali ke WanForge TUI...%b" "${C_BOLD}${C_CYAN}" "${C_RESET}" >&2
+        read -r _ <&3 2>/dev/null || true
+        printf "\033[?1049h\033[?25l" >&2
+        stty -echo -icanon min 1 time 0 2>/dev/null || true
+        ;;
+
+      v|V) # VIEW CODE
+        tui_view_code "${paths[cursor]}"
+        ;;
+
+      0|q|Q|$'\x1b'|$'\x1b\x1b') # BACK
+        return 0
+        ;;
+    esac
+  done
+}
+
+# --- TUI Level 1: Category Dashboard (Main Entry) -------------------------
 tui_cleanup() {
   printf "\033[?1049l\033[?25h\033[0m" >&2
   stty sane 2>/dev/null || true
 }
 
 tui_main() {
-  local orig_stty
+  local orig_stty=""
   orig_stty="$(stty -g 2>/dev/null || true)"
-  trap 'tui_cleanup; [ -n "${orig_stty}" ] && stty "${orig_stty}" 2>/dev/null || true; exit 0' EXIT INT TERM
+  trap 'tui_cleanup; [ -n "${orig_stty:-}" ] && stty "${orig_stty:-}" 2>/dev/null || true; exit 0' EXIT INT TERM
 
   # Switch to alternate buffer and hide cursor
   printf "\033[?1049h\033[?25l" >&2
   stty -echo -icanon min 1 time 0 2>/dev/null || true
 
-  local focus=0 # 0=left (categories), 1=right (tools)
-  local cat_idx=0
-  local tool_idx=0
-  local tool_scroll=0
-  local search_mode=0
-  local search_query=""
-  local status_toast=""
+  local cursor=0
+  local num_cats=${#CATEGORIES[@]}
+
+  # Fast system KPI lookup (cached for TUI header strip)
+  local kpi_host; kpi_host="$(hostname -s 2>/dev/null || echo "host")"
+  local kpi_ip; kpi_ip="$(ip route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1)}' || echo "127.0.0.1")"
+  local kpi_os; kpi_os="$(grep -E '^PRETTY_NAME=' /etc/os-release 2>/dev/null | cut -d= -f2- | tr -d '"' | sed -E 's/\s*\((KDE|GNOME|Plasma|XFCE|Workstation|Server)[^\)]*\)//gI' || uname -s)"
+  local kpi_ram; kpi_ram="$(free -h 2>/dev/null | awk '/^Mem:/ {print $3 "/" $2}' || echo "N/A")"
 
   while true; do
-    # Terminal dimensions
-    local lines cols
-    lines="$(tput lines 2>/dev/null || echo 24)"
-    cols="$(tput cols 2>/dev/null || echo 80)"
-    [ "$lines" -lt 16 ] && lines=16
-    [ "$cols" -lt 60 ] && cols=60
+    # Render frame
+    local frame="\033[H"
+    append_frame() { local _l; printf -v _l "$@"; frame+="${_l}"; }
 
-    local w_total=$cols
-    [ "$w_total" -gt 96 ] && w_total=96
-    local w_left=25
-    local w_right=$(( w_total - w_left - 3 ))
-    local h_list=$(( lines - 14 ))
-    [ "$h_list" -lt 6 ] && h_list=6
+    append_frame " %b╔════════════════════════════════════════════════════════════════════════╗%b\033[K\n" "${C_CYAN}" "${C_RESET}"
+    append_frame " %b║%b  %bWANFORGE SERVER OPS TOOLKIT%b                           %b● PORTABLE TUI%b  %b║%b\033[K\n" \
+      "${C_CYAN}" "${C_RESET}" "${C_BOLD}${C_WHITE}" "${C_RESET}" "${C_BOLD}${C_GREEN}" "${C_RESET}" "${C_CYAN}" "${C_RESET}"
+    append_frame " %b╚════════════════════════════════════════════════════════════════════════╝%b\033[K\n" "${C_CYAN}" "${C_RESET}"
+    append_frame "  %b•%b Host: %b%-12.12s%b (%s)  %b•%b OS: %b%-16.16s%b  %b•%b RAM: %b%s%b\033[K\n" \
+      "${C_CYAN}" "${C_RESET}" "${C_BOLD}${C_WHITE}" "${kpi_host}" "${C_RESET}" "${kpi_ip}" \
+      "${C_CYAN}" "${C_RESET}" "${C_WHITE}" "${kpi_os}" "${C_RESET}" \
+      "${C_CYAN}" "${C_RESET}" "${C_GREEN}" "${kpi_ram}" "${C_RESET}"
+    append_frame " %b──────────────────────────────────────────────────────────────────────────%b\033[K\n" "${C_DIM}" "${C_RESET}"
+    append_frame "  %bPILIH KATEGORI TOOLKIT:%b\033[K\n" "${C_BOLD}${C_YELLOW}" "${C_RESET}"
+    append_frame "  %b[1-10] Nomor · ↑/↓ Pindah · ENTER Buka · / Cari · B Batch · Q Keluar%b\033[K\n\n" "${C_DIM}" "${C_RESET}"
+    append_frame "  %b── Kategori Modul ──%b\033[K\n" "${C_BOLD}${C_YELLOW}" "${C_RESET}"
 
-    # Current Category Tools
-    local cur_cat="${CATEGORIES[cat_idx]}"
-    local cur_tools=() cur_labels=() cur_paths=() cur_descs=()
+    for ((i = 0; i < num_cats; i++)); do
+      local c="${CATEGORIES[i]}"
+      local cnt=0
+      for s in "${SCRIPTS[@]}"; do IFS='|' read -r cg _ <<< "$s"; [ "$cg" = "$c" ] && cnt=$((cnt + 1)); done
+      local sum; sum="$(cat_summary "$c")"
+      local is_sel=0; [ "$i" -eq "$cursor" ] && is_sel=1
 
-    if [ "$search_mode" -eq 1 ] && [ -n "${search_query}" ]; then
-      local q_lower; q_lower="$(echo "${search_query}" | tr '[:upper:]' '[:lower:]')"
-      for row in "${SCRIPTS[@]}"; do
-        IFS='|' read -r g lbl rel dsc <<< "${row}"
-        local hay; hay="$(echo "${g} ${lbl} ${dsc}" | tr '[:upper:]' '[:lower:]')"
-        if [[ "${hay}" == *"${q_lower}"* ]]; then
-          cur_tools+=("${row}")
-          cur_labels+=("${lbl}")
-          cur_paths+=("${rel}")
-          cur_descs+=("${dsc}")
-        fi
-      done
-    else
-      for row in "${SCRIPTS[@]}"; do
-        IFS='|' read -r g lbl rel dsc <<< "${row}"
-        if [ "$g" = "$cur_cat" ]; then
-          cur_tools+=("${row}")
-          cur_labels+=("${lbl}")
-          cur_paths+=("${rel}")
-          cur_descs+=("${dsc}")
-        fi
-      done
-    fi
-
-    local num_tools=${#cur_tools[@]}
-    if [ "$tool_idx" -ge "$num_tools" ]; then
-      tool_idx=$(( num_tools > 0 ? num_tools - 1 : 0 ))
-    fi
-
-    # Adjust scroll offset
-    if [ "$tool_idx" -lt "$tool_scroll" ]; then
-      tool_scroll=$tool_idx
-    elif [ "$tool_idx" -ge "$((tool_scroll + h_list))" ]; then
-      tool_scroll=$(( tool_idx - h_list + 1 ))
-    fi
-
-    # --- Render Full Atomic Frame -----------------------------------------
-    local frame=""
-    frame+="\033[H"
-
-    # Top Box
-    local inner_w=$(( w_total - 2 ))
-    local title="⚡ WANFORGE OPS TOOLKIT v2.5"
-    local badge="● PORTABLE RUNNER"
-    local spaces=$(( inner_w - 29 - 17 ))
-    [ "$spaces" -lt 2 ] && spaces=2
-    local sp_str; sp_str="$(printf "%*s" "$spaces" "")"
-
-    frame+=" ${C_CYAN}╔$(printf '═%.0s' $(seq 1 $inner_w))╗${C_RESET}\n"
-    frame+=" ${C_CYAN}║${C_RESET}  ${C_BOLD}${C_WHITE}${title}${C_RESET}${sp_str}${C_BOLD}${C_GREEN}${badge}${C_RESET}  ${C_CYAN}║${C_RESET}\n"
-    frame+=" ${C_CYAN}╚$(printf '═%.0s' $(seq 1 $inner_w))╝${C_RESET}\n"
-
-    # Pane Headers
-    local l_hdr_text="── Kategori "
-    local l_hdr_dashes=$(( w_left - 12 ))
-    [ "$l_hdr_dashes" -lt 1 ] && l_hdr_dashes=1
-    local l_hdr="${l_hdr_text}$(printf '─%.0s' $(seq 1 $l_hdr_dashes))"
-
-    local r_hdr_title
-    if [ "$search_mode" -eq 1 ] && [ -n "${search_query}" ]; then
-      r_hdr_title="── Cari: '${search_query}' (${num_tools}) "
-    else
-      r_hdr_title="── ${cur_cat} (${num_tools}) "
-    fi
-    local r_hdr_len=${#r_hdr_title}
-    local r_hdr_dashes=$(( w_right - r_hdr_len ))
-    [ "$r_hdr_dashes" -lt 1 ] && r_hdr_dashes=1
-    local r_hdr="${r_hdr_title}$(printf '─%.0s' $(seq 1 $r_hdr_dashes))"
-
-    if [ "$focus" -eq 0 ]; then
-      frame+=" ${C_BOLD}${C_CYAN}${l_hdr}${C_RESET} ${C_DIM}┬${C_RESET} ${C_DIM}${r_hdr}${C_RESET}\n"
-    else
-      frame+=" ${C_DIM}${l_hdr}${C_RESET} ${C_DIM}┬${C_RESET} ${C_BOLD}${C_CYAN}${r_hdr}${C_RESET}\n"
-    fi
-
-    # Body Rows
-    for ((r = 0; r < h_list; r++)); do
-      # --- Left Column (Category) ---
-      local cell_left=""
-      if [ "$r" -lt "${#CATEGORIES[@]}" ]; then
-        local cat_name="${CATEGORIES[r]}"
-        local cnt=0
-        for s in "${SCRIPTS[@]}"; do IFS='|' read -r cg _ <<< "$s"; [ "$cg" = "$cat_name" ] && cnt=$((cnt + 1)); done
-        
-        local is_c_sel=0; [ "$r" -eq "$cat_idx" ] && is_c_sel=1
-        local num_str="$((r+1))"
-        [ "$r" -eq 9 ] && num_str="0"
-
-        if [ "$is_c_sel" -eq 1 ] && [ "$focus" -eq 0 ]; then
-          cell_left="$(printf "%b❯ [%2s] %-12.12s (%d)%b" "${C_BOLD}${C_CYAN}" "$num_str" "$cat_name" "$cnt" "${C_RESET}")"
-        elif [ "$is_c_sel" -eq 1 ]; then
-          cell_left="$(printf "%b▸ [%2s] %-12.12s (%d)%b" "${C_CYAN}" "$num_str" "$cat_name" "$cnt" "${C_RESET}")"
-        else
-          cell_left="$(printf "  [%2s] %-12.12s %b(%d)%b" "$num_str" "$cat_name" "${C_DIM}" "$cnt" "${C_RESET}")"
-        fi
+      local cat_fmt="[${c}]"
+      if [ "$is_sel" -eq 1 ]; then
+        append_frame "%b❯ %2d) %-23.23s %b(%d tools)%b  %b%s%b\033[K\n" \
+          "${C_BOLD}${C_CYAN}" "$((i+1))" "$cat_fmt" \
+          "${C_GREEN}" "$cnt" "${C_RESET}" \
+          "${C_WHITE}" "$sum" "${C_RESET}"
+      else
+        append_frame "  %2d) %-23.23s %b(%d tools)%b  %b%s%b\033[K\n" \
+          "$((i+1))" "$cat_fmt" \
+          "${C_DIM}" "$cnt" "${C_RESET}" \
+          "${C_DIM}" "$sum" "${C_RESET}"
       fi
-
-      # --- Right Column (Tools) ---
-      local cell_right=""
-      local t_row_idx=$(( tool_scroll + r ))
-      if [ "$t_row_idx" -lt "$num_tools" ]; then
-        local t_lbl="${cur_labels[t_row_idx]}"
-        local t_dsc="${cur_descs[t_row_idx]}"
-        local is_t_sel=0; [ "$t_row_idx" -eq "$tool_idx" ] && is_t_sel=1
-
-        local max_dsc_len=$(( w_right - ${#t_lbl} - 12 ))
-        [ "$max_dsc_len" -lt 5 ] && max_dsc_len=5
-        local short_dsc="${t_dsc:0:max_dsc_len}"
-        [ "${#t_dsc}" -gt "$max_dsc_len" ] && short_dsc="${short_dsc:0:$((max_dsc_len-1))}…"
-
-        if [ "$is_t_sel" -eq 1 ] && [ "$focus" -eq 1 ]; then
-          cell_right="$(printf "%b❯ [%2d] %-20.20s %b%s%b" "${C_BOLD}${C_GREEN}" "$((t_row_idx+1))" "$t_lbl" "${C_WHITE}" "$short_dsc" "${C_RESET}")"
-        elif [ "$is_t_sel" -eq 1 ]; then
-          cell_right="$(printf "%b▸ [%2d] %-20.20s %b%s%b" "${C_GREEN}" "$((t_row_idx+1))" "$t_lbl" "${C_DIM}" "$short_dsc" "${C_RESET}")"
-        else
-          cell_right="$(printf "  [%2d] %-20.20s %b%s%b" "$((t_row_idx+1))" "$t_lbl" "${C_DIM}" "$short_dsc" "${C_RESET}")"
-        fi
-      fi
-
-      frame+=$(printf " %-25b ${C_DIM}│${C_RESET} %b\033[K\n" "$cell_left" "$cell_right")
     done
 
-    # Inspector Box Header
-    local sel_label="none" sel_path="-" sel_desc="Pilih tools untuk melihat informasi."
-    if [ "$num_tools" -gt 0 ] && [ "$tool_idx" -lt "$num_tools" ]; then
-      sel_label="${cur_labels[tool_idx]}"
-      sel_path="${cur_paths[tool_idx]}"
-      sel_desc="${cur_descs[tool_idx]}"
-    fi
+    append_frame "\n %b──────────────────────────────────────────────────────────────────────────%b\033[K\n" "${C_DIM}" "${C_RESET}"
+    append_frame "  %b[ /]%b Cari Tools   %b[ b]%b Batch Mode   %b[ i]%b Audit Server   %b[ q]%b Keluar\033[K\n" \
+      "${C_YELLOW}" "${C_RESET}" "${C_YELLOW}" "${C_RESET}" "${C_CYAN}" "${C_RESET}" "${C_RED}" "${C_RESET}"
+    append_frame " %b──────────────────────────────────────────────────────────────────────────%b\033[K\n" "${C_DIM}" "${C_RESET}"
+    append_frame "\033[J"
 
-    local ins_title="── [ Detail: ${sel_label} ] "
-    local ins_dashes=$(( w_total - ${#ins_title} - 1 ))
-    [ "$ins_dashes" -lt 1 ] && ins_dashes=1
-    frame+=" ${C_DIM}┴${C_RESET}${C_CYAN}${ins_title:2}$(printf '─%.0s' $(seq 1 $ins_dashes))${C_RESET}\n"
-    frame+=$(printf "  %bPath:%b %-42.42s  %bMode:%b %bPortable In-Place%b\033[K\n" \
-      "${C_DIM}" "${C_RESET}" "${sel_path}" "${C_DIM}" "${C_RESET}" "${C_BOLD}${C_GREEN}" "${C_RESET}")
-    frame+=$(printf "  %bDesc:%b %-70.70s\033[K\n" "${C_DIM}" "${C_RESET}" "${sel_desc}")
-    frame+=" ${C_DIM}$(printf '─%.0s' $(seq 1 $inner_w))${C_RESET}\n"
-
-    # Keybindings / Status Footer
-    if [ "$search_mode" -eq 1 ]; then
-      frame+=$(printf " %b🔍 CARI:%b %b%-30s%b  %b[Enter] Pilih  [Esc] Bersihkan%b\033[K\n" \
-        "${C_BOLD}${C_YELLOW}" "${C_RESET}" "${C_BOLD}${C_WHITE}" "${search_query}█" "${C_RESET}" "${C_DIM}" "${C_RESET}")
-    elif [ -n "${status_toast}" ]; then
-      frame+=$(printf " %bℹ %s%b\033[K\n" "${C_BOLD}${C_YELLOW}" "${status_toast}" "${C_RESET}")
-      status_toast=""
-    else
-      frame+=$(printf "  %b[↑/↓]%b Pindah  %b[Tab/←/→]%b Ganti Panel  %b[Enter]%b Jalankan  %b[v]%b Kode  %b[/]%b Cari  %b[b]%b Batch  %b[q]%b Keluar\033[K\n" \
-        "${C_YELLOW}" "${C_RESET}" "${C_YELLOW}" "${C_RESET}" "${C_GREEN}" "${C_RESET}" "${C_CYAN}" "${C_RESET}" "${C_YELLOW}" "${C_RESET}" "${C_YELLOW}" "${C_RESET}" "${C_RED}" "${C_RESET}")
-    fi
-
-    # Output atomic frame
     printf "%b" "$frame" >&2
 
-    # --- Read Single Key Input --------------------------------------------
-    local k rest
-    IFS= read -rsn1 k <&3 || break
+    local k
+    k="$(read_tui_key)" || break
 
-    # Handle Escape Sequences
-    if [ "$k" = $'\x1b' ]; then
-      IFS= read -rsn2 -t 0.05 rest <&3 || rest=""
-      k+="$rest"
-      if [ "$k" = $'\x1b[' ]; then
-        IFS= read -rsn1 -t 0.05 rest <&3 || rest=""
-        k+="$rest"
-      fi
-    fi
-
-    # --- Search Input Handling --------------------------------------------
-    if [ "$search_mode" -eq 1 ]; then
-      case "$k" in
-        $'\x1b'|$'\x1b\x1b')
-          search_mode=0
-          search_query=""
-          focus=0
-          ;;
-        $'\n'|$'\r')
-          search_mode=0
-          if [ "$num_tools" -gt 0 ]; then
-            focus=1
-          fi
-          ;;
-        $'\x7f'|$'\x08')
-          if [ ${#search_query} -gt 0 ]; then
-            search_query="${search_query:0:-1}"
-            tool_idx=0
-            tool_scroll=0
-          else
-            search_mode=0
-            focus=0
-          fi
-          ;;
-        $'\x1b[A'|k) # Up in search results
-          [ "$tool_idx" -gt 0 ] && tool_idx=$((tool_idx - 1))
-          ;;
-        $'\x1b[B'|j) # Down in search results
-          [ "$tool_idx" -lt "$((num_tools - 1))" ] && tool_idx=$((tool_idx + 1))
-          ;;
-        [[:print:]])
-          search_query+="$k"
-          tool_idx=0
-          tool_scroll=0
-          ;;
-      esac
-      continue
-    fi
-
-    # --- Normal Mode Key Handling -----------------------------------------
     case "$k" in
       $'\x1b[A'|k) # UP
-        if [ "$focus" -eq 0 ]; then
-          [ "$cat_idx" -gt 0 ] && cat_idx=$((cat_idx - 1))
-          tool_idx=0; tool_scroll=0
-        else
-          [ "$tool_idx" -gt 0 ] && tool_idx=$((tool_idx - 1))
-        fi
+        [ "$cursor" -gt 0 ] && cursor=$((cursor - 1))
         ;;
 
       $'\x1b[B'|j) # DOWN
-        if [ "$focus" -eq 0 ]; then
-          [ "$cat_idx" -lt "$(( ${#CATEGORIES[@]} - 1 ))" ] && cat_idx=$((cat_idx + 1))
-          tool_idx=0; tool_scroll=0
-        else
-          [ "$tool_idx" -lt "$(( num_tools - 1 ))" ] && tool_idx=$((tool_idx + 1))
+        [ "$cursor" -lt "$((num_cats - 1))" ] && cursor=$((cursor + 1))
+        ;;
+
+      [1-9])
+        local num_str="${k}"
+        if [ "$num_cats" -ge 10 ]; then
+          local next_ch=""
+          if IFS= read -rsn1 -t 0.2 next_ch <&3 2>/dev/null; then
+            if [[ "${next_ch}" =~ ^[0-9]$ ]]; then
+              num_str="${k}${next_ch}"
+            fi
+          fi
+        fi
+        local target_idx=$(( 10#${num_str} - 1 ))
+        if [ "$target_idx" -ge 0 ] && [ "$target_idx" -lt "$num_cats" ]; then
+          cursor=$target_idx
+          tui_category_submenu "${CATEGORIES[cursor]}"
         fi
         ;;
 
-      $'\x1b[C'|l|$'\t') # RIGHT / TAB
-        if [ "$focus" -eq 0 ]; then
-          focus=1
-        else
-          focus=0
+      0)
+        if [ "$num_cats" -ge 10 ]; then
+          cursor=9
+          tui_category_submenu "${CATEGORIES[cursor]}"
         fi
-        ;;
-
-      $'\x1b[D'|h) # LEFT
-        focus=0
         ;;
 
       $'\n'|$'\r') # ENTER
-        if [ "$focus" -eq 0 ]; then
-          focus=1
-        else
-          if [ "$num_tools" -gt 0 ] && [ "$tool_idx" -lt "$num_tools" ]; then
-            local target_lbl="${cur_labels[tool_idx]}"
-
-            # Exit alternate screen buffer temporarily
-            printf "\033[?1049l\033[?25h" >&2
-            stty sane 2>/dev/null || true
-
-            run_script "${target_lbl}" || true
-
-            printf "\n%bTekan Enter untuk kembali ke WanForge TUI...%b" "${C_BOLD}${C_CYAN}" "${C_RESET}" >&2
-            read -r _ <&3 2>/dev/null || true
-
-            # Re-enter alternate buffer
-            printf "\033[?1049h\033[?25l" >&2
-            stty -echo -icanon min 1 time 0 2>/dev/null || true
-          fi
-        fi
-        ;;
-
-      v|V) # VIEW CODE
-        if [ "$num_tools" -gt 0 ] && [ "$tool_idx" -lt "$num_tools" ]; then
-          tui_view_code "${cur_paths[tool_idx]}"
-        fi
+        tui_category_submenu "${CATEGORIES[cursor]}"
         ;;
 
       /|s|S) # SEARCH
-        search_mode=1
-        search_query=""
-        focus=1
-        tool_idx=0
-        tool_scroll=0
+        tui_search_screen
         ;;
 
       b|B) # BATCH SELECT
@@ -687,22 +807,7 @@ tui_main() {
         tui_sys_info
         ;;
 
-      [1-9]) # DIRECT CATEGORY JUMP
-        local jumped=$(( k - 1 ))
-        if [ "$jumped" -lt "${#CATEGORIES[@]}" ]; then
-          cat_idx=$jumped
-          tool_idx=0; tool_scroll=0; focus=0
-        fi
-        ;;
-
-      0) # JUMP TO 10TH CATEGORY
-        if [ "${#CATEGORIES[@]}" -ge 10 ]; then
-          cat_idx=9
-          tool_idx=0; tool_scroll=0; focus=0
-        fi
-        ;;
-
-      q|Q) # QUIT
+      q|Q|$'\x1b'|$'\x1b\x1b') # QUIT
         break
         ;;
     esac
@@ -710,60 +815,6 @@ tui_main() {
 
   tui_cleanup
   printf "\n%bSampai jumpa! WanForge Ops Toolkit selesai. 👋%b\n\n" "${C_BOLD}${C_CYAN}" "${C_RESET}" >&2
-}
-
-# --- Category Submenu (Classic Fallback) ----------------------------------
-show_category_menu() {
-  local target_cat="$1"
-  local items=() labels=() descs=()
-  for row in "${SCRIPTS[@]}"; do
-    IFS='|' read -r g lbl rel_path dsc <<< "${row}"
-    if [ "$g" = "$target_cat" ]; then
-      items+=("${row}")
-      labels+=("${lbl}")
-      descs+=("${dsc}")
-    fi
-  done
-
-  local n=${#items[@]}
-
-  while true; do
-    printf "\033[H\033[2J" >&2
-    printf "%b── %s (%d tools) ──%b\n\n" "${C_BOLD}${C_CYAN}" "${target_cat}" "$n" "${C_RESET}" >&2
-
-    for ((i = 0; i < n; i++)); do
-      printf "  %b[%2d]%b  %-24s  %b%s%b\n" \
-        "${C_YELLOW}" "$((i+1))" "${C_RESET}" \
-        "${labels[i]}" \
-        "${C_DIM}" "${descs[i]}" "${C_RESET}" >&2
-    done
-    printf "\n  %b[ 0]%b  ⬅ Kembali ke Menu Kategori (Back)\n" "${C_CYAN}" "${C_RESET}" >&2
-    printf "  %b[ q]%b  Keluar dari Program (Quit)\n\n" "${C_RED}" "${C_RESET}" >&2
-
-    printf "%b› Masukkan nomor script [1-%d], [0] kembali, [q] keluar: %b" "${C_YELLOW}" "$n" "${C_RESET}" >&2
-    local choice=""
-    read -r choice <&3 || break
-    choice="$(echo "${choice}" | tr -d '[:space:]')"
-
-    case "${choice}" in
-      0|b|B|back|BACK) break ;;
-      q|Q|exit|EXIT)
-        printf "\n%bSampai jumpa! 👋%b\n\n" "${C_CYAN}" "${C_RESET}" >&2
-        exit 0
-        ;;
-      "") ;;
-      *)
-        if [[ "${choice}" =~ ^[0-9]+$ ]] && [ "${choice}" -ge 1 ] && [ "${choice}" -le "$n" ]; then
-          run_script "${labels[$((choice-1))]}" || true
-          printf "\n%bTekan Enter untuk melanjutkan...%b" "${C_DIM}" "${C_RESET}" >&2
-          read -r _ <&3 2>/dev/null || true
-        else
-          printf "\n%b⚠ Pilihan '%s' tidak valid. Masukkan nomor 1 sampai %d.%b\n" "${C_RED}" "${choice}" "$n" "${C_RESET}" >&2
-          sleep 1.2
-        fi
-        ;;
-    esac
-  done
 }
 
 # --- Classic Prompt Menu Fallback -----------------------------------------
@@ -799,7 +850,7 @@ classic_menu() {
     choice="$(echo "${choice}" | tr -d '[:space:]')"
 
     case "${choice}" in
-      s|S|/) search_interactive ;;
+      s|S|/) tui_search_screen ;;
       b|B)   batch_select_mode ;;
       h|H)   tui_sys_info ;;
       q|Q|0|exit)
@@ -809,7 +860,7 @@ classic_menu() {
       "") ;;
       *)
         if [[ "${choice}" =~ ^[0-9]+$ ]] && [ "${choice}" -ge 1 ] && [ "${choice}" -le "${#CATEGORIES[@]}" ]; then
-          show_category_menu "${CATEGORIES[$((choice-1))]}"
+          tui_category_submenu "${CATEGORIES[$((choice-1))]}"
         else
           local resolved
           resolved="$(resolve_script "${choice}" 2>/dev/null || echo "")"
@@ -866,9 +917,9 @@ case "${1:-}" in
     tui_main
     ;;
   *)
-    # Numeric category index: `./install.sh 1` opens Category 1 in submenu
+    # Numeric category index: `./wf 1` opens Category 1
     if [[ "$1" =~ ^[0-9]+$ ]] && [ "$1" -ge 1 ] && [ "$1" -le "${#CATEGORIES[@]}" ] && [ -z "${2:-}" ]; then
-      show_category_menu "${CATEGORIES[$(($1-1))]}"
+      tui_category_submenu "${CATEGORIES[$(($1-1))]}"
       exit 0
     elif [[ "$1" =~ ^[0-9]+$ ]] && [ "$1" -ge 1 ] && [ "$1" -le "${#CATEGORIES[@]}" ] && [ -n "${2:-}" ]; then
       target_cat="${CATEGORIES[$(($1-1))]}"
@@ -892,7 +943,7 @@ case "${1:-}" in
       run_script "${target_lbl}"
       exit $?
     else
-      err "Pilihan '$1' tidak ditemukan. Gunakan './install.sh list' untuk melihat daftar script."
+      err "Pilihan '$1' tidak ditemukan. Gunakan './wf list' untuk melihat daftar script."
       exit 1
     fi
     ;;
