@@ -105,6 +105,10 @@ StandardError=journal
 WantedBy=default.target
 EOF
 
+  if command -v loginctl >/dev/null 2>&1; then
+    loginctl enable-linger "${USER}" 2>/dev/null || true
+  fi
+
   if command -v systemctl >/dev/null 2>&1; then
     systemctl --user daemon-reload 2>/dev/null || true
     systemctl --user enable --now 9router.service 2>/dev/null || true
@@ -348,7 +352,7 @@ run_doctor() {
 
   printf "\n%b[2] 9Router AI Gateway:%b\n" "${C_BOLD}${C_CYAN}" "${C_RESET}"
   if command -v 9router >/dev/null 2>&1 || [ -x "${HOME}/.local/share/lerd/bin/9router" ]; then
-    ok "9Router binary: OK"
+    ok "9Router binary: OK ($(command -v 9router 2>/dev/null || echo "${HOME}/.local/share/lerd/bin/9router"))"
   else
     warn "9Router binary not found."
   fi
@@ -356,6 +360,17 @@ run_doctor() {
     ok "9Router HTTP Service: Healthy (http://127.0.0.1:20128/api/health)"
   else
     warn "9Router Service not responding on port 20128."
+  fi
+  if systemctl --user is-enabled --quiet 9router.service 2>/dev/null; then
+    ok "9router.service: Enabled (auto startup configured)"
+  else
+    warn "9router.service: Not enabled (run: systemctl --user enable --now 9router)"
+  fi
+  local linger_stat; linger_stat="$(loginctl show-user "${USER}" -p Linger 2>/dev/null || echo "")"
+  if [ "${linger_stat}" = "Linger=yes" ]; then
+    ok "User session linger: Active (starts at boot, runs 24/7 without active SSH)"
+  else
+    warn "User session linger: Inactive (enable with: sudo loginctl enable-linger ${USER})"
   fi
 
   printf "\n%b[3] Claude Code CLI:%b\n" "${C_BOLD}${C_CYAN}" "${C_RESET}"
@@ -366,32 +381,32 @@ run_doctor() {
       info "Claude Base URL: ${base_url}"
     fi
   else
-    warn "Claude Code CLI belum terpasang."
+    warn "Claude Code CLI not installed."
   fi
 
   printf "\n%b[4] Antigravity (AGY):%b\n" "${C_BOLD}${C_CYAN}" "${C_RESET}"
   if command -v agy >/dev/null 2>&1 || [ -x "${HOME}/.local/bin/agy" ]; then
-    ok "Antigravity AGY: Tersedia"
+    ok "Antigravity AGY: Available ($(command -v agy 2>/dev/null || echo "${HOME}/.local/bin/agy"))"
   else
-    warn "Antigravity AGY biner belum ditemukan di PATH."
+    warn "Antigravity AGY binary not found in PATH."
   fi
 
   printf "\n%b[5] Hermes Agent & Telegram Gateway:%b\n" "${C_BOLD}${C_CYAN}" "${C_RESET}"
   if command -v hermes >/dev/null 2>&1; then
     ok "Hermes Agent CLI: $(which hermes)"
   else
-    warn "Hermes Agent CLI belum ada di PATH."
+    warn "Hermes Agent CLI not found in PATH."
   fi
   if [ -f "${HERMES_DIR}/.env" ] && grep -q '^TELEGRAM_BOT_TOKEN=' "${HERMES_DIR}/.env"; then
-    ok "Telegram Bot Token: Terpasang di ${HERMES_DIR}/.env"
+    ok "Telegram Bot Token: Configured in ${HERMES_DIR}/.env"
   else
-    warn "Telegram Bot Token belum dikonfigurasi."
+    warn "Telegram Bot Token not configured."
   fi
   if [ -f "${HERMES_DIR}/config.yaml" ]; then
-    ok "Hermes config.yaml: Ditemukan"
+    ok "Hermes config.yaml: Found"
   fi
   if systemctl --user is-active --quiet hermes-gateway.service 2>/dev/null; then
-    ok "hermes-gateway.service: Aktif & Running"
+    ok "hermes-gateway.service: Active & Running"
   else
     info "hermes-gateway.service: $(systemctl --user is-active hermes-gateway.service 2>/dev/null || echo 'inactive')"
   fi
@@ -400,7 +415,7 @@ run_doctor() {
   if command -v cloudflared >/dev/null 2>&1; then
     ok "cloudflared: $(cloudflared --version | head -n1)"
   else
-    warn "cloudflared belum terpasang."
+    warn "cloudflared not installed."
   fi
   printf "\n"
 }
