@@ -5,16 +5,18 @@
 # Replaces Ubuntu Pro / ESM spam and stock text with a high-performance WanForge banner.
 
 set -euo pipefail
+TASK="setup-motd"
 
-# --- Source shared library ------------------------------------------------
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-LIB="${ROOT_DIR}/script/linux/lib.sh"
-if [ ! -f "${LIB}" ]; then
-  echo "Error: lib.sh not found at ${LIB}" >&2
-  exit 1
-fi
-# shellcheck source=/dev/null
-source "${LIB}"
+# --- shared library ------------------------------------------------------
+__LIB="https://scripts.wanforge.asia/script/linux/lib.sh"
+__d="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
+if   [ -r "${__d}/../lib.sh" ]; then . "${__d}/../lib.sh"
+elif [ -r "${__d}/lib.sh" ]; then . "${__d}/lib.sh"
+elif [ -n "${WF_INSTALL_DIR:-}" ] && [ -r "${WF_INSTALL_DIR}/lib.sh" ]; then . "${WF_INSTALL_DIR}/lib.sh"
+elif [ -r "/opt/wanforge-scripts/lib.sh" ]; then . "/opt/wanforge-scripts/lib.sh"
+elif [ -r "${HOME:-}/.local/lib/wanforge-scripts/lib.sh" ]; then . "${HOME}/.local/lib/wanforge-scripts/lib.sh"
+elif command -v curl >/dev/null 2>&1; then . <(curl -fsSL "${__LIB}")
+else . <(wget -qO- "${__LIB}"); fi
 
 TOOL_NAME="setup-motd"
 MOTD_UBUNTU_PATH="/etc/update-motd.d/01-wanforge-motd"
