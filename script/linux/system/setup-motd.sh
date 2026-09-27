@@ -52,9 +52,11 @@ UPTIME_SEC="$(awk '{print int($1)}' /proc/uptime 2>/dev/null || echo 0)"
 DAYS=$(( UPTIME_SEC / 86400 ))
 HOURS=$(( (UPTIME_SEC % 86400) / 3600 ))
 MINS=$(( (UPTIME_SEC % 3600) / 60 ))
-UPTIME_STR=""
-[ "${DAYS}" -gt 0 ] && UPTIME_STR="${DAYS}h "
-UPTIME_STR="${UPTIME_STR}${HOURS}j ${MINS}m"
+if [ "${DAYS}" -gt 0 ]; then
+  UPTIME_STR="${DAYS} hari ${HOURS} jam"
+else
+  UPTIME_STR="${HOURS} jam ${MINS} m"
+fi
 
 # OS Name
 OS_NAME="Linux"
@@ -62,14 +64,17 @@ if [ -f /etc/os-release ]; then
   # shellcheck source=/dev/null
   OS_NAME="$(. /etc/os-release && echo "${PRETTY_NAME:-$NAME}")"
 fi
+OS_NAME="${OS_NAME%% (*}"
 
 # CPU Load & Cores
 CPU_CORES="$(nproc 2>/dev/null || grep -c '^processor' /proc/cpuinfo 2>/dev/null || echo 1)"
 LOAD="$(awk '{print $1", "$2", "$3}' /proc/loadavg 2>/dev/null || echo 'N/A')"
+LOAD_STR="${LOAD} (${CPU_CORES}c)"
 
 # Memory Usage
 MEM_TOTAL_KB="$(awk '/MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null || echo 0)"
 MEM_AVAIL_KB="$(awk '/MemAvailable:/ {print $2}' /proc/meminfo 2>/dev/null || echo 0)"
+C_MEM="${C_WHITE}"
 if [ "${MEM_TOTAL_KB}" -gt 0 ]; then
   MEM_USED_KB=$(( MEM_TOTAL_KB - MEM_AVAIL_KB ))
   MEM_PCT=$(( (MEM_USED_KB * 100) / MEM_TOTAL_KB ))
@@ -81,6 +86,11 @@ if [ "${MEM_TOTAL_KB}" -gt 0 ]; then
     MEM_STR="${MEM_USED_MB}M / ${MEM_TOTAL_MB}M"
   fi
   MEM_STR="${MEM_STR} (${MEM_PCT}%)"
+  if [ "${MEM_PCT}" -ge 90 ]; then
+    C_MEM="${C_RED}"
+  elif [ "${MEM_PCT}" -ge 75 ]; then
+    C_MEM="${C_YELLOW}"
+  fi
 else
   MEM_STR="N/A"
 fi
@@ -88,6 +98,13 @@ fi
 # Disk Usage (Root filesystem /)
 DISK_INFO="$(df -h / 2>/dev/null | awk 'NR==2 {print $3" / "$2" ("$5")"}')"
 [ -z "${DISK_INFO}" ] && DISK_INFO="N/A"
+DISK_PCT="$(echo "${DISK_INFO}" | grep -o '[0-9]\+%' | tr -d '%' || echo 0)"
+C_DISK="${C_WHITE}"
+if [ "${DISK_PCT:-0}" -ge 90 ]; then
+  C_DISK="${C_RED}"
+elif [ "${DISK_PCT:-0}" -ge 80 ]; then
+  C_DISK="${C_YELLOW}"
+fi
 
 # Network IP
 LOCAL_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
@@ -103,44 +120,57 @@ fi
 
 # Active Users
 SESS_COUNT="$(who 2>/dev/null | wc -l || echo 1)"
+SESS_STR="${SESS_COUNT} user"
 
-# Service Badges
-svc_badge() {
-  local s="$1" name="$2"
-  if systemctl is-active --quiet "$s" 2>/dev/null; then
-    printf "%b●%b %s  " "${C_GREEN}" "${C_RESET}" "${name}"
-  else
-    printf "%b○%b %s  " "${C_DIM}" "${C_RESET}" "${name}"
-  fi
+print_row() {
+  local l1="$1" c1="$2" v1="$3" l2="$4" c2="$5" v2="$6"
+  printf "  %b•%b %-10s: %b%-23.23s%b  %b•%b %-10s: %b%-19.19s%b\n" \
+    "${C_CYAN}" "${C_RESET}" "${l1}" "${c1}" "${v1}" "${C_RESET}" \
+    "${C_CYAN}" "${C_RESET}" "${l2}" "${c2}" "${v2}" "${C_RESET}"
 }
 
 printf "\n"
 printf " %bWANFORGE SECURE INFRASTRUCTURE NODE%b\n" "${C_BOLD}${C_CYAN}" "${C_RESET}"
 printf " %b──────────────────────────────────────────────────────────────────────────%b\n" "${C_DIM}" "${C_RESET}"
-printf "  %b•%b %-13s: %b%-22s%b %b•%b %-13s: %b%-20s%b\n" \
-  "${C_CYAN}" "${C_RESET}" "Hostname" "${C_BOLD}${C_WHITE}" "${HOSTNAME:0:22}" "${C_RESET}" \
-  "${C_CYAN}" "${C_RESET}" "Sistem Operasi" "${C_WHITE}" "${OS_NAME:0:20}" "${C_RESET}"
-printf "  %b•%b %-13s: %b%-22s%b %b•%b %-13s: %b%-20s%b\n" \
-  "${C_CYAN}" "${C_RESET}" "Linux Kernel" "${C_WHITE}" "${KERNEL:0:22}" "${C_RESET}" \
-  "${C_CYAN}" "${C_RESET}" "Uptime" "${C_GREEN}" "${UPTIME_STR}" "${C_RESET}"
-printf "  %b•%b %-13s: %b%-22s%b %b•%b %-13s: %b%-20s%b\n" \
-  "${C_CYAN}" "${C_RESET}" "Load Average" "${C_WHITE}" "${LOAD} (${CPU_CORES} vCPU)" "${C_RESET}" \
-  "${C_CYAN}" "${C_RESET}" "Memory (RAM)" "${C_YELLOW}" "${MEM_STR}" "${C_RESET}"
-printf "  %b•%b %-13s: %b%-22s%b %b•%b %-13s: %b%-20s%b\n" \
-  "${C_CYAN}" "${C_RESET}" "Disk Usage (/)" "${C_WHITE}" "${DISK_INFO}" "${C_RESET}" \
-  "${C_CYAN}" "${C_RESET}" "IP Lokal (LAN)" "${C_WHITE}" "${LOCAL_IP}" "${C_RESET}"
-printf "  %b•%b %-13s: %b%-22s%b %b•%b %-13s: %b%-20s%b\n" \
-  "${C_CYAN}" "${C_RESET}" "SSH Port" "${C_YELLOW}" "${SSH_PORT}" "${C_RESET}" \
-  "${C_CYAN}" "${C_RESET}" "Sesi Login" "${C_WHITE}" "${SESS_COUNT} user aktif" "${C_RESET}"
+print_row "Hostname" "${C_BOLD}${C_WHITE}" "${HOSTNAME}" "OS" "${C_WHITE}" "${OS_NAME}"
+print_row "Kernel" "${C_WHITE}" "${KERNEL}" "Uptime" "${C_GREEN}" "${UPTIME_STR}"
+print_row "CPU Load" "${C_WHITE}" "${LOAD_STR}" "RAM" "${C_MEM}" "${MEM_STR}"
+print_row "Disk (/)" "${C_DISK}" "${DISK_INFO}" "IP LAN" "${C_WHITE}" "${LOCAL_IP}"
+print_row "SSH Port" "${C_YELLOW}" "${SSH_PORT}" "Sesi Aktif" "${C_WHITE}" "${SESS_STR}"
 printf " %b──────────────────────────────────────────────────────────────────────────%b\n" "${C_DIM}" "${C_RESET}"
-printf "  %bLayanan : %b" "${C_DIM}" "${C_RESET}"
-svc_badge sshd sshd
-svc_badge ssh ssh
-svc_badge docker docker
-svc_badge podman podman
-svc_badge ufw ufw
-svc_badge firewalld firewalld
-svc_badge 9router 9router
+printf "  %bLayanan :%b  " "${C_DIM}" "${C_RESET}"
+
+if systemctl is-active --quiet sshd 2>/dev/null || systemctl is-active --quiet ssh 2>/dev/null; then
+  printf "%b●%b sshd   " "${C_GREEN}" "${C_RESET}"
+else
+  printf "%b○%b sshd   " "${C_DIM}" "${C_RESET}"
+fi
+
+if systemctl is-active --quiet firewalld 2>/dev/null; then
+  printf "%b●%b firewalld   " "${C_GREEN}" "${C_RESET}"
+elif systemctl is-active --quiet ufw 2>/dev/null; then
+  printf "%b●%b ufw   " "${C_GREEN}" "${C_RESET}"
+else
+  printf "%b○%b firewall   " "${C_DIM}" "${C_RESET}"
+fi
+
+if systemctl is-active --quiet docker 2>/dev/null; then
+  printf "%b●%b docker   " "${C_GREEN}" "${C_RESET}"
+else
+  printf "%b○%b docker   " "${C_DIM}" "${C_RESET}"
+fi
+
+if systemctl is-active --quiet podman 2>/dev/null; then
+  printf "%b●%b podman   " "${C_GREEN}" "${C_RESET}"
+else
+  printf "%b○%b podman   " "${C_DIM}" "${C_RESET}"
+fi
+
+if systemctl is-active --quiet 9router 2>/dev/null; then
+  printf "%b●%b 9router" "${C_GREEN}" "${C_RESET}"
+else
+  printf "%b○%b 9router" "${C_DIM}" "${C_RESET}"
+fi
 printf "\n"
 printf " %b──────────────────────────────────────────────────────────────────────────%b\n\n" "${C_DIM}" "${C_RESET}"
 EOF
