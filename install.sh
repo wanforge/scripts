@@ -21,10 +21,14 @@ __d="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
 
 if   [ -r "${__d}/script/linux/lib.sh" ]; then . "${__d}/script/linux/lib.sh"
 elif [ -r "${__d}/lib.sh" ]; then . "${__d}/lib.sh"
+elif command -v curl >/dev/null 2>&1; then . <(curl -fsSL "${__LIB}")
+elif command -v wget >/dev/null 2>&1; then . <(wget -qO- "${__LIB}")
 elif [ -r "/opt/wanforge-scripts/lib.sh" ]; then . "/opt/wanforge-scripts/lib.sh"
 elif [ -r "${HOME:-}/.local/lib/wanforge-scripts/lib.sh" ]; then . "${HOME}/.local/lib/wanforge-scripts/lib.sh"
-elif command -v curl >/dev/null 2>&1; then . <(curl -fsSL "${__LIB}")
-else . <(wget -qO- "${__LIB}"); fi
+fi
+
+# Defensive fallback in case an older cached lib.sh was sourced
+command -v sub >/dev/null 2>&1 || sub() { [ "${LOG_LEVEL:-1}" -ge 1 ] || return 0; [ -n "${C_DIM:-}" ] && printf "    %b↳%b %s\n" "${C_DIM}" "${C_RESET}" "$1" || printf "    ↳ %s\n" "$1"; }
 
 # --- safe TTY initialization (FD 3) ---------------------------------------
 if [ -t 0 ]; then
@@ -46,9 +50,11 @@ mkdir -p "${WF_INSTALL_DIR}"
 # Cache lib.sh locally for fast offline execution of installed scripts
 if [ -r "${__d}/script/linux/lib.sh" ]; then
   cp -f "${__d}/script/linux/lib.sh" "${WF_INSTALL_DIR}/lib.sh" 2>/dev/null || true
-elif [ ! -f "${WF_INSTALL_DIR}/lib.sh" ]; then
+else
   if command -v curl >/dev/null 2>&1; then
     curl -fsSL "${__LIB}" -o "${WF_INSTALL_DIR}/lib.sh" 2>/dev/null || true
+  elif command -v wget >/dev/null 2>&1; then
+    wget -qO "${WF_INSTALL_DIR}/lib.sh" "${__LIB}" 2>/dev/null || true
   fi
 fi
 
