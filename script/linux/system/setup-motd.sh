@@ -194,6 +194,26 @@ fi
 SESS_COUNT="$(who 2>/dev/null | wc -l || echo 1)"
 SESS_STR="${SESS_COUNT} user"
 
+# Last login extraction
+LAST_LINE="$(last -n 5 -F "${USER:-$(id -un 2>/dev/null || echo '')}" 2>/dev/null | grep -v 'wtmp' | grep -v 'reboot' | sed -n '2p')"
+if [ -z "${LAST_LINE}" ]; then
+  LAST_LINE="$(last -n 5 -F 2>/dev/null | grep -v 'wtmp' | grep -v 'reboot' | sed -n '2p')"
+fi
+
+LAST_STR="Sesi pertama atau belum tercatat"
+if [ -n "${LAST_LINE}" ]; then
+  LAST_IP="$(echo "${LAST_LINE}" | awk '{if ($3 ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/ || $3 ~ /:/ || $3 ~ /\./) print $3; else print ""}')"
+  if [[ "${LAST_IP}" =~ ^tmux ]] || [[ "${LAST_IP}" =~ ^: ]] || [[ "${LAST_IP}" =~ ^pts/ ]]; then
+    LAST_IP=""
+  fi
+  LAST_TIME="$(echo "${LAST_LINE}" | awk '{for(i=3;i<=NF;i++) if($i ~ /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)$/) {print $i, $(i+1), $(i+2), $(i+3); exit}}')"
+  if [ -n "${LAST_IP}" ] && [ -n "${LAST_TIME}" ]; then
+    LAST_STR="Login terakhir dari ${LAST_IP} pada ${LAST_TIME}"
+  elif [ -n "${LAST_TIME}" ]; then
+    LAST_STR="Login terakhir dari sesi lokal pada ${LAST_TIME}"
+  fi
+fi
+
 print_row() {
   local l1="$1" c1="$2" v1="$3" l2="$4" c2="$5" v2="$6"
   printf "  %b•%b %-10s: %b%-23.23s%b  %b•%b %-10s: %b%-19.19s%b\n" \
@@ -202,8 +222,10 @@ print_row() {
 }
 
 printf "\n"
-printf " %bWANFORGE SECURE INFRASTRUCTURE NODE%b\n" "${C_BOLD}${C_CYAN}" "${C_RESET}"
-printf " %b──────────────────────────────────────────────────────────────────────────%b\n" "${C_DIM}" "${C_RESET}"
+printf " %b╔════════════════════════════════════════════════════════════════════════╗%b\n" "${C_CYAN}" "${C_RESET}"
+printf " %b║%b  %bWANFORGE SECURE INFRASTRUCTURE NODE%b                   %b● SYSTEM READY%b  %b║%b\n" \
+  "${C_CYAN}" "${C_RESET}" "${C_BOLD}${C_WHITE}" "${C_RESET}" "${C_BOLD}${C_GREEN}" "${C_RESET}" "${C_CYAN}" "${C_RESET}"
+printf " %b╚════════════════════════════════════════════════════════════════════════╝%b\n" "${C_CYAN}" "${C_RESET}"
 print_row "Hostname" "${C_BOLD}${C_WHITE}" "${HOSTNAME}" "IP LAN" "${C_WHITE}" "${LOCAL_IP}"
 print_row "OS Distro" "${C_WHITE}" "${OS_NAME}" "IP Publik" "${C_CYAN}" "${PUB_IP}"
 print_row "Kernel" "${C_WHITE}" "${KERNEL}" "Port SSH" "${C_YELLOW}" "${SSH_PORT}"
@@ -252,6 +274,13 @@ else
   printf "%b○%b 9router" "${C_DIM}" "${C_RESET}"
 fi
 printf "\n"
+printf "  %bAkses   :%b  %b%s%b\n" "${C_DIM}" "${C_RESET}" "${C_WHITE}" "${LAST_STR}" "${C_RESET}"
+
+if [ -f /var/run/reboot-required ] || [ -f /run/reboot-required ]; then
+  printf "  %bStatus  :%b  %b⚠  SISTEM PERLU RESTART (System reboot required)%b\n" \
+    "${C_DIM}" "${C_RESET}" "${C_BOLD}${C_RED}" "${C_RESET}"
+fi
+
 printf " %b──────────────────────────────────────────────────────────────────────────%b\n\n" "${C_DIM}" "${C_RESET}"
 EOF
 }
@@ -287,29 +316,49 @@ a_install() {
   run ${SUDO} chmod 755 "${target_path}"
   rm -f "${tmp}"
 
-  # Silence Ubuntu Pro / ESM advertising scripts if present
+  # Silence old update-motd.d scripts & external ads (Ubuntu Pro, ESM, CloudPanel, etc.)
   if [ -d "/etc/update-motd.d" ]; then
-    sub "Menonaktifkan iklan Ubuntu Pro / ESM / Help text..."
-    local noisy=(
-      "/etc/update-motd.d/10-help-text"
-      "/etc/update-motd.d/50-motd-news"
-      "/etc/update-motd.d/88-esm-announce"
-      "/etc/update-motd.d/91-release-upgrade"
-      "/etc/update-motd.d/95-hwe-eol"
-    )
-    for f in "${noisy[@]}"; do
+    sub "Menonaktifkan MOTD bawaan & banner eksternal di /etc/update-motd.d/..."
+    for f in /etc/update-motd.d/*; do
+      [ "$f" = "${MOTD_UBUNTU_PATH}" ] && continue
       if [ -f "$f" ] && [ -x "$f" ]; then
         run ${SUDO} chmod -x "$f" 2>/dev/null || true
+        sub "Dinonaktifkan: ${f##*/}"
       fi
     done
   fi
 
-  # Clear static /etc/motd if present so it doesn't double print
-  if [ -f "/etc/motd" ] && [ -s "/etc/motd" ]; then
-    if [ ! -f "/etc/motd.bak" ]; then
-      run ${SUDO} cp "/etc/motd" "/etc/motd.bak"
+  # Silence any external profile.d MOTD banners (e.g. cloudpanel, stock)
+  for pf in /etc/profile.d/*cloudpanel* /etc/profile.d/*motd*; do
+    [ "$pf" = "${MOTD_PROFILE_PATH}" ] && continue
+    if [ -f "$pf" ] && [ -x "$pf" ]; then
+      run ${SUDO} chmod -x "$pf" 2>/dev/null || true
+      sub "Dinonaktifkan di profile.d: ${pf##*/}"
     fi
-    run ${SUDO} truncate -s 0 "/etc/motd" 2>/dev/null || true
+  done
+
+  # Clear static /etc/motd and dynamic files so they don't double print
+  for m in /etc/motd /var/run/motd /run/motd /var/run/motd.dynamic /run/motd.dynamic; do
+    if [ -f "$m" ] && [ -s "$m" ]; then
+      if [ "$m" = "/etc/motd" ] && [ ! -f "/etc/motd.bak" ]; then
+        run ${SUDO} cp "/etc/motd" "/etc/motd.bak" 2>/dev/null || true
+      fi
+      run ${SUDO} truncate -s 0 "$m" 2>/dev/null || true
+    fi
+  done
+
+  # Suppress duplicate unformatted pam lastlog (displayed cleanly in WanForge MOTD)
+  if [ -d "/etc/ssh/sshd_config.d" ]; then
+    local ssh_cfg="/etc/ssh/sshd_config.d/99-wanforge-motd.conf"
+    if [ ! -f "${ssh_cfg}" ] || ! grep -q "PrintLastLog" "${ssh_cfg}" 2>/dev/null; then
+      echo "PrintLastLog no" | run ${SUDO} tee "${ssh_cfg}" >/dev/null 2>&1 || true
+      if command -v sshd >/dev/null 2>&1 && ${SUDO} sshd -t >/dev/null 2>&1; then
+        run ${SUDO} systemctl reload-or-restart ssh 2>/dev/null || run ${SUDO} systemctl reload-or-restart sshd 2>/dev/null || true
+        sub "Mengonfigurasi SSH PrintLastLog no agar login rapi..."
+      else
+        run ${SUDO} rm -f "${ssh_cfg}" 2>/dev/null || true
+      fi
+    fi
   fi
 
   ok "WanForge dynamic MOTD berhasil dipasang di ${target_path}."
@@ -321,25 +370,24 @@ a_install() {
 
 # --- Action 3: Silence Ubuntu Advertising Only -----------------------------
 a_clean_spam() {
-  hd "Bersihkan Iklan Ubuntu Pro / ESM pada SSH Login"
-  if [ ! -d "/etc/update-motd.d" ]; then
-    info "Sistem ini bukan Debian/Ubuntu update-motd. Tidak ada iklan Ubuntu Pro."; return 0
+  hd "Bersihkan Iklan Ubuntu Pro / ESM / Eksternal pada SSH Login"
+  if [ -d "/etc/update-motd.d" ]; then
+    for f in /etc/update-motd.d/*; do
+      [ "$f" = "${MOTD_UBUNTU_PATH}" ] && continue
+      if [ -f "$f" ] && [ -x "$f" ]; then
+        run ${SUDO} chmod -x "$f" 2>/dev/null || true
+        sub "Dinonaktifkan: ${f##*/}"
+      fi
+    done
   fi
-
-  local noisy=(
-    "/etc/update-motd.d/10-help-text"
-    "/etc/update-motd.d/50-motd-news"
-    "/etc/update-motd.d/88-esm-announce"
-    "/etc/update-motd.d/91-release-upgrade"
-    "/etc/update-motd.d/95-hwe-eol"
-  )
-  for f in "${noisy[@]}"; do
-    if [ -f "$f" ]; then
-      run ${SUDO} chmod -x "$f" 2>/dev/null || true
-      sub "Dinonaktifkan: ${f##*/}"
+  for pf in /etc/profile.d/*cloudpanel* /etc/profile.d/*motd*; do
+    [ "$pf" = "${MOTD_PROFILE_PATH}" ] && continue
+    if [ -f "$pf" ] && [ -x "$pf" ]; then
+      run ${SUDO} chmod -x "$pf" 2>/dev/null || true
+      sub "Dinonaktifkan di profile.d: ${pf##*/}"
     fi
   done
-  ok "Iklan dan notifikasi promosi pada SSH login berhasil dinonaktifkan."
+  ok "Iklan, banner CloudPanel, dan script promosi pihak ketiga berhasil dinonaktifkan."
 }
 
 # --- Action 4: Restore Original MOTD ---------------------------------------
@@ -355,21 +403,32 @@ a_uninstall() {
     sub "Dihapus: ${MOTD_PROFILE_PATH}"
   fi
 
-  # Restore permissions of stock scripts
+  # Restore permissions of stock scripts in /etc/update-motd.d
   if [ -d "/etc/update-motd.d" ]; then
-    local noisy=(
-      "/etc/update-motd.d/10-help-text"
-      "/etc/update-motd.d/50-motd-news"
-    )
-    for f in "${noisy[@]}"; do
+    for f in /etc/update-motd.d/*; do
+      [ "$f" = "${MOTD_UBUNTU_PATH}" ] && continue
       [ -f "$f" ] && run ${SUDO} chmod +x "$f" 2>/dev/null || true
     done
   fi
+
+  # Restore permissions in /etc/profile.d
+  for pf in /etc/profile.d/*cloudpanel* /etc/profile.d/*motd*; do
+    [ "$pf" = "${MOTD_PROFILE_PATH}" ] && continue
+    [ -f "$pf" ] && run ${SUDO} chmod +x "$pf" 2>/dev/null || true
+  done
 
   # Restore /etc/motd if backup exists
   if [ -f "/etc/motd.bak" ]; then
     run ${SUDO} cp "/etc/motd.bak" "/etc/motd"
     run ${SUDO} rm -f "/etc/motd.bak"
+  fi
+
+  # Revert SSH PrintLastLog setting
+  if [ -f "/etc/ssh/sshd_config.d/99-wanforge-motd.conf" ]; then
+    run ${SUDO} rm -f "/etc/ssh/sshd_config.d/99-wanforge-motd.conf"
+    if command -v sshd >/dev/null 2>&1 && ${SUDO} sshd -t >/dev/null 2>&1; then
+      run ${SUDO} systemctl reload-or-restart ssh 2>/dev/null || run ${SUDO} systemctl reload-or-restart sshd 2>/dev/null || true
+    fi
   fi
 
   ok "Tampilan MOTD dikembalikan ke standar bawaan OS."
