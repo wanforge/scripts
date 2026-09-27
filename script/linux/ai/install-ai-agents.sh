@@ -31,7 +31,7 @@ banner "WanForge AI Agent & LLM Stack"
 HERMES_DIR="${HERMES_HOME:-${HOME}/.hermes}"
 USER_BIN="${HOME}/.local/bin"
 mkdir -p "${USER_BIN}"
-export PATH="${USER_BIN}:${HOME}/.local/share/lerd/bin:/usr/local/bin:${PATH}"
+export PATH="${USER_BIN}:${HOME}/.claude/bin:${HOME}/.local/share/lerd/bin:/usr/local/bin:${PATH}"
 
 # Ensure sudo helper if needed
 SUDO=""
@@ -163,13 +163,25 @@ EOF
 
 # --- 3. Claude Code CLI Setup ----------------------------------------------
 install_claude_code() {
-  hd "3. Setup Claude Code CLI (@anthropic-ai/claude-code)"
+  hd "3. Setup Claude Code CLI"
 
   if ! command -v claude >/dev/null 2>&1; then
-    sub "Installing Claude Code CLI globally via npm..."
-    npm_install_global "@anthropic-ai/claude-code"
+    sub "Installing Claude Code CLI via official installer (https://claude.ai/install.sh)..."
+    if command -v curl >/dev/null 2>&1; then
+      curl -fsSL https://claude.ai/install.sh | bash || {
+        warn "Direct installer failed, falling back to npm global install..."
+        npm_install_global "@anthropic-ai/claude-code"
+      }
+    else
+      npm_install_global "@anthropic-ai/claude-code"
+    fi
+  fi
+  hash -r 2>/dev/null || true
+
+  if command -v claude >/dev/null 2>&1; then
+    ok "Claude Code CLI ready: $(claude --version 2>/dev/null || echo 'installed')"
   else
-    ok "Claude Code CLI already installed: $(claude --version 2>/dev/null || echo 'installed')"
+    warn "Claude Code CLI binary not found in current PATH. Ensure ~/.local/bin or ~/.claude/bin is loaded."
   fi
 
   local claude_dir="${HOME}/.claude"
@@ -213,24 +225,29 @@ install_claude_code() {
 }
 EOF
   fi
-  ok "Claude Code settings.json siap (Base URL: http://127.0.0.1:20128/v1)."
+  ok "Claude Code settings.json configured (Base URL: http://127.0.0.1:20128/v1)."
 }
 
 # --- 4. Antigravity Agent (AGY) Setup --------------------------------------
 install_antigravity() {
   hd "4. Setup Antigravity Agent CLI (AGY)"
 
-  if command -v agy >/dev/null 2>&1; then
-    ok "Binary 'agy' found: $(which agy)"
-  else
-    info "Checking for agy binary in local directory..."
-    if [ -x "${HOME}/.local/bin/agy" ]; then
-      ok "Binary agy active at ${HOME}/.local/bin/agy"
-    else
-      warn "Binary agy not found in PATH."
-      info "To install official Google Antigravity CLI:"
-      info "  Place the agy binary at ${HOME}/.local/bin/agy and run chmod +x."
+  if ! command -v agy >/dev/null 2>&1 && [ ! -x "${HOME}/.local/bin/agy" ]; then
+    sub "Installing Antigravity CLI via official installer (https://antigravity.google/cli/install.sh)..."
+    if command -v curl >/dev/null 2>&1; then
+      curl -fsSL https://antigravity.google/cli/install.sh | bash || true
     fi
+  fi
+  hash -r 2>/dev/null || true
+
+  if command -v agy >/dev/null 2>&1 || [ -x "${HOME}/.local/bin/agy" ]; then
+    local agy_path
+    agy_path="$(command -v agy 2>/dev/null || echo "${HOME}/.local/bin/agy")"
+    ok "Binary 'agy' ready: ${agy_path}"
+  else
+    warn "Binary agy not found in PATH."
+    info "To install manually:"
+    info "  curl -fsSL https://antigravity.google/cli/install.sh | bash"
   fi
 
   local gemini_dir="${HOME}/.gemini"
@@ -262,13 +279,18 @@ EOF
 install_hermes_agent() {
   hd "5. Setup Hermes Agent Framework"
 
-  if command -v hermes >/dev/null 2>&1; then
-    ok "Hermes Agent CLI already installed: $(which hermes)"
-  else
-    sub "Downloading and running official Hermes Agent installer..."
+  if ! command -v hermes >/dev/null 2>&1; then
+    sub "Installing Hermes Agent via official installer (https://hermes-agent.nousresearch.com/install.sh)..."
     if command -v curl >/dev/null 2>&1; then
       curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash || true
     fi
+  fi
+  hash -r 2>/dev/null || true
+
+  if command -v hermes >/dev/null 2>&1; then
+    ok "Hermes Agent CLI ready: $(command -v hermes)"
+  else
+    warn "Hermes Agent CLI not found in PATH. Check ${HERMES_DIR}."
   fi
 
   # Configure Hermes Gateway systemd service

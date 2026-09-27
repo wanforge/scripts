@@ -934,9 +934,9 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/monitoring/install-uptime-
 
 - Modular autonomous AI coding and messaging environment installer and auditor (select individually):
   - **9Router**: Installs `9router` AI gateway, creates `9router.service` systemd daemon on port `20128`, configures multi-provider models (Anthropic, OpenAI, DeepSeek, Google Gemini) with automated fallback combos.
-  - **Claude Code CLI**: Installs `@anthropic-ai/claude-code`, configures `~/.claude/settings.json` with 9Router base URL, 998k context window, and permission whitelist for automated execution.
-  - **Antigravity CLI**: Installs `agy` agent and configures RTK hooks.
-  - **Hermes Agent**: Official installer, virtualenv bootstrap, and user systemd service setup.
+  - **Claude Code CLI**: Installs via official installer (`curl -fsSL https://claude.ai/install.sh | bash` with npm fallback), configures `~/.claude/settings.json` with 9Router base URL, 998k context window, and permission whitelist for automated execution.
+  - **Antigravity CLI**: Installs via official Google installer (`curl -fsSL https://antigravity.google/cli/install.sh | bash`), wires binary to PATH, and configures RTK hooks in `~/.gemini/settings.json`.
+  - **Hermes Agent**: Installs via official installer (`curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash`), bootstraps Python environment, and provisions user systemd service.
   - **Token Optimization**: Integrates Caveman CLI (`@caveman-ai/cli`) and prompt compression tools.
   - **Doctor Mode**: Runs comprehensive health check verifying node, python, tmux, agent binaries, port availability, and AI proxy latency.
 
