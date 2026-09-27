@@ -18,6 +18,9 @@ elif [ -r "${HOME:-}/.local/lib/wanforge-scripts/lib.sh" ]; then . "${HOME}/.loc
 elif command -v curl >/dev/null 2>&1; then . <(curl -fsSL "${__LIB}")
 else . <(wget -qO- "${__LIB}"); fi
 
+# Defensive fallback in case an older cached lib.sh was sourced
+command -v sub >/dev/null 2>&1 || sub() { [ "${LOG_LEVEL:-1}" -ge 1 ] || return 0; [ -n "${C_DIM:-}" ] && printf "    %b↳%b %s\n" "${C_DIM}" "${C_RESET}" "$1" || printf "    ↳ %s\n" "$1"; }
+
 TOOL_NAME="setup-motd"
 MOTD_UBUNTU_PATH="/etc/update-motd.d/01-wanforge-motd"
 MOTD_PROFILE_PATH="/etc/profile.d/wanforge-motd.sh"
