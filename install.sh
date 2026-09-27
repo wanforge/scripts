@@ -483,12 +483,12 @@ tui_search_screen() {
         [ "${#dsc}" -gt "$max_d" ] && short_dsc="${short_dsc:0:$((max_d-1))}…"
 
         if [ "$is_sel" -eq 1 ]; then
-          append_frame "%b❯ %2d) %-20.20s %b[%-13.13s]%b %b%s%b\033[K\n" \
+          append_frame "%b❯ %2d. %-20.20s %b[%-13.13s]%b %b%s%b\033[K\n" \
             "${C_BOLD}${C_GREEN}" "$((idx+1))" "$lbl" \
             "${C_CYAN}" "$cat" "${C_RESET}" \
             "${C_WHITE}" "$short_dsc" "${C_RESET}"
         else
-          append_frame "  %2d) %-20.20s %b[%-13.13s]%b %b%s%b\033[K\n" \
+          append_frame "  %2d. %-20.20s %b[%-13.13s]%b %b%s%b\033[K\n" \
             "$((idx+1))" "$lbl" \
             "${C_DIM}" "$cat" "${C_RESET}" \
             "${C_DIM}" "$short_dsc" "${C_RESET}"
@@ -636,10 +636,10 @@ tui_category_submenu() {
         [ "${#dsc}" -gt "$max_d" ] && short_dsc="${short_dsc:0:$((max_d-1))}…"
 
         if [ "$is_sel" -eq 1 ]; then
-          append_frame "%b❯ %2d) %-22.22s %b%s%b\033[K\n" \
+          append_frame "%b❯ %2d. %-22.22s %b%s%b\033[K\n" \
             "${C_BOLD}${C_GREEN}" "$((idx+1))" "$lbl" "${C_WHITE}" "$short_dsc" "${C_RESET}"
         else
-          append_frame "  %2d) %-22.22s %b%s%b\033[K\n" \
+          append_frame "  %2d. %-22.22s %b%s%b\033[K\n" \
             "$((idx+1))" "$lbl" "${C_DIM}" "$short_dsc" "${C_RESET}"
         fi
       else
@@ -761,12 +761,12 @@ tui_main() {
 
       local cat_fmt="[${c}]"
       if [ "$is_sel" -eq 1 ]; then
-        append_frame "%b❯ %2d) %-23.23s %b(%d tools)%b  %b%s%b\033[K\n" \
+        append_frame "%b❯ %2d. %-23.23s %b(%d tools)%b  %b%s%b\033[K\n" \
           "${C_BOLD}${C_CYAN}" "$((i+1))" "$cat_fmt" \
           "${C_GREEN}" "$cnt" "${C_RESET}" \
           "${C_WHITE}" "$sum" "${C_RESET}"
       else
-        append_frame "  %2d) %-23.23s %b(%d tools)%b  %b%s%b\033[K\n" \
+        append_frame "  %2d. %-23.23s %b(%d tools)%b  %b%s%b\033[K\n" \
           "$((i+1))" "$cat_fmt" \
           "${C_DIM}" "$cnt" "${C_RESET}" \
           "${C_DIM}" "$sum" "${C_RESET}"

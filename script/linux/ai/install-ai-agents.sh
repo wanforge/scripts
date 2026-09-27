@@ -37,6 +37,20 @@ export PATH="${USER_BIN}:${HOME}/.local/share/lerd/bin:/usr/local/bin:${PATH}"
 SUDO=""
 [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1 && SUDO="sudo"
 
+npm_install_global() {
+  local pkg="$1"
+  local global_dir
+  global_dir="$(npm root -g 2>/dev/null || echo "/usr/lib/node_modules")"
+  if [ -w "${global_dir}" ] || [ "$(id -u)" -eq 0 ]; then
+    npm install -g "${pkg}"
+  elif [ -n "${SUDO}" ]; then
+    ${SUDO} npm install -g "${pkg}"
+  else
+    npm install -g --prefix "${HOME}/.local" "${pkg}"
+  fi
+  hash -r 2>/dev/null || true
+}
+
 # --- 1. Node.js & 9Router AI Gateway --------------------------------------
 install_9router() {
   hd "1. Setup 9Router AI Gateway (Port 20128)"
@@ -52,7 +66,7 @@ install_9router() {
 
   if ! command -v 9router >/dev/null 2>&1; then
     sub "Installing 9Router via npm..."
-    npm install -g 9router || ${SUDO:-} npm install -g 9router || true
+    npm_install_global "9router"
   fi
 
   # Systemd User Service for 9Router
@@ -60,8 +74,18 @@ install_9router() {
   mkdir -p "${svc_dir}"
   local svc_file="${svc_dir}/9router.service"
 
-  local node_bin; node_bin="$(which node 2>/dev/null || echo "/usr/bin/node")"
-  local router_bin; router_bin="$(which 9router 2>/dev/null || echo "${HOME}/.local/bin/9router")"
+  hash -r 2>/dev/null || true
+  local node_bin; node_bin="$(command -v node 2>/dev/null || echo "/usr/bin/node")"
+  local router_bin; router_bin="$(command -v 9router 2>/dev/null || echo "")"
+  if [ -z "${router_bin}" ]; then
+    for cand in /usr/local/bin/9router /usr/bin/9router "${HOME}/.local/bin/9router" "${HOME}/.local/share/lerd/bin/9router"; do
+      if [ -x "${cand}" ]; then
+        router_bin="${cand}"
+        break
+      fi
+    done
+  fi
+  router_bin="${router_bin:-${HOME}/.local/bin/9router}"
 
   sub "Creating systemd user unit ${svc_file}..."
   cat > "${svc_file}" <<EOF
@@ -139,7 +163,7 @@ install_claude_code() {
 
   if ! command -v claude >/dev/null 2>&1; then
     sub "Installing Claude Code CLI globally via npm..."
-    npm install -g @anthropic-ai/claude-code || ${SUDO:-} npm install -g @anthropic-ai/claude-code
+    npm_install_global "@anthropic-ai/claude-code"
   else
     ok "Claude Code CLI already installed: $(claude --version 2>/dev/null || echo 'installed')"
   fi
@@ -298,7 +322,7 @@ install_optimization_stack() {
 
   if ! command -v caveman >/dev/null 2>&1; then
     sub "Installing Caveman CLI..."
-    npm install -g @caveman-ai/cli 2>/dev/null || ${SUDO:-} npm install -g @caveman-ai/cli 2>/dev/null || true
+    npm_install_global "@caveman-ai/cli"
   fi
   if command -v caveman >/dev/null 2>&1; then
     ok "Caveman CLI installed: $(which caveman)"

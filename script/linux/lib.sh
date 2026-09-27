@@ -305,9 +305,9 @@ checkbox() {
       local box="[ ]"; [ "${checked[i]}" -eq 1 ] && box="[✓]"
       local num_pfx=""
       if [ "$n" -le 9 ]; then
-        num_pfx="$((i+1))) "
+        num_pfx="$((i+1)). "
       else
-        num_pfx="$(printf "%2d) " "$((i+1))")"
+        num_pfx="$(printf "%2d. " "$((i+1))")"
       fi
       if [ "$i" -eq "$cursor" ]; then
         printf "\033[2K%b❯ %s%s %-24s  %s%b\n" "${C_BOLD}${C_CYAN}" "$num_pfx" "$box" "$lbl" "$dsc" "${C_RESET}" >&2
@@ -376,9 +376,9 @@ menu_select() {
       if [ "$g" != "$prev" ]; then printf "\033[2K%b  ── %s ──%b\n" "${C_BOLD}${C_YELLOW}" "$g" "${C_RESET}" >&2; prev="$g"; fi
       local num_pfx=""
       if [ "$n" -le 9 ]; then
-        num_pfx="$((i+1))) "
+        num_pfx="$((i+1)). "
       else
-        num_pfx="$(printf "%2d) " "$((i+1))")"
+        num_pfx="$(printf "%2d. " "$((i+1))")"
       fi
       if [ "$i" -eq "$cursor" ]; then
         printf "\033[2K%b❯ %s%-24s  %s%b\n" "${C_BOLD}${C_CYAN}" "$num_pfx" "$k" "$lbl" "${C_RESET}" >&2
