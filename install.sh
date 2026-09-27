@@ -381,17 +381,42 @@ cli_help() {
 
 # --- Single Key Input Reader ----------------------------------------------
 read_tui_key() {
-  local k rest
-  IFS= read -rsn1 k <&3 || return 1
-  if [ "$k" = $'\x1b' ]; then
-    IFS= read -rsn2 -t 0.05 rest <&3 || rest=""
-    k+="$rest"
-    if [ "$k" = $'\x1b[' ]; then
-      IFS= read -rsn1 -t 0.05 rest <&3 || rest=""
-      k+="$rest"
-    fi
+  local ch rest
+  TUI_KEY=""
+  IFS= read -rsn1 ch <&3 || return 1
+  if [ -z "$ch" ] || [ "$ch" = $'\n' ] || [ "$ch" = $'\r' ]; then
+    TUI_KEY="ENTER"
+    return 0
   fi
-  printf "%s" "$k"
+  if [ "$ch" = " " ]; then
+    TUI_KEY="SPACE"
+    return 0
+  fi
+  if [ "$ch" = $'\x1b' ]; then
+    IFS= read -rsn2 -t 0.08 rest <&3 || rest=""
+    ch+="$rest"
+    if [ "$ch" = $'\x1b[' ]; then
+      IFS= read -rsn1 -t 0.08 rest <&3 || rest=""
+      ch+="$rest"
+    fi
+    case "$ch" in
+      $'\x1b[A') TUI_KEY="UP"; return 0 ;;
+      $'\x1b[B') TUI_KEY="DOWN"; return 0 ;;
+      $'\x1b[C') TUI_KEY="RIGHT"; return 0 ;;
+      $'\x1b[D') TUI_KEY="LEFT"; return 0 ;;
+      *)         TUI_KEY="ESC"; return 0 ;;
+    esac
+  fi
+  if [ "$ch" = $'\x7f' ] || [ "$ch" = $'\x08' ]; then
+    TUI_KEY="BACKSPACE"
+    return 0
+  fi
+  if [ "$ch" = $'\t' ]; then
+    TUI_KEY="TAB"
+    return 0
+  fi
+  TUI_KEY="$ch"
+  return 0
 }
 
 # --- TUI Level 3: Realtime Search Screen ----------------------------------
@@ -488,11 +513,10 @@ tui_search_screen() {
 
     printf "%b" "$frame" >&2
 
-    local k
-    k="$(read_tui_key)" || break
+    read_tui_key || break
 
-    case "$k" in
-      $'\x1b'|$'\x1b\x1b')
+    case "${TUI_KEY}" in
+      ESC)
         if [ -n "${query}" ]; then
           query=""
           cursor=0; scroll=0
@@ -501,15 +525,15 @@ tui_search_screen() {
         fi
         ;;
 
-      $'\x1b[A'|k) # UP
+      UP|k)
         [ "$cursor" -gt 0 ] && cursor=$((cursor - 1))
         ;;
 
-      $'\x1b[B'|j) # DOWN
+      DOWN|j)
         [ "$cursor" -lt "$((total - 1))" ] && cursor=$((cursor + 1))
         ;;
 
-      $'\n'|$'\r') # ENTER
+      ENTER)
         if [ "$total" -gt 0 ] && [ "$cursor" -lt "$total" ]; then
           local chosen="${m_labels[cursor]}"
           printf "\033[?1049l\033[?25h" >&2
@@ -522,13 +546,13 @@ tui_search_screen() {
         fi
         ;;
 
-      v|V) # VIEW CODE
+      v|V)
         if [ "$total" -gt 0 ] && [ "$cursor" -lt "$total" ]; then
           tui_view_code "${m_paths[cursor]}"
         fi
         ;;
 
-      $'\x7f'|$'\x08') # BACKSPACE
+      BACKSPACE)
         if [ ${#query} -gt 0 ]; then
           query="${query:0:-1}"
           cursor=0; scroll=0
@@ -537,9 +561,16 @@ tui_search_screen() {
         fi
         ;;
 
-      [[:print:]])
-        query+="$k"
+      SPACE)
+        query+=" "
         cursor=0; scroll=0
+        ;;
+
+      *)
+        if [ ${#TUI_KEY} -eq 1 ]; then
+          query+="${TUI_KEY}"
+          cursor=0; scroll=0
+        fi
         ;;
     esac
   done
@@ -630,25 +661,24 @@ tui_category_submenu() {
 
     printf "%b" "$frame" >&2
 
-    local k
-    k="$(read_tui_key)" || break
+    read_tui_key || break
 
-    case "$k" in
-      $'\x1b[A'|k) # UP
+    case "${TUI_KEY}" in
+      UP|k) # UP
         [ "$cursor" -gt 0 ] && cursor=$((cursor - 1))
         ;;
 
-      $'\x1b[B'|j) # DOWN
+      DOWN|j) # DOWN
         [ "$cursor" -lt "$((n - 1))" ] && cursor=$((cursor + 1))
         ;;
 
       [1-9])
-        local num_str="${k}"
+        local num_str="${TUI_KEY}"
         if [ "$n" -ge 10 ]; then
           local next_ch=""
           if IFS= read -rsn1 -t 0.2 next_ch <&3 2>/dev/null; then
             if [[ "${next_ch}" =~ ^[0-9]$ ]]; then
-              num_str="${k}${next_ch}"
+              num_str="${TUI_KEY}${next_ch}"
             fi
           fi
         fi
@@ -658,7 +688,7 @@ tui_category_submenu() {
         fi
         ;;
 
-      $'\n'|$'\r') # ENTER
+      ENTER) # ENTER
         local chosen="${labels[cursor]}"
         printf "\033[?1049l\033[?25h" >&2
         stty sane 2>/dev/null || true
@@ -673,7 +703,7 @@ tui_category_submenu() {
         tui_view_code "${paths[cursor]}"
         ;;
 
-      0|q|Q|$'\x1b'|$'\x1b\x1b') # BACK
+      0|q|Q|ESC|LEFT) # BACK
         return 0
         ;;
     esac
@@ -751,25 +781,24 @@ tui_main() {
 
     printf "%b" "$frame" >&2
 
-    local k
-    k="$(read_tui_key)" || break
+    read_tui_key || break
 
-    case "$k" in
-      $'\x1b[A'|k) # UP
+    case "${TUI_KEY}" in
+      UP|k) # UP
         [ "$cursor" -gt 0 ] && cursor=$((cursor - 1))
         ;;
 
-      $'\x1b[B'|j) # DOWN
+      DOWN|j) # DOWN
         [ "$cursor" -lt "$((num_cats - 1))" ] && cursor=$((cursor + 1))
         ;;
 
       [1-9])
-        local num_str="${k}"
+        local num_str="${TUI_KEY}"
         if [ "$num_cats" -ge 10 ]; then
           local next_ch=""
           if IFS= read -rsn1 -t 0.2 next_ch <&3 2>/dev/null; then
             if [[ "${next_ch}" =~ ^[0-9]$ ]]; then
-              num_str="${k}${next_ch}"
+              num_str="${TUI_KEY}${next_ch}"
             fi
           fi
         fi
@@ -787,7 +816,7 @@ tui_main() {
         fi
         ;;
 
-      $'\n'|$'\r') # ENTER
+      ENTER|SPACE|RIGHT) # ENTER / SELECT
         tui_category_submenu "${CATEGORIES[cursor]}"
         ;;
 
@@ -807,7 +836,7 @@ tui_main() {
         tui_sys_info
         ;;
 
-      q|Q|$'\x1b'|$'\x1b\x1b') # QUIT
+      q|Q|ESC) # QUIT
         break
         ;;
     esac
