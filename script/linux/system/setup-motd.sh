@@ -68,8 +68,22 @@ OS_NAME="${OS_NAME%% (*}"
 
 # CPU Load & Cores
 CPU_CORES="$(nproc 2>/dev/null || grep -c '^processor' /proc/cpuinfo 2>/dev/null || echo 1)"
+CPU_MODEL="$(awk -F: '/model name/ {print $2; exit}' /proc/cpuinfo 2>/dev/null | sed -e 's/^[ \t]*//' -e 's/(R)//g' -e 's/(TM)//g' -e 's/ CPU.*//' -e 's/ with Radeon Graphics.*//' -e 's/ @.*//')"
+[ -z "${CPU_MODEL}" ] && CPU_MODEL="$(awk -F: '/Model/ {print $2; exit}' /proc/cpuinfo 2>/dev/null | sed -e 's/^[ \t]*//')"
+[ -z "${CPU_MODEL}" ] && CPU_MODEL="$(uname -m 2>/dev/null || echo "x86_64")"
+CPU_DISP="${CPU_MODEL} (${CPU_CORES}c)"
+
 LOAD="$(awk '{print $1", "$2", "$3}' /proc/loadavg 2>/dev/null || echo 'N/A')"
-LOAD_STR="${LOAD} (${CPU_CORES}c)"
+LOAD_1="$(awk '{print $1}' /proc/loadavg 2>/dev/null || echo 0)"
+LOAD_STR="${LOAD}"
+C_LOAD="${C_WHITE}"
+awk -v l="${LOAD_1}" -v c="${CPU_CORES}" 'BEGIN { if (l >= c) exit 2; if (l >= c*0.7) exit 1; exit 0 }' 2>/dev/null
+rc_load=$?
+if [ $rc_load -eq 2 ]; then
+  C_LOAD="${C_RED}"
+elif [ $rc_load -eq 1 ]; then
+  C_LOAD="${C_YELLOW}"
+fi
 
 # Memory Usage
 MEM_TOTAL_KB="$(awk '/MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null || echo 0)"
@@ -95,6 +109,31 @@ else
   MEM_STR="N/A"
 fi
 
+# Swap Usage
+SWAP_TOTAL_KB="$(awk '/SwapTotal:/ {print $2}' /proc/meminfo 2>/dev/null || echo 0)"
+SWAP_FREE_KB="$(awk '/SwapFree:/ {print $2}' /proc/meminfo 2>/dev/null || echo 0)"
+C_SWAP="${C_WHITE}"
+if [ "${SWAP_TOTAL_KB}" -gt 0 ]; then
+  SWAP_USED_KB=$(( SWAP_TOTAL_KB - SWAP_FREE_KB ))
+  SWAP_PCT=$(( (SWAP_USED_KB * 100) / SWAP_TOTAL_KB ))
+  SWAP_USED_MB=$(( SWAP_USED_KB / 1024 ))
+  SWAP_TOTAL_MB=$(( SWAP_TOTAL_KB / 1024 ))
+  if [ "${SWAP_TOTAL_MB}" -ge 2048 ]; then
+    SWAP_STR="$(awk -v u="${SWAP_USED_MB}" -v t="${SWAP_TOTAL_MB}" 'BEGIN {printf "%.1fG / %.1fG", u/1024, t/1024}')"
+  else
+    SWAP_STR="${SWAP_USED_MB}M / ${SWAP_TOTAL_MB}M"
+  fi
+  SWAP_STR="${SWAP_STR} (${SWAP_PCT}%)"
+  if [ "${SWAP_PCT}" -ge 80 ]; then
+    C_SWAP="${C_RED}"
+  elif [ "${SWAP_PCT}" -ge 50 ]; then
+    C_SWAP="${C_YELLOW}"
+  fi
+else
+  SWAP_STR="Disabled (0B)"
+  C_SWAP="${C_DIM}"
+fi
+
 # Disk Usage (Root filesystem /)
 DISK_INFO="$(df -h / 2>/dev/null | awk 'NR==2 {print $3" / "$2" ("$5")"}')"
 [ -z "${DISK_INFO}" ] && DISK_INFO="N/A"
@@ -106,10 +145,23 @@ elif [ "${DISK_PCT:-0}" -ge 80 ]; then
   C_DISK="${C_YELLOW}"
 fi
 
-# Network IP
+# Network IP (LAN)
 LOCAL_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 [ -z "${LOCAL_IP}" ] && LOCAL_IP="$(ip route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1)}')"
 [ -z "${LOCAL_IP}" ] && LOCAL_IP="127.0.0.1"
+
+# Public IP (cached for fast login)
+IP_CACHE="/tmp/.wanforge_motd_pubip"
+PUB_IP=""
+if [ -f "${IP_CACHE}" ] && [ $(( $(date +%s 2>/dev/null || echo 0) - $(stat -c %Y "${IP_CACHE}" 2>/dev/null || echo 0) )) -lt 3600 ]; then
+  PUB_IP="$(head -n 1 "${IP_CACHE}" 2>/dev/null || echo "")"
+fi
+if [ -z "${PUB_IP}" ]; then
+  PUB_IP="$(curl -4 -s --connect-timeout 1 -m 1.5 https://api.ipify.org 2>/dev/null || curl -4 -s --connect-timeout 1 -m 1.5 https://ifconfig.me 2>/dev/null || echo "N/A")"
+  if [ -n "${PUB_IP}" ] && [ "${PUB_IP}" != "N/A" ]; then
+    (echo "${PUB_IP}" > "${IP_CACHE}" 2>/dev/null && chmod 644 "${IP_CACHE}" 2>/dev/null) || true
+  fi
+fi
 
 # SSH Port
 SSH_PORT="22"
@@ -117,6 +169,23 @@ if command -v ss >/dev/null 2>&1; then
   SSH_PORT="$(ss -tlpn 2>/dev/null | grep -iE 'sshd|ssh' | awk '{print $4}' | awk -F: '{print $NF}' | head -1)"
 fi
 [ -z "${SSH_PORT}" ] && SSH_PORT="22"
+
+# Firewall Status
+FW_STATUS="nonaktif"
+C_FW="${C_RED}"
+if systemctl is-active --quiet firewalld 2>/dev/null; then
+  FW_STATUS="firewalld (aktif)"
+  C_FW="${C_GREEN}"
+elif systemctl is-active --quiet ufw 2>/dev/null; then
+  FW_STATUS="ufw (aktif)"
+  C_FW="${C_GREEN}"
+elif systemctl is-active --quiet nftables 2>/dev/null; then
+  FW_STATUS="nftables (aktif)"
+  C_FW="${C_GREEN}"
+elif systemctl is-active --quiet iptables 2>/dev/null; then
+  FW_STATUS="iptables (aktif)"
+  C_FW="${C_GREEN}"
+fi
 
 # Active Users
 SESS_COUNT="$(who 2>/dev/null | wc -l || echo 1)"
@@ -132,15 +201,17 @@ print_row() {
 printf "\n"
 printf " %bWANFORGE SECURE INFRASTRUCTURE NODE%b\n" "${C_BOLD}${C_CYAN}" "${C_RESET}"
 printf " %b──────────────────────────────────────────────────────────────────────────%b\n" "${C_DIM}" "${C_RESET}"
-print_row "Hostname" "${C_BOLD}${C_WHITE}" "${HOSTNAME}" "OS" "${C_WHITE}" "${OS_NAME}"
-print_row "Kernel" "${C_WHITE}" "${KERNEL}" "Uptime" "${C_GREEN}" "${UPTIME_STR}"
-print_row "CPU Load" "${C_WHITE}" "${LOAD_STR}" "RAM" "${C_MEM}" "${MEM_STR}"
-print_row "Disk (/)" "${C_DISK}" "${DISK_INFO}" "IP LAN" "${C_WHITE}" "${LOCAL_IP}"
-print_row "SSH Port" "${C_YELLOW}" "${SSH_PORT}" "Sesi Aktif" "${C_WHITE}" "${SESS_STR}"
+print_row "Hostname" "${C_BOLD}${C_WHITE}" "${HOSTNAME}" "IP LAN" "${C_WHITE}" "${LOCAL_IP}"
+print_row "OS Distro" "${C_WHITE}" "${OS_NAME}" "IP Publik" "${C_CYAN}" "${PUB_IP}"
+print_row "Kernel" "${C_WHITE}" "${KERNEL}" "Port SSH" "${C_YELLOW}" "${SSH_PORT}"
+print_row "Prosesor" "${C_WHITE}" "${CPU_DISP}" "Firewall" "${C_FW}" "${FW_STATUS}"
+print_row "CPU Load" "${C_LOAD}" "${LOAD_STR}" "Uptime" "${C_GREEN}" "${UPTIME_STR}"
+print_row "RAM (Mem)" "${C_MEM}" "${MEM_STR}" "Sesi Aktif" "${C_WHITE}" "${SESS_STR}"
+print_row "Swap" "${C_SWAP}" "${SWAP_STR}" "Disk (/)" "${C_DISK}" "${DISK_INFO}"
 printf " %b──────────────────────────────────────────────────────────────────────────%b\n" "${C_DIM}" "${C_RESET}"
 printf "  %bLayanan :%b  " "${C_DIM}" "${C_RESET}"
 
-if systemctl is-active --quiet sshd 2>/dev/null || systemctl is-active --quiet ssh 2>/dev/null; then
+if systemctl is-active --quiet sshd 2>/dev/null || systemctl is-active --quiet ssh 2>/dev/null || systemctl is-active --quiet sshd.socket 2>/dev/null || systemctl is-active --quiet ssh.socket 2>/dev/null; then
   printf "%b●%b sshd   " "${C_GREEN}" "${C_RESET}"
 else
   printf "%b○%b sshd   " "${C_DIM}" "${C_RESET}"
@@ -152,6 +223,12 @@ elif systemctl is-active --quiet ufw 2>/dev/null; then
   printf "%b●%b ufw   " "${C_GREEN}" "${C_RESET}"
 else
   printf "%b○%b firewall   " "${C_DIM}" "${C_RESET}"
+fi
+
+if systemctl is-active --quiet fail2ban 2>/dev/null; then
+  printf "%b●%b fail2ban   " "${C_GREEN}" "${C_RESET}"
+else
+  printf "%b○%b fail2ban   " "${C_DIM}" "${C_RESET}"
 fi
 
 if systemctl is-active --quiet docker 2>/dev/null; then
