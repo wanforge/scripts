@@ -567,7 +567,7 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/ai/setup-9router-tunnel.sh
 ### setup-motd.sh
 
 - Custom dynamic SSH login banner (MOTD) with live system KPIs:
-  - **Dynamic System Metrics**: Displays hostname, distro, kernel, uptime, CPU cores, load averages, memory usage (RAM), root disk usage (`/`), private IP, SSH listening port, active user sessions, and service status badges (`sshd`, `docker`, `podman`, `firewall`, `9router`).
+  - **Dynamic System Metrics**: Displays hostname, distro, kernel, CPU processor model & cores, load averages, memory usage (RAM), swap usage, root disk usage (`/`), private LAN IP, public IP (fast 1-hr cached lookup), SSH listening port, active firewall status (`firewalld`, `ufw`, `nftables`, `iptables`), active user sessions, and service status badges (`sshd`, `firewall`, `fail2ban`, `docker`, `podman`, `9router`).
   - **Ultra-Fast & Lightweight**: Pure bash and `/proc` inspection executing in under 0.05 seconds with zero external network bloat or login lag.
   - **Spam Silencer**: Automatically disables annoying Ubuntu Pro / ESM promotional spam scripts (`10-help-text`, `50-motd-news`, `88-esm-announce`, `91-release-upgrade`).
   - **Multi-Distro**: Integrates natively with `/etc/update-motd.d/` (Debian/Ubuntu) or `/etc/profile.d/` (Fedora/RHEL/CentOS/Arch).
