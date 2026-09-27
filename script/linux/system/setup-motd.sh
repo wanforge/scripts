@@ -56,9 +56,9 @@ DAYS=$(( UPTIME_SEC / 86400 ))
 HOURS=$(( (UPTIME_SEC % 86400) / 3600 ))
 MINS=$(( (UPTIME_SEC % 3600) / 60 ))
 if [ "${DAYS}" -gt 0 ]; then
-  UPTIME_STR="${DAYS} hari ${HOURS} jam"
+  UPTIME_STR="${DAYS}d ${HOURS}h ${MINS}m"
 else
-  UPTIME_STR="${HOURS} jam ${MINS} m"
+  UPTIME_STR="${HOURS}h ${MINS}m"
 fi
 
 # OS Name
@@ -174,25 +174,26 @@ fi
 [ -z "${SSH_PORT}" ] && SSH_PORT="22"
 
 # Firewall Status
-FW_STATUS="nonaktif"
+FW_STATUS="inactive"
 C_FW="${C_RED}"
 if systemctl is-active --quiet firewalld 2>/dev/null; then
-  FW_STATUS="firewalld (aktif)"
+  FW_STATUS="firewalld (active)"
   C_FW="${C_GREEN}"
 elif systemctl is-active --quiet ufw 2>/dev/null; then
-  FW_STATUS="ufw (aktif)"
+  FW_STATUS="ufw (active)"
   C_FW="${C_GREEN}"
 elif systemctl is-active --quiet nftables 2>/dev/null; then
-  FW_STATUS="nftables (aktif)"
+  FW_STATUS="nftables (active)"
   C_FW="${C_GREEN}"
 elif systemctl is-active --quiet iptables 2>/dev/null; then
-  FW_STATUS="iptables (aktif)"
+  FW_STATUS="iptables (active)"
   C_FW="${C_GREEN}"
 fi
 
 # Active Users
 SESS_COUNT="$(who 2>/dev/null | wc -l || echo 1)"
 SESS_STR="${SESS_COUNT} user"
+[ "${SESS_COUNT}" -gt 1 ] && SESS_STR="${SESS_COUNT} users"
 
 # Last login extraction
 LAST_LINE="$(last -n 5 -F "${USER:-$(id -un 2>/dev/null || echo '')}" 2>/dev/null | grep -v 'wtmp' | grep -v 'reboot' | sed -n '2p')"
@@ -200,7 +201,7 @@ if [ -z "${LAST_LINE}" ]; then
   LAST_LINE="$(last -n 5 -F 2>/dev/null | grep -v 'wtmp' | grep -v 'reboot' | sed -n '2p')"
 fi
 
-LAST_STR="Sesi pertama atau belum tercatat"
+LAST_STR="First session or not recorded"
 if [ -n "${LAST_LINE}" ]; then
   LAST_IP="$(echo "${LAST_LINE}" | awk '{if ($3 ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/ || $3 ~ /:/ || $3 ~ /\./) print $3; else print ""}')"
   if [[ "${LAST_IP}" =~ ^tmux ]] || [[ "${LAST_IP}" =~ ^: ]] || [[ "${LAST_IP}" =~ ^pts/ ]]; then
@@ -208,9 +209,9 @@ if [ -n "${LAST_LINE}" ]; then
   fi
   LAST_TIME="$(echo "${LAST_LINE}" | awk '{for(i=3;i<=NF;i++) if($i ~ /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)$/) {print $i, $(i+1), $(i+2), $(i+3); exit}}')"
   if [ -n "${LAST_IP}" ] && [ -n "${LAST_TIME}" ]; then
-    LAST_STR="Login terakhir dari ${LAST_IP} pada ${LAST_TIME}"
+    LAST_STR="Last login from ${LAST_IP} on ${LAST_TIME}"
   elif [ -n "${LAST_TIME}" ]; then
-    LAST_STR="Login terakhir dari sesi lokal pada ${LAST_TIME}"
+    LAST_STR="Last login from local session on ${LAST_TIME}"
   fi
 fi
 
@@ -226,15 +227,15 @@ printf " %b╔══════════════════════
 printf " %b║%b  %bWANFORGE SECURE INFRASTRUCTURE NODE%b                   %b● SYSTEM READY%b  %b║%b\n" \
   "${C_CYAN}" "${C_RESET}" "${C_BOLD}${C_WHITE}" "${C_RESET}" "${C_BOLD}${C_GREEN}" "${C_RESET}" "${C_CYAN}" "${C_RESET}"
 printf " %b╚════════════════════════════════════════════════════════════════════════╝%b\n" "${C_CYAN}" "${C_RESET}"
-print_row "Hostname" "${C_BOLD}${C_WHITE}" "${HOSTNAME}" "IP LAN" "${C_WHITE}" "${LOCAL_IP}"
-print_row "OS Distro" "${C_WHITE}" "${OS_NAME}" "IP Publik" "${C_CYAN}" "${PUB_IP}"
-print_row "Kernel" "${C_WHITE}" "${KERNEL}" "Port SSH" "${C_YELLOW}" "${SSH_PORT}"
-print_row "Prosesor" "${C_WHITE}" "${CPU_DISP}" "Firewall" "${C_FW}" "${FW_STATUS}"
+print_row "Hostname" "${C_BOLD}${C_WHITE}" "${HOSTNAME}" "LAN IP" "${C_WHITE}" "${LOCAL_IP}"
+print_row "OS Distro" "${C_WHITE}" "${OS_NAME}" "Public IP" "${C_CYAN}" "${PUB_IP}"
+print_row "Kernel" "${C_WHITE}" "${KERNEL}" "SSH Port" "${C_YELLOW}" "${SSH_PORT}"
+print_row "CPU Model" "${C_WHITE}" "${CPU_DISP}" "Firewall" "${C_FW}" "${FW_STATUS}"
 print_row "CPU Load" "${C_LOAD}" "${LOAD_STR}" "Uptime" "${C_GREEN}" "${UPTIME_STR}"
-print_row "RAM (Mem)" "${C_MEM}" "${MEM_STR}" "Sesi Aktif" "${C_WHITE}" "${SESS_STR}"
+print_row "RAM (Mem)" "${C_MEM}" "${MEM_STR}" "Active Ssn" "${C_WHITE}" "${SESS_STR}"
 print_row "Swap" "${C_SWAP}" "${SWAP_STR}" "Disk (/)" "${C_DISK}" "${DISK_INFO}"
 printf " %b──────────────────────────────────────────────────────────────────────────%b\n" "${C_DIM}" "${C_RESET}"
-printf "  %bLayanan :%b  " "${C_DIM}" "${C_RESET}"
+printf "  %bServices :%b  " "${C_DIM}" "${C_RESET}"
 
 if systemctl is-active --quiet sshd 2>/dev/null || systemctl is-active --quiet ssh 2>/dev/null || systemctl is-active --quiet sshd.socket 2>/dev/null || systemctl is-active --quiet ssh.socket 2>/dev/null; then
   printf "%b●%b sshd   " "${C_GREEN}" "${C_RESET}"
@@ -274,10 +275,10 @@ else
   printf "%b○%b 9router" "${C_DIM}" "${C_RESET}"
 fi
 printf "\n"
-printf "  %bAkses   :%b  %b%s%b\n" "${C_DIM}" "${C_RESET}" "${C_WHITE}" "${LAST_STR}" "${C_RESET}"
+printf "  %bAccess   :%b  %b%s%b\n" "${C_DIM}" "${C_RESET}" "${C_WHITE}" "${LAST_STR}" "${C_RESET}"
 
 if [ -f /var/run/reboot-required ] || [ -f /run/reboot-required ]; then
-  printf "  %bStatus  :%b  %b⚠  SISTEM PERLU RESTART (System reboot required)%b\n" \
+  printf "  %bStatus   :%b  %b⚠  SYSTEM REBOOT REQUIRED%b\n" \
     "${C_DIM}" "${C_RESET}" "${C_BOLD}${C_RED}" "${C_RESET}"
 fi
 
@@ -287,7 +288,7 @@ EOF
 
 # --- Action 1: Preview MOTD ------------------------------------------------
 a_preview() {
-  hd "Pratinjau Tampilan MOTD Login SSH"
+  hd "SSH Login MOTD Banner Preview"
   local tmp; tmp="$(mktemp)"
   render_motd_content > "${tmp}"
   chmod +x "${tmp}"
@@ -297,18 +298,18 @@ a_preview() {
 
 # --- Action 2: Install WanForge MOTD ---------------------------------------
 a_install() {
-  hd "Pasang WanForge Dynamic SSH Login Banner"
+  hd "Install WanForge Dynamic SSH Login Banner"
 
   local target_path=""
   if [ -d "/etc/update-motd.d" ]; then
     target_path="${MOTD_UBUNTU_PATH}"
-    sub "Mendeteksi Debian/Ubuntu update-motd.d framework..."
+    sub "Detected Debian/Ubuntu update-motd.d framework..."
   else
     target_path="${MOTD_PROFILE_PATH}"
-    sub "Mendeteksi Linux profile.d framework (/etc/profile.d)..."
+    sub "Detected Linux profile.d framework (/etc/profile.d)..."
   fi
 
-  sub "Menulis skrip dinamis ke ${target_path}..."
+  sub "Writing dynamic script to ${target_path}..."
   local tmp; tmp="$(mktemp)"
   render_motd_content > "${tmp}"
   chmod 755 "${tmp}"
@@ -318,12 +319,12 @@ a_install() {
 
   # Silence old update-motd.d scripts & external ads (Ubuntu Pro, ESM, CloudPanel, etc.)
   if [ -d "/etc/update-motd.d" ]; then
-    sub "Menonaktifkan MOTD bawaan & banner eksternal di /etc/update-motd.d/..."
+    sub "Silencing default MOTD & third-party ads in /etc/update-motd.d/..."
     for f in /etc/update-motd.d/*; do
       [ "$f" = "${MOTD_UBUNTU_PATH}" ] && continue
       if [ -f "$f" ] && [ -x "$f" ]; then
         run ${SUDO} chmod -x "$f" 2>/dev/null || true
-        sub "Dinonaktifkan: ${f##*/}"
+        sub "Disabled: ${f##*/}"
       fi
     done
   fi
@@ -333,7 +334,7 @@ a_install() {
     [ "$pf" = "${MOTD_PROFILE_PATH}" ] && continue
     if [ -f "$pf" ] && [ -x "$pf" ]; then
       run ${SUDO} chmod -x "$pf" 2>/dev/null || true
-      sub "Dinonaktifkan di profile.d: ${pf##*/}"
+      sub "Disabled in profile.d: ${pf##*/}"
     fi
   done
 
@@ -354,15 +355,15 @@ a_install() {
       echo "PrintLastLog no" | run ${SUDO} tee "${ssh_cfg}" >/dev/null 2>&1 || true
       if command -v sshd >/dev/null 2>&1 && ${SUDO} sshd -t >/dev/null 2>&1; then
         run ${SUDO} systemctl reload-or-restart ssh 2>/dev/null || run ${SUDO} systemctl reload-or-restart sshd 2>/dev/null || true
-        sub "Mengonfigurasi SSH PrintLastLog no agar login rapi..."
+        sub "Configured SSH PrintLastLog no for clean login output..."
       else
         run ${SUDO} rm -f "${ssh_cfg}" 2>/dev/null || true
       fi
     fi
   fi
 
-  ok "WanForge dynamic MOTD berhasil dipasang di ${target_path}."
-  info "Tampilan ini akan otomatis muncul setiap kali login via SSH."
+  ok "WanForge dynamic MOTD successfully installed to ${target_path}."
+  info "This banner will automatically appear on every SSH login."
 
   printf "\n"
   a_preview
@@ -370,13 +371,13 @@ a_install() {
 
 # --- Action 3: Silence Ubuntu Advertising Only -----------------------------
 a_clean_spam() {
-  hd "Bersihkan Iklan Ubuntu Pro / ESM / Eksternal pada SSH Login"
+  hd "Silence Ubuntu Pro / ESM / External Ads on SSH Login"
   if [ -d "/etc/update-motd.d" ]; then
     for f in /etc/update-motd.d/*; do
       [ "$f" = "${MOTD_UBUNTU_PATH}" ] && continue
       if [ -f "$f" ] && [ -x "$f" ]; then
         run ${SUDO} chmod -x "$f" 2>/dev/null || true
-        sub "Dinonaktifkan: ${f##*/}"
+        sub "Disabled: ${f##*/}"
       fi
     done
   fi
@@ -384,23 +385,23 @@ a_clean_spam() {
     [ "$pf" = "${MOTD_PROFILE_PATH}" ] && continue
     if [ -f "$pf" ] && [ -x "$pf" ]; then
       run ${SUDO} chmod -x "$pf" 2>/dev/null || true
-      sub "Dinonaktifkan di profile.d: ${pf##*/}"
+      sub "Disabled in profile.d: ${pf##*/}"
     fi
   done
-  ok "Iklan, banner CloudPanel, dan script promosi pihak ketiga berhasil dinonaktifkan."
+  ok "Ads, CloudPanel banner, and third-party promotion scripts successfully disabled."
 }
 
 # --- Action 4: Restore Original MOTD ---------------------------------------
 a_uninstall() {
-  hd "Kembalikan Tampilan MOTD Original Sistem"
+  hd "Restore Default System MOTD Banner"
 
   if [ -f "${MOTD_UBUNTU_PATH}" ]; then
     run ${SUDO} rm -f "${MOTD_UBUNTU_PATH}"
-    sub "Dihapus: ${MOTD_UBUNTU_PATH}"
+    sub "Removed: ${MOTD_UBUNTU_PATH}"
   fi
   if [ -f "${MOTD_PROFILE_PATH}" ]; then
     run ${SUDO} rm -f "${MOTD_PROFILE_PATH}"
-    sub "Dihapus: ${MOTD_PROFILE_PATH}"
+    sub "Removed: ${MOTD_PROFILE_PATH}"
   fi
 
   # Restore permissions of stock scripts in /etc/update-motd.d
@@ -431,7 +432,7 @@ a_uninstall() {
     fi
   fi
 
-  ok "Tampilan MOTD dikembalikan ke standar bawaan OS."
+  ok "MOTD banner restored to system OS defaults."
 }
 
 # --- CLI Dispatch ---------------------------------------------------------
@@ -445,24 +446,24 @@ esac
 # --- Interactive Main Menu ------------------------------------------------
 banner
 MENU=(
-  "Tampilan|preview|Pratinjau tampilan banner login SSH sekarang"
-  "Pasang|install|Pasang WanForge dynamic MOTD banner sistem"
-  "Bersihkan|clean_spam|Nonaktifkan iklan promosi Ubuntu Pro/ESM di SSH"
-  "Pulihkan|uninstall|Kembalikan tampilan MOTD standar bawaan OS"
+  "View|preview|Preview SSH login banner now"
+  "Install|install|Install WanForge dynamic MOTD banner to system"
+  "Clean|clean_spam|Silence Ubuntu Pro / ESM / third-party ads in SSH"
+  "Restore|uninstall|Restore default OS MOTD banner"
 )
 
 while true; do
-  if menu_select "PILIH AKSI LOGIN BANNER (MOTD):"; then
+  if menu_select "SELECT MOTD BANNER ACTION:"; then
     case "${MENU_KEY}" in
       preview)    a_preview ;;
       install)    a_install ;;
       clean_spam) a_clean_spam ;;
       uninstall)  a_uninstall ;;
-      *) warn "Pilihan tidak valid: ${MENU_KEY}" ;;
+      *) warn "Invalid choice: ${MENU_KEY}" ;;
     esac
   else
     break
   fi
 done
 
-ok "Script ${TOOL_NAME} selesai."
+ok "Script ${TOOL_NAME} completed."

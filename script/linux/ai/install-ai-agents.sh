@@ -43,7 +43,7 @@ install_9router() {
 
   # Ensure Node.js & npm
   if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
-    sub "Memasang Node.js LTS..."
+    sub "Installing Node.js LTS..."
     if command -v curl >/dev/null 2>&1; then
       curl -fsSL https://deb.nodesource.com/setup_20.x | ${SUDO:-} bash - || true
       ${SUDO:-} apt-get install -y nodejs || true
@@ -51,7 +51,7 @@ install_9router() {
   fi
 
   if ! command -v 9router >/dev/null 2>&1; then
-    sub "Menginstal 9Router via npm..."
+    sub "Installing 9Router via npm..."
     npm install -g 9router || ${SUDO:-} npm install -g 9router || true
   fi
 
@@ -63,7 +63,7 @@ install_9router() {
   local node_bin; node_bin="$(which node 2>/dev/null || echo "/usr/bin/node")"
   local router_bin; router_bin="$(which 9router 2>/dev/null || echo "${HOME}/.local/bin/9router")"
 
-  sub "Membuat unit systemd user ${svc_file}..."
+  sub "Creating systemd user unit ${svc_file}..."
   cat > "${svc_file}" <<EOF
 [Unit]
 Description=9Router AI Gateway
@@ -89,7 +89,7 @@ EOF
   # Setup MITM DNS Aliases for AGY
   local mitm_dir="${HOME}/.9router/mitm"
   mkdir -p "${mitm_dir}"
-  sub "Mengonfigurasi model combo & alias di ${mitm_dir}/aliases.json..."
+  sub "Configuring model combos & aliases in ${mitm_dir}/aliases.json..."
   cat > "${mitm_dir}/aliases.json" <<'EOF'
 {
   "antigravity": {
@@ -130,7 +130,7 @@ try {
 } catch (e) {}
 EOF
 
-  ok "9Router berhasil dikonfigurasi pada port 20128."
+  ok "9Router configured successfully on port 20128."
 }
 
 # --- 3. Claude Code CLI Setup ----------------------------------------------
@@ -138,17 +138,17 @@ install_claude_code() {
   hd "3. Setup Claude Code CLI (@anthropic-ai/claude-code)"
 
   if ! command -v claude >/dev/null 2>&1; then
-    sub "Menginstal Claude Code CLI secara global via npm..."
+    sub "Installing Claude Code CLI globally via npm..."
     npm install -g @anthropic-ai/claude-code || ${SUDO:-} npm install -g @anthropic-ai/claude-code
   else
-    ok "Claude Code CLI sudah terpasang: $(claude --version 2>/dev/null || echo 'installed')"
+    ok "Claude Code CLI already installed: $(claude --version 2>/dev/null || echo 'installed')"
   fi
 
   local claude_dir="${HOME}/.claude"
   mkdir -p "${claude_dir}"
   local settings_file="${claude_dir}/settings.json"
 
-  sub "Mengonfigurasi ${settings_file} untuk terhubung ke 9Router..."
+  sub "Configuring ${settings_file} to connect to 9Router..."
   if command -v jq >/dev/null 2>&1 && [ -f "${settings_file}" ]; then
     local tmp_json; tmp_json="$(mktemp)"
     jq '
@@ -193,15 +193,15 @@ install_antigravity() {
   hd "4. Setup Antigravity Agent CLI (AGY)"
 
   if command -v agy >/dev/null 2>&1; then
-    ok "Biner 'agy' ditemukan: $(which agy)"
+    ok "Binary 'agy' found: $(which agy)"
   else
-    info "Memeriksa biner agy di direktori lokal..."
+    info "Checking for agy binary in local directory..."
     if [ -x "${HOME}/.local/bin/agy" ]; then
-      ok "Biner agy aktif di ${HOME}/.local/bin/agy"
+      ok "Binary agy active at ${HOME}/.local/bin/agy"
     else
-      warn "Biner agy belum terpasang di PATH."
-      info "Untuk menginstal Antigravity CLI resmi Google:"
-      info "  Letakkan biner agy pada ${HOME}/.local/bin/agy dan jalankan chmod +x."
+      warn "Binary agy not found in PATH."
+      info "To install official Google Antigravity CLI:"
+      info "  Place the agy binary at ${HOME}/.local/bin/agy and run chmod +x."
     fi
   fi
 
@@ -209,7 +209,7 @@ install_antigravity() {
   local hooks_dir="${gemini_dir}/hooks"
   mkdir -p "${hooks_dir}"
 
-  sub "Mengonfigurasi setting dan hook Antigravity di ${gemini_dir}/settings.json..."
+  sub "Configuring Antigravity settings and hooks in ${gemini_dir}/settings.json..."
   cat > "${gemini_dir}/settings.json" <<'EOF'
 {
   "hooks": {
@@ -227,7 +227,7 @@ install_antigravity() {
   }
 }
 EOF
-  ok "Konfigurasi Antigravity AGY tersimpan."
+  ok "Antigravity AGY configuration saved."
 }
 
 # --- 5. Hermes Agent Setup ------------------------------------------------
@@ -235,9 +235,9 @@ install_hermes_agent() {
   hd "5. Setup Hermes Agent Framework"
 
   if command -v hermes >/dev/null 2>&1; then
-    ok "Hermes Agent CLI sudah terpasang: $(which hermes)"
+    ok "Hermes Agent CLI already installed: $(which hermes)"
   else
-    sub "Mengunduh dan menjalankan installer resmi Hermes Agent..."
+    sub "Downloading and running official Hermes Agent installer..."
     if command -v curl >/dev/null 2>&1; then
       curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash || true
     fi
@@ -252,7 +252,7 @@ install_hermes_agent() {
   local hermes_py="${HERMES_DIR}/hermes-agent/venv/bin/python"
   [ ! -x "${hermes_py}" ] && hermes_py="$(which python3 2>/dev/null || echo "/usr/bin/python3")"
 
-  sub "Membuat unit systemd user ${svc_file}..."
+  sub "Creating systemd user unit ${svc_file}..."
   cat > "${svc_file}" <<EOF
 [Unit]
 Description=Hermes Agent Gateway - Messaging Platform Integration
@@ -289,49 +289,49 @@ EOF
     systemctl --user enable "${srv_name}.service" 2>/dev/null || true
   fi
 
-  ok "Hermes Agent & Gateway Service terpasang."
+  ok "Hermes Agent & Gateway Service installed."
 }
 
 # --- 6. Optimization Stack (RTK & Caveman) --------------------------------
 install_optimization_stack() {
-  hd "6. Memasang Perkakas Optimasi Token & Prompt (Caveman & RTK)"
+  hd "6. Setup Token & Prompt Optimization Tools (Caveman & RTK)"
 
   if ! command -v caveman >/dev/null 2>&1; then
-    sub "Menginstal Caveman CLI..."
+    sub "Installing Caveman CLI..."
     npm install -g @caveman-ai/cli 2>/dev/null || ${SUDO:-} npm install -g @caveman-ai/cli 2>/dev/null || true
   fi
   if command -v caveman >/dev/null 2>&1; then
-    ok "Caveman CLI terpasang: $(which caveman)"
+    ok "Caveman CLI installed: $(which caveman)"
   fi
 
   if command -v rtk >/dev/null 2>&1; then
-    ok "RTK (Rust Token Killer) aktif: $(rtk gain 2>/dev/null || echo 'ready')"
+    ok "RTK (Rust Token Killer) active: $(rtk gain 2>/dev/null || echo 'ready')"
   else
-    info "RTK dapat diinstal via cargo / brew / rtk release untuk penghematan output terminal."
+    info "RTK can be installed via cargo / brew / rtk release to compress terminal output."
   fi
 }
 
 # --- 7. Doctor & Diagnostics ----------------------------------------------
 run_doctor() {
-  hd "Audit Kesiapan Sistem AI Agent & LLM Stack"
+  hd "AI Agent & LLM Stack System Audit"
 
   printf "\n%b[1] Tmux & Terminal Status:%b\n" "${C_BOLD}${C_CYAN}" "${C_RESET}"
   if command -v tmux >/dev/null 2>&1; then
-    ok "Tmux: $(tmux -V) (${HOME}/.tmux.conf exists: $([ -f "${HOME}/.tmux.conf" ] && echo 'Ya' || echo 'Tidak'))"
+    ok "Tmux: $(tmux -V) (${HOME}/.tmux.conf exists: $([ -f "${HOME}/.tmux.conf" ] && echo 'Yes' || echo 'No'))"
   else
-    warn "Tmux belum terpasang."
+    warn "Tmux not installed."
   fi
 
   printf "\n%b[2] 9Router AI Gateway:%b\n" "${C_BOLD}${C_CYAN}" "${C_RESET}"
   if command -v 9router >/dev/null 2>&1 || [ -x "${HOME}/.local/share/lerd/bin/9router" ]; then
-    ok "9Router biner: OK"
+    ok "9Router binary: OK"
   else
-    warn "9Router biner tidak ditemukan."
+    warn "9Router binary not found."
   fi
   if curl -s --max-time 2 "http://127.0.0.1:20128/api/health" | grep -q "ok" 2>/dev/null; then
-    ok "9Router Service HTTP: Sehat (http://127.0.0.1:20128/api/health)"
+    ok "9Router HTTP Service: Healthy (http://127.0.0.1:20128/api/health)"
   else
-    warn "9Router Service tidak merespons di port 20128."
+    warn "9Router Service not responding on port 20128."
   fi
 
   printf "\n%b[3] Claude Code CLI:%b\n" "${C_BOLD}${C_CYAN}" "${C_RESET}"
@@ -419,18 +419,18 @@ esac
 
 # --- Interactive Main Menu ------------------------------------------------
 MENU=(
-  "Install|9router|Pasang 9Router AI Gateway & Systemd Service (Port 20128)"
-  "Install|claude|Pasang Claude Code CLI & Pengaturan 9Router Backend"
-  "Install|agy|Pasang Antigravity CLI (AGY) & Hook Konfigurasi"
-  "Install|hermes|Pasang Hermes Agent Framework & Gateway Service"
-  "Integrate|telegram|Konfigurasi Bot Telegram Hermes (Whitelist User, Grup, Mention)"
-  "Integrate|tunnel|Integrasi 9Router Cloudflare Tunnel & Proxy Custom Domain"
-  "Optimize|tools|Pasang Caveman & Tools Optimasi Token"
-  "Audit|doctor|Jalankan Audit & Health Check Kesiapan Seluruh AI Agent"
+  "Install|9router|Install 9Router AI Gateway & Systemd Service (Port 20128)"
+  "Install|claude|Install Claude Code CLI & configure 9Router backend"
+  "Install|agy|Install Antigravity CLI (AGY) & configuration hooks"
+  "Install|hermes|Install Hermes Agent Framework & Gateway Service"
+  "Integrate|telegram|Configure Hermes Telegram Bot (User, Group, Mention whitelist)"
+  "Integrate|tunnel|Integrate 9Router Cloudflare Tunnel & custom domain proxy"
+  "Optimize|tools|Install Caveman & token optimization tools"
+  "Audit|doctor|Run full AI agent stack readiness audit & health check"
 )
 
 while true; do
-  if menu_select "Pilih komponen AI Agent Stack yang ingin dikonfigurasi:"; then
+  if menu_select "Select AI Agent Stack component to configure:"; then
     case "${MENU_KEY}" in
       9router)  install_9router; pause ;;
       claude)   install_claude_code; pause ;;
@@ -453,4 +453,4 @@ while true; do
   fi
 done
 
-ok "Script install-ai-agents selesai."
+ok "Script install-ai-agents completed."

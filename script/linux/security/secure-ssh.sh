@@ -108,12 +108,12 @@ firewall_delete_port() {
   local fw; fw="$(detect_firewall)"
   case "${fw}" in
     ufw)
-      sub "Menghapus aturan lama port ${p}/tcp di ufw..."
+      sub "Removing old rule for port ${p}/tcp in ufw..."
       run ${SUDO} ufw delete allow "${p}/tcp" 2>/dev/null || true
       [ "${p}" = "22" ] && run ${SUDO} ufw delete allow OpenSSH 2>/dev/null || true
       ;;
     firewalld)
-      sub "Menghapus aturan lama port ${p}/tcp di firewalld..."
+      sub "Removing old rule for port ${p}/tcp in firewalld..."
       run ${SUDO} firewall-cmd --permanent --remove-port="${p}/tcp" 2>/dev/null || true
       [ "${p}" = "22" ] && run ${SUDO} firewall-cmd --permanent --remove-service=ssh 2>/dev/null || true
       run ${SUDO} firewall-cmd --reload 2>/dev/null || true
@@ -125,7 +125,7 @@ selinux_allow_port() {
   local p="$1"
   [ "${p}" = "22" ] && return 0
   if command -v getenforce >/dev/null 2>&1 && [ "$(getenforce 2>/dev/null || echo 'Disabled')" != "Disabled" ]; then
-    sub "Mendaftarkan port ${p}/tcp ke SELinux policy (ssh_port_t)..."
+    sub "Registering port ${p}/tcp with SELinux policy (ssh_port_t)..."
     if command -v semanage >/dev/null 2>&1; then
       run ${SUDO} semanage port -a -t ssh_port_t -p tcp "${p}" 2>/dev/null || \
       run ${SUDO} semanage port -m -t ssh_port_t -p tcp "${p}" 2>/dev/null || true
@@ -249,34 +249,34 @@ a_install() {
   svc="$(detect_ssh_service)"
   run ${SUDO} systemctl enable "${svc}" 2>/dev/null || true
   run ${SUDO} systemctl start "${svc}" 2>/dev/null || true
-  ok "OpenSSH server berhasil dipasang dan diaktifkan."
+  ok "OpenSSH server installed and enabled successfully."
 }
 
 # --- Action 3: Key Management Helper --------------------------------------
 a_key_helper() {
-  hd "Kelola SSH Public Keys (authorized_keys)"
+  hd "Manage SSH Public Keys (authorized_keys)"
   local auth_file="${HOME}/.ssh/authorized_keys"
   mkdir -p "${HOME}/.ssh"
   chmod 700 "${HOME}/.ssh"
   touch "${auth_file}"
   chmod 600 "${auth_file}"
 
-  printf "Pilih aksi kunci SSH:\n"
-  printf "  [1] Tempel (Paste) Public Key baru ke authorized_keys\n"
-  printf "  [2] Buat (Generate) SSH Key Pair baru (ed25519)\n"
-  printf "  [3] Tampilkan daftar Public Key terdaftar saat ini\n"
-  printf "  [0] Kembali\n\n"
+  printf "Select SSH key action:\n"
+  printf "  [1] Paste new Public Key into authorized_keys\n"
+  printf "  [2] Generate new SSH Key Pair (ed25519)\n"
+  printf "  [3] Display currently authorized Public Keys\n"
+  printf "  [0] Back\n\n"
 
-  local opt; opt="$(ask "Pilihan Anda" "1")"
+  local opt; opt="$(ask "Your choice" "1")"
   case "${opt}" in
     1)
-      printf "\n%bTempel (Paste) baris OpenSSH public key Anda (misal: ssh-ed25519 AAAAC3... user@host):%b\n" "${C_YELLOW}" "${C_RESET}"
+      printf "\n%bPaste your OpenSSH public key line (e.g. ssh-ed25519 AAAAC3... user@host):%b\n" "${C_YELLOW}" "${C_RESET}"
       local new_key; read -r new_key
-      if [[ "${new_key}" =~ ^(ssh-ed25519|ssh-rsa|ecdsa-sha2-|sk-ssh-ed25519) ]]; then
+      if [[ "${new_key}" =~ ^(ssh-ed25519|ssh-rsa|ecdsa-sha2-|«redacted:sk-…») ]]; then
         echo "${new_key}" >> "${auth_file}"
-        ok "Public key berhasil ditambahkan ke ${auth_file}."
+        ok "Public key added to ${auth_file}."
       else
-        err "Format public key tidak valid. Harus diawali ssh-ed25519, ssh-rsa, atau ecdsa."
+        err "Invalid public key format. Must begin with ssh-ed25519, ssh-rsa, or ecdsa."
       fi
       ;;
     2)
@@ -483,21 +483,21 @@ EOF
 
   # 12. Restart SSH Service
   printf "\n"
-  if ask_yn "Restart layanan SSH sekarang untuk menerapkan port ${port}?" "y"; then
+  if ask_yn "Restart SSH service now to apply port ${port}?" "y"; then
     local svc; svc="$(detect_ssh_service)"
-    sub "Me-restart layanan ${svc}..."
+    sub "Restarting ${svc} service..."
     if run ${SUDO} systemctl restart "${svc}" 2>/dev/null || run ${SUDO} systemctl restart ssh 2>/dev/null || run ${SUDO} systemctl restart sshd 2>/dev/null; then
-      ok "Layanan SSH berhasil di-restart pada port ${port}."
+      ok "SSH service restarted successfully on port ${port}."
     else
-      warn "Gagal me-restart otomatis. Jalankan manual: sudo systemctl restart ssh atau sudo systemctl restart sshd"
+      warn "Automatic restart failed. Run manually: sudo systemctl restart ssh or sudo systemctl restart sshd"
     fi
   else
-    info "SSH belum di-restart. Terapkan nanti dengan: sudo systemctl restart ssh"
+    info "SSH not restarted. Apply later with: sudo systemctl restart ssh"
   fi
 
   # 13. Passwordless Sudo Deployment
   if [ "${enable_nopasswd}" -eq 1 ]; then
-    sub "Mengonfigurasi passwordless sudo (/etc/sudoers.d/99-wanforge-nopasswd)..."
+    sub "Configuring passwordless sudo (/etc/sudoers.d/99-wanforge-nopasswd)..."
     local cur_u; cur_u="$(id -un)"
     local sudoers_file="/etc/sudoers.d/99-wanforge-nopasswd"
     local sudoers_tmp; sudoers_tmp="$(mktemp)"
@@ -514,9 +514,9 @@ EOF
       run ${SUDO} mkdir -p /etc/sudoers.d
       run ${SUDO} cp "${sudoers_tmp}" "${sudoers_file}"
       run ${SUDO} chmod 440 "${sudoers_file}"
-      ok "Passwordless sudo aktif ('sudo su' bebas password seperti cloud VPS)."
+      ok "Passwordless sudo active ('sudo su' without password, cloud VPS style)."
     else
-      warn "Validasi visudo gagal; konfigurasi sudoers dibatalkan demi keselamatan."
+      warn "visudo validation failed; sudoers configuration aborted for safety."
     fi
     rm -f "${sudoers_tmp}"
   fi
@@ -525,58 +525,58 @@ EOF
   local fw; fw="$(detect_firewall)"
   if [ "${fw}" != "none" ] && [ "${port}" != "22" ]; then
     printf "\n"
-    if ask_yn "Hapus aturan firewall untuk port lama 22/tcp sekarang? (Pilih 'n' jika belum dites)" "n"; then
+    if ask_yn "Delete firewall rule for old port 22/tcp now? (Choose 'n' if not yet tested)" "n"; then
       firewall_delete_port "22"
-      ok "Aturan port 22 dibersihkan dari firewall."
+      ok "Port 22 rule removed from firewall."
     else
-      info "Aturan port 22 dipertahankan sementara. Hapus nanti setelah login port ${port} terbukti sukses."
+      info "Port 22 rule retained temporarily. Remove later after port ${port} login is confirmed."
     fi
   fi
 
   printf "\n%b=================================================================%b\n" "${C_BOLD}${C_GREEN}" "${C_RESET}"
-  printf "%b✔ HARDENING SSH SELESAI DITERAPKAN%b\n" "${C_BOLD}${C_GREEN}" "${C_RESET}"
-  printf "  • Port Baru            : %b%s%b\n" "${C_BOLD}${C_YELLOW}" "${port}" "${C_RESET}"
+  printf "%b✔ SSH HARDENING APPLIED SUCCESSFULLY%b\n" "${C_BOLD}${C_GREEN}" "${C_RESET}"
+  printf "  • New Port             : %b%s%b\n" "${C_BOLD}${C_YELLOW}" "${port}" "${C_RESET}"
   printf "  • Root Login           : %b%s%b\n" "${C_YELLOW}" "${root_choice}" "${C_RESET}"
   printf "  • Password Auth        : %b%s%b\n" "${C_YELLOW}" "${pw_val}" "${C_RESET}"
-  printf "  • Passwordless Sudo    : %b%s%b\n" "${C_YELLOW}" "$([ "${enable_nopasswd}" -eq 1 ] && echo 'Aktif (NOPASSWD)' || echo 'Tidak diubah')" "${C_RESET}"
-  printf "\n%bPERHATIAN: UJI SEKARANG DI TERMINAL BARU:%b\n" "${C_BOLD}${C_RED}" "${C_RESET}"
-  printf "  %bssh -p %s %s@<IP_SERVER>%b\n" "${C_BOLD}${C_CYAN}" "${port}" "$(id -un)" "${C_RESET}"
-  printf "%bJANGAN TUTUP SESI TERMINAL INI sampai login di atas berhasil!%b\n" "${C_DIM}" "${C_RESET}"
+  printf "  • Passwordless Sudo    : %b%s%b\n" "${C_YELLOW}" "$([ "${enable_nopasswd}" -eq 1 ] && echo 'Active (NOPASSWD)' || echo 'Unchanged')" "${C_RESET}"
+  printf "\n%bATTENTION: TEST NOW IN A NEW TERMINAL WINDOW:%b\n" "${C_BOLD}${C_RED}" "${C_RESET}"
+  printf "  %bssh -p %s %s@<SERVER_IP>%b\n" "${C_BOLD}${C_CYAN}" "${port}" "$(id -un)" "${C_RESET}"
+  printf "%bDO NOT CLOSE THIS TERMINAL SESSION until the login above succeeds!%b\n" "${C_DIM}" "${C_RESET}"
   printf "%b=================================================================%b\n\n" "${C_BOLD}${C_GREEN}" "${C_RESET}"
 }
 
 # --- Action 5: Rollback / Restore -----------------------------------------
 a_uninstall() {
-  hd "Restore Konfigurasi SSH Original dari Backup"
+  hd "Restore Original SSH Configuration from Backup"
   local backup
   backup="$(ls -t "${SSHD_MAIN}.bak."* 2>/dev/null | head -1 || true)"
   if [ -z "${backup}" ] && [ ! -f "${DROPIN}" ]; then
-    info "Tidak ditemukan berkas backup wanforge atau drop-in. Tidak ada yang di-restore."; return 0
+    info "No WanForge backup or drop-in file found. Nothing to restore."; return 0
   fi
-  [ -n "${backup}" ] && warn "Akan me-restore ${SSHD_MAIN} dari backup: ${backup##*/}"
-  [ -f "${DROPIN}" ]  && warn "Akan menghapus file drop-in hardening: ${DROPIN}"
+  [ -n "${backup}" ] && warn "Will restore ${SSHD_MAIN} from backup: ${backup##*/}"
+  [ -f "${DROPIN}" ]  && warn "Will remove hardening drop-in file: ${DROPIN}"
 
-  if ! ask_yn "Lanjutkan restore konfigurasi SSH original?" "y"; then
-    info "Dibatalkan."; return 0
+  if ! ask_yn "Proceed with restoring original SSH configuration?" "y"; then
+    info "Cancelled."; return 0
   fi
 
   [ -n "${backup}" ] && run ${SUDO} cp "${backup}" "${SSHD_MAIN}"
   [ -f "${DROPIN}" ]  && run ${SUDO} rm -f "${DROPIN}"
 
   if [ -f "/etc/sudoers.d/99-wanforge-nopasswd" ]; then
-    if ask_yn "Hapus konfigurasi passwordless sudo (/etc/sudoers.d/99-wanforge-nopasswd)?" "y"; then
+    if ask_yn "Remove passwordless sudo configuration (/etc/sudoers.d/99-wanforge-nopasswd)?" "y"; then
       run ${SUDO} rm -f "/etc/sudoers.d/99-wanforge-nopasswd"
-      ok "Konfigurasi passwordless sudo dihapus."
+      ok "Passwordless sudo configuration removed."
     fi
   fi
 
-  sub "Menguji sintaks sshd setelah restore..."
+  sub "Testing sshd syntax after restore..."
   if ${SUDO} sshd -t; then
     local svc; svc="$(detect_ssh_service)"
     run ${SUDO} systemctl restart "${svc}" 2>/dev/null || run ${SUDO} systemctl restart ssh 2>/dev/null || run ${SUDO} systemctl restart sshd 2>/dev/null || true
-    ok "Konfigurasi SSH berhasil dikembalikan ke keadaan awal."
+    ok "SSH configuration restored to initial state."
   else
-    err "Uji sintaks sshd GAGAL setelah restore. Periksa ${SSHD_MAIN} secara manual."; return 1
+    err "sshd syntax test FAILED after restore. Check ${SSHD_MAIN} manually."; return 1
   fi
 }
 
@@ -592,15 +592,15 @@ esac
 # --- Interactive Main Menu ------------------------------------------------
 banner
 MENU=(
-  "Status|status|Audit Status Keamanan SSH, Port & Firewall"
-  "Setup|install|Pasang & Aktifkan OpenSSH Server"
-  "Hardening|configure|Jalankan Wizard Hardening SSH (Port, Root, Key Auth)"
-  "Keys|key|Kelola SSH Public Keys (authorized_keys)"
-  "Rollback|rollback|Kembalikan Konfigurasi Original dari Backup"
+  "Status|status|Audit SSH Security Status, Port & Firewall"
+  "Setup|install|Install & Enable OpenSSH Server"
+  "Hardening|configure|Run SSH Hardening Wizard (Port, Root, Key Auth)"
+  "Keys|key|Manage SSH Public Keys (authorized_keys)"
+  "Rollback|rollback|Restore Original Configuration from Backup"
 )
 
 while true; do
-  if menu_select "Pilih aksi manajemen & hardening SSH:"; then
+  if menu_select "Select SSH management & hardening action:"; then
     case "${MENU_KEY}" in
       status)    a_status; pause ;;
       install)   a_install; pause ;;
@@ -614,4 +614,4 @@ while true; do
   fi
 done
 
-ok "Script secure-ssh selesai."
+ok "Script secure-ssh completed."

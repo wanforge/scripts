@@ -59,26 +59,26 @@ check_cloudflared() {
           mv -f "${tmp_bin}" "${HOME}/.local/bin/cloudflared"
           export PATH="${HOME}/.local/bin:${PATH}"
         fi
-        ok "cloudflared berhasil diinstal."
+        ok "cloudflared installed successfully."
       fi
     else
-      err "cloudflared diperlukan untuk mengonfigurasi tunnel."
+      err "cloudflared is required to configure tunnels."
       return 1
     fi
   fi
-  ok "cloudflared biner: $(cloudflared --version | head -n1)"
+  ok "cloudflared binary: $(cloudflared --version | head -n1)"
   return 0
 }
 
 # --- Health check 9Router -------------------------------------------------
 check_9router_health() {
-  sub "Memeriksa status 9Router AI Gateway di http://${ROUTER_HOST}:${ROUTER_PORT}..."
+  sub "Checking 9Router AI Gateway status at http://${ROUTER_HOST}:${ROUTER_PORT}..."
   if curl -s --max-time 3 "http://${ROUTER_HOST}:${ROUTER_PORT}/api/health" >/dev/null 2>&1; then
-    ok "9Router aktif dan merespons: http://${ROUTER_HOST}:${ROUTER_PORT}"
+    ok "9Router active and responding: http://${ROUTER_HOST}:${ROUTER_PORT}"
     return 0
   else
-    warn "9Router tidak merespons di port ${ROUTER_PORT}."
-    info "Pastikan 9Router berjalan (contoh: 9router -t atau systemctl --user status 9router)."
+    warn "9Router not responding on port ${ROUTER_PORT}."
+    info "Ensure 9Router is running (e.g. 9router -t or systemctl --user status 9router)."
     return 1
   fi
 }
@@ -108,30 +108,30 @@ action_named_tunnel() {
 
   # 1. Login check
   if [ ! -f "${CF_DIR}/cert.pem" ]; then
-    info "Sertifikat origin cert.pem belum ada. Silakan login ke Cloudflare:"
+    info "Origin certificate cert.pem not found. Please log in to Cloudflare:"
     cloudflared tunnel login
   fi
 
   # 2. Create or verify tunnel
-  sub "Membuat atau memverifikasi tunnel '${tunnel_name}'..."
+  sub "Creating or verifying tunnel '${tunnel_name}'..."
   local tunnel_id=""
   local list_out; list_out="$(cloudflared tunnel list 2>/dev/null || true)"
   if echo "${list_out}" | grep -q "${tunnel_name}"; then
     tunnel_id="$(echo "${list_out}" | awk -v name="${tunnel_name}" '$2 == name {print $1}')"
-    ok "Tunnel ditemukan dengan ID: ${tunnel_id}"
+    ok "Tunnel found with ID: ${tunnel_id}"
   else
     local create_out; create_out="$(cloudflared tunnel create "${tunnel_name}")"
     tunnel_id="$(echo "${create_out}" | grep -oE '[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}' | head -n1 || true)"
     if [ -z "${tunnel_id}" ]; then
-      err "Gagal membuat tunnel. Output:\n${create_out}"
+      err "Failed to create tunnel. Output:\n${create_out}"
       return 1
     fi
-    ok "Tunnel '${tunnel_name}' berhasil dibuat: ID ${tunnel_id}"
+    ok "Tunnel '${tunnel_name}' created successfully: ID ${tunnel_id}"
   fi
 
   # 3. Write ingress config
   local conf_file="${CF_DIR}/config.yml"
-  sub "Menulis konfigurasi ingress di ${conf_file}..."
+  sub "Writing ingress configuration to ${conf_file}..."
   cat > "${conf_file}" <<EOF
 tunnel: ${tunnel_id}
 credentials-file: ${CF_DIR}/${tunnel_id}.json
@@ -300,10 +300,10 @@ EOF
 
 # --- Action: Test Endpoint ------------------------------------------------
 action_test_endpoint() {
-  local ep; ep="$(ask "Masukkan URL endpoint untuk diuji" "http://${ROUTER_HOST}:${ROUTER_PORT}/api/health")"
-  sub "Menguji koneksi ke ${ep}..."
+  local ep; ep="$(ask "Enter endpoint URL to test" "http://${ROUTER_HOST}:${ROUTER_PORT}/api/health")"
+  sub "Testing connection to ${ep}..."
   local res; res="$(curl -s -w "\nHTTP_STATUS:%{http_code}" --max-time 10 "${ep}" || true)"
-  printf "\n%bHasil Uji Koneksi:%b\n%s\n\n" "${C_CYAN}" "${C_RESET}" "${res}"
+  printf "\n%bConnection Test Result:%b\n%s\n\n" "${C_CYAN}" "${C_RESET}" "${res}"
 }
 
 # --- Interactive Menu -----------------------------------------------------
@@ -311,21 +311,21 @@ check_9router_health || true
 
 MENU=(
   "Tunnel|named|Named Tunnel + Custom Domain Proxy (ai.wanforge.asia)"
-  "Tunnel|quick|Quick Ephemeral Tunnel (trycloudflare.com langsung)"
+  "Tunnel|quick|Quick Ephemeral Tunnel (instant trycloudflare.com)"
   "Tunnel|token|Zero Trust Token Service (Systemd Daemon)"
-  "Link|update|Update Hermes & Claude endpoint ke Custom Domain"
-  "Audit|health|Cek status 9Router lokal & cloudflared"
-  "Audit|test|Uji request curl ke endpoint AI Gateway"
+  "Link|update|Update Hermes & Claude endpoint to Custom Domain"
+  "Audit|health|Check local 9Router & cloudflared status"
+  "Audit|test|Test curl request to AI Gateway endpoint"
 )
 
 while true; do
-  if menu_select "Pilih aksi integrasi 9Router Cloudflare Tunnel:"; then
+  if menu_select "Select 9Router Cloudflare Tunnel integration action:"; then
     case "${MENU_KEY}" in
       named)  action_named_tunnel ;;
       quick)  action_quick_tunnel ;;
       token)  action_token_service ;;
       update)
-        ep="$(ask "Masukkan URL Proxy Custom Domain" "https://ai.wanforge.asia/v1")"
+        ep="$(ask "Enter Custom Domain Proxy URL" "https://ai.wanforge.asia/v1")"
         update_agent_endpoints "${ep}"
         ;;
       health)
@@ -344,4 +344,4 @@ while true; do
   fi
 done
 
-ok "Script setup-9router-tunnel selesai."
+ok "Script setup-9router-tunnel completed."

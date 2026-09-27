@@ -252,7 +252,7 @@ with open(config_path, "w", encoding="utf-8") as f:
 print("Config saved successfully.")
 EOF
 
-ok "Konfigurasi YAML Hermes berhasil diperbarui."
+ok "Hermes YAML configuration updated successfully."
 
 # --- Systemd Service Configuration ----------------------------------------
 SERVICE_DIR="${HOME}/.config/systemd/user"
@@ -265,7 +265,7 @@ if [ ! -x "${HERMES_PYTHON}" ]; then
   HERMES_PYTHON="$(which python3)"
 fi
 
-sub "Mengonfigurasi unit systemd user ${SERVICE_FILE}..."
+sub "Configuring systemd user unit ${SERVICE_FILE}..."
 cat > "${SERVICE_FILE}" <<EOF
 [Unit]
 Description=Hermes Agent Gateway - Telegram Bot Integration
@@ -303,12 +303,12 @@ if command -v systemctl >/dev/null 2>&1; then
   systemctl --user daemon-reload 2>/dev/null || true
   systemctl --user enable "${SERVICE_NAME}.service" 2>/dev/null || true
 
-  info "Untuk memuat konfigurasi baru ke service daemon:"
-  info "  Jalankan dari shell luar: systemctl --user restart ${SERVICE_NAME}"
+  info "To apply new configuration to daemon service:"
+  info "  Run from external shell: systemctl --user restart ${SERVICE_NAME}"
 fi
 
 # --- Summary --------------------------------------------------------------
-printf "\n%b── Ringkasan Konfigurasi Hermes Telegram ──%b\n" "${C_BOLD}${C_CYAN}" "${C_RESET}"
+printf "\n%b── Hermes Telegram Configuration Summary ──%b\n" "${C_BOLD}${C_CYAN}" "${C_RESET}"
 printf "  • Config File   : %s\n" "${CONFIG_FILE}"
 printf "  • Secret File   : %s\n" "${ENV_FILE}"
 printf "  • Allowed Users : %s\n" "${TG_USERS}"
@@ -316,4 +316,4 @@ printf "  • Allowed Groups: %s\n" "${TG_CHATS:-[DM Only]}"
 printf "  • Require Mention: %s\n" "${REQ_MENTION}"
 printf "  • AI Gateway    : %s\n" "${BACKEND_URL}"
 printf "  • Service       : systemctl --user status hermes-gateway\n\n"
-ok "Setup Hermes Telegram selesai."
+ok "Hermes Telegram setup completed."

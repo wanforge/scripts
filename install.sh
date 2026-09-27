@@ -155,17 +155,17 @@ done
 # Category summaries for TUI overview
 cat_summary() {
   case "$1" in
-    "System") echo "Utilitas dasar OS, audit hardware & MOTD" ;;
+    "System") echo "OS essentials, hardware audit & dynamic MOTD" ;;
     "Security") echo "Firewall, Fail2Ban, SSH hardening & SSL" ;;
     "Database") echo "PostgreSQL, MariaDB/MySQL remote & tools" ;;
     "App Runtime") echo "Docker/Podman, Node.js, Python, Composer" ;;
     "Panel & Console") echo "CloudPanel CE v2, clpctl, Cockpit" ;;
     "Network & Tunnel") echo "Cloudflared, net-tools, Proxmox toolkit" ;;
-    "Monitoring & Metrics") echo "Monitor realtime, Prometheus, GoAccess" ;;
+    "Monitoring & Metrics") echo "Realtime monitors, Prometheus, GoAccess" ;;
     "Observability Stack") echo "Grafana, Uptime Kuma, Loki, Zabbix" ;;
     "CI/CD Runners") echo "GitHub Actions & GitLab CI runners" ;;
     "AI & Agents") echo "Hermes Agent, Claude Code, 9Router" ;;
-    *) echo "Kumpulan tools otomatisasi server" ;;
+    *) echo "Server automation toolset" ;;
   esac
 }
 
@@ -208,7 +208,7 @@ run_script() {
   lbl="$(resolve_script "${target_input}" 2>/dev/null || echo "")"
 
   if [ -z "${lbl}" ]; then
-    err "Script '${target_input}' tidak ditemukan. Gunakan './wf list' untuk melihat daftar."
+    err "Script '${target_input}' not found. Use './wf list' to see available tools."
     return 1
   fi
 
@@ -239,9 +239,9 @@ run_script() {
     else
       wget -qO "${tmp_dl}" "${raw_url}" &
     fi
-    spinner $! "Mengunduh ${lbl}"
+    spinner $! "Downloading ${lbl}"
     if ! wait $!; then
-      err "Gagal mengunduh: ${raw_url}"
+      err "Failed to download: ${raw_url}"
       rm -f "${tmp_dl}"
       return 1
     fi
@@ -250,7 +250,7 @@ run_script() {
     exec_file="${perm_file}"
   fi
 
-  printf "\n%b▶ Menjalankan %s...%b\n" "${C_BOLD}${C_GREEN}" "${lbl}" "${C_RESET}" >&2
+  printf "\n%b▶ Running %s...%b\n" "${C_BOLD}${C_GREEN}" "${lbl}" "${C_RESET}" >&2
   printf "%b  %s%b\n\n" "${C_DIM}" "${dsc}" "${C_RESET}" >&2
 
   export WF_INSTALL_DIR="${WF_INSTALL_DIR}"
@@ -258,9 +258,9 @@ run_script() {
   bash "${exec_file}" || rc=$?
 
   if [ $rc -eq 0 ]; then
-    printf "\n%b✔ %s selesai dengan sukses.%b\n" "${C_GREEN}" "${lbl}" "${C_RESET}" >&2
+    printf "\n%b✔ %s completed successfully.%b\n" "${C_GREEN}" "${lbl}" "${C_RESET}" >&2
   else
-    printf "\n%b✖ %s keluar dengan kode status %d.%b\n" "${C_RED}" "${lbl}" "$rc" "${C_RESET}" >&2
+    printf "\n%b✖ %s exited with status %d.%b\n" "${C_RED}" "${lbl}" "$rc" "${C_RESET}" >&2
   fi
 
   return $rc
@@ -274,19 +274,19 @@ batch_select_mode() {
     MENU+=("${g}|${lbl}|${dsc}")
   done
 
-  if checkbox "Pilih script yang ingin dijalankan berurutan (Batch Mode):" 0; then
+  if checkbox "Select scripts to run sequentially (Batch Mode):" 0; then
     if [ "${#CHOSEN_KEYS[@]}" -eq 0 ]; then
-      warn "Tidak ada script yang dipilih."
+      warn "No scripts selected."
       sleep 1
       return 0
     fi
 
-    printf "\n%bMenjalankan %d script terpilih...%b\n" "${C_BOLD}${C_CYAN}" "${#CHOSEN_KEYS[@]}" "${C_RESET}" >&2
+    printf "\n%bRunning %d selected scripts...%b\n" "${C_BOLD}${C_CYAN}" "${#CHOSEN_KEYS[@]}" "${C_RESET}" >&2
     for k in "${CHOSEN_KEYS[@]}"; do
       run_script "$k" || true
       printf "%b──────────────────────────────────────────────────────────────────────────%b\n" "${C_DIM}" "${C_RESET}" >&2
     done
-    printf "\n%bTekan Enter untuk melanjutkan...%b" "${C_DIM}" "${C_RESET}" >&2
+    printf "\n%bPress Enter to continue...%b" "${C_DIM}" "${C_RESET}" >&2
     read -r _ <&3 2>/dev/null || true
   fi
 }
@@ -310,12 +310,12 @@ tui_view_code() {
       more "${abs_path}"
     else
       cat -n "${abs_path}" | head -n 45
-      printf "\n%bTekan Enter untuk kembali...%b" "${C_DIM}" "${C_RESET}" >&2
+      printf "\n%bPress Enter to return...%b" "${C_DIM}" "${C_RESET}" >&2
       read -r _ <&3 2>/dev/null || true
     fi
   else
-    printf "\n%bFile script belum terunduh secara lokal: %s%b\n" "${C_RED}" "${rel_path}" "${C_RESET}" >&2
-    printf "%bTekan Enter untuk kembali...%b" "${C_DIM}" "${C_RESET}" >&2
+    printf "\n%bScript file not downloaded locally: %s%b\n" "${C_RED}" "${rel_path}" "${C_RESET}" >&2
+    printf "%bPress Enter to return...%b" "${C_DIM}" "${C_RESET}" >&2
     read -r _ <&3 2>/dev/null || true
   fi
 
@@ -330,7 +330,7 @@ tui_sys_info() {
   stty sane 2>/dev/null || true
 
   printf "\033[H\033[2J" >&2
-  hd "Audit & Snapshot Sistem Server"
+  hd "Server System Audit & Snapshot"
   sys_snapshot
   if command -v df >/dev/null 2>&1; then
     printf "\n%bDisk Usage:%b\n" "${C_BOLD}" "${C_RESET}" >&2
@@ -340,7 +340,7 @@ tui_sys_info() {
     printf "\n%bMemory Usage:%b\n" "${C_BOLD}" "${C_RESET}" >&2
     free -h >&2
   fi
-  printf "\n%bTekan Enter untuk kembali ke WanForge TUI...%b" "${C_BOLD}${C_CYAN}" "${C_RESET}" >&2
+  printf "\n%bPress Enter to return to WanForge TUI...%b" "${C_BOLD}${C_CYAN}" "${C_RESET}" >&2
   read -r _ <&3 2>/dev/null || true
 
   printf "\033[?1049h\033[?25l" >&2
@@ -366,17 +366,17 @@ cli_list() {
 # --- CLI Help -------------------------------------------------------------
 cli_help() {
   printf "WANFORGE Server Ops Toolkit v2.5 (Portable TUI & CLI)\n\n"
-  printf "Penggunaan:\n"
-  printf "  %s                      Jalankan TUI interaktif keyboard\n" "$0"
-  printf "  %s 1-10                 Buka kategori 1 sampai 10 langsung\n" "$0"
-  printf "  %s 1-39                 Jalankan script nomor 1 sampai 39 langsung\n" "$0"
-  printf "  %s <script_name>        Jalankan script berdasarkan nama (contoh: setup-motd)\n" "$0"
-  printf "  %s list                 Tampilkan seluruh tools (%d) dalam daftar rapi\n" "$0" "${#SCRIPTS[@]}"
-  printf "  %s search <keyword>     Cari script berdasarkan kata kunci\n" "$0"
-  printf "  %s run <name|number>    Jalankan script tertentu secara non-interaktif\n" "$0"
-  printf "  %s info                 Audit ringkas status server (OS, Load, RAM, IP)\n" "$0"
-  printf "  %s --classic            Gunakan antarmuka menu prompt klasik\n" "$0"
-  printf "  %s --help               Tampilkan bantuan ini\n\n" "$0"
+  printf "Usage:\n"
+  printf "  %s                      Launch interactive keyboard TUI\n" "$0"
+  printf "  %s 1-10                 Open category 1 to 10 directly\n" "$0"
+  printf "  %s 1-39                 Run script by number 1 to 39 directly\n" "$0"
+  printf "  %s <script_name>        Run script by name (e.g., setup-motd)\n" "$0"
+  printf "  %s list                 Display all tools (%d) in a formatted list\n" "$0" "${#SCRIPTS[@]}"
+  printf "  %s search <keyword>     Search tools by keyword\n" "$0"
+  printf "  %s run <name|number>    Run a specific script non-interactively\n" "$0"
+  printf "  %s info                 Display server status snapshot (OS, Load, RAM, IP)\n" "$0"
+  printf "  %s --classic            Launch classic numeric prompt menu\n" "$0"
+  printf "  %s --help               Show this help message\n\n" "$0"
 }
 
 # --- Single Key Input Reader ----------------------------------------------
@@ -461,12 +461,12 @@ tui_search_screen() {
     append_frame() { local _l; printf -v _l "$@"; frame+="${_l}"; }
 
     append_frame " %b╔════════════════════════════════════════════════════════════════════════╗%b\033[K\n" "${C_CYAN}" "${C_RESET}"
-    append_frame " %b║%b  %bPENCARIAN MODUL TOOLKIT%b                            %b● REALTIME FILTER%b  %b║%b\033[K\n" \
+    append_frame " %b║%b  %bSEARCH TOOLKIT MODULES%b                               %b● REALTIME FILTER%b  %b║%b\033[K\n" \
       "${C_CYAN}" "${C_RESET}" "${C_BOLD}${C_WHITE}" "${C_RESET}" "${C_BOLD}${C_YELLOW}" "${C_RESET}" "${C_CYAN}" "${C_RESET}"
     append_frame " %b╚════════════════════════════════════════════════════════════════════════╝%b\033[K\n" "${C_CYAN}" "${C_RESET}"
-    append_frame "  %bKetik kata kunci untuk memfilter tools:%b\033[K\n" "${C_DIM}" "${C_RESET}"
+    append_frame "  %bType keyword to filter modules (ENTER to run, ESC to cancel):%b\033[K\n" "${C_DIM}" "${C_RESET}"
     local q_display="${query}█"
-    append_frame "  %b🔍 Query:%b [%-45.45s] %b(%d ditemukan)%b\033[K\n" \
+    append_frame "  %b🔍 Query:%b [%-45.45s] %b(%d found)%b\033[K\n" \
       "${C_BOLD}${C_YELLOW}" "${C_RESET}" "${q_display}" "${C_CYAN}" "$total" "${C_RESET}"
     append_frame " %b──────────────────────────────────────────────────────────────────────────%b\033[K\n" "${C_DIM}" "${C_RESET}"
 
@@ -504,10 +504,10 @@ tui_search_screen() {
       local sel_rel="${m_paths[cursor]}"
       append_frame "  %bPath :%b %-60.60s\033[K\n" "${C_DIM}" "${C_RESET}" "${sel_rel}"
     else
-      append_frame "  %bInfo : Tidak ada tools yang cocok dengan kata kunci '%s'%b\033[K\n" "${C_YELLOW}" "${query}" "${C_RESET}"
+      append_frame "  %bInfo : No tools matched query '%s'%b\033[K\n" "${C_YELLOW}" "${query}" "${C_RESET}"
     fi
     append_frame " %b──────────────────────────────────────────────────────────────────────────%b\033[K\n" "${C_DIM}" "${C_RESET}"
-    append_frame "  %b[Enter]%b Jalankan   %b[v]%b Lihat Kode   %b[↑/↓]%b Pindah   %b[Esc / 0]%b Kembali\033[K\n" \
+    append_frame "  %b[Enter]%b Run   %b[v]%b View Code   %b[↑/↓]%b Move   %b[Esc / 0]%b Back\033[K\n" \
       "${C_GREEN}" "${C_RESET}" "${C_CYAN}" "${C_RESET}" "${C_YELLOW}" "${C_RESET}" "${C_RED}" "${C_RESET}"
     append_frame "\033[J"
 
@@ -539,7 +539,7 @@ tui_search_screen() {
           printf "\033[?1049l\033[?25h" >&2
           stty sane 2>/dev/null || true
           run_script "${chosen}" || true
-          printf "\n%bTekan Enter untuk kembali ke WanForge TUI...%b" "${C_BOLD}${C_CYAN}" "${C_RESET}" >&2
+          printf "\n%bPress Enter to return to WanForge TUI...%b" "${C_BOLD}${C_CYAN}" "${C_RESET}" >&2
           read -r _ <&3 2>/dev/null || true
           printf "\033[?1049h\033[?25l" >&2
           stty -echo -icanon min 1 time 0 2>/dev/null || true
@@ -610,7 +610,7 @@ tui_category_submenu() {
     local frame="\033[H"
     append_frame() { local _l; printf -v _l "$@"; frame+="${_l}"; }
 
-    local cat_title="KATEGORI: ${target_cat^^} (${n} TOOLS)"
+    local cat_title="CATEGORY: ${target_cat^^} (${n} TOOLS)"
     local t_len=${#cat_title}
     local cat_spaces=$(( 72 - 4 - t_len - 15 ))
     [ "$cat_spaces" -lt 2 ] && cat_spaces=2
@@ -620,9 +620,9 @@ tui_category_submenu() {
     append_frame " %b║%b  %b%s%b%s%b● PORTABLE MODE%b  %b║%b\033[K\n" \
       "${C_CYAN}" "${C_RESET}" "${C_BOLD}${C_WHITE}" "${cat_title}" "${C_RESET}" "${cat_sp}" "${C_BOLD}${C_GREEN}" "${C_RESET}" "${C_CYAN}" "${C_RESET}"
     append_frame " %b╚════════════════════════════════════════════════════════════════════════╝%b\033[K\n" "${C_CYAN}" "${C_RESET}"
-    append_frame "  %b[1-%d] Nomor · ↑/↓ Pindah · ENTER Jalankan · V Lihat Kode · 0 Kembali%b\033[K\n\n" \
+    append_frame "  %b[1-%d] Number · ↑/↓ Move · ENTER Run · V View Code · 0 Back%b\033[K\n\n" \
       "${C_DIM}" "$n" "${C_RESET}"
-    append_frame "  %b── Daftar Script ──%b\033[K\n" "${C_BOLD}${C_YELLOW}" "${C_RESET}"
+    append_frame "  %b── Available Scripts ──%b\033[K\n" "${C_BOLD}${C_YELLOW}" "${C_RESET}"
 
     for ((i = 0; i < max_items; i++)); do
       local idx=$(( scroll + i ))
@@ -655,7 +655,7 @@ tui_category_submenu() {
     append_frame "  %bPath :%b %-60.60s\033[K\n" "${C_DIM}" "${C_RESET}" "${sel_rel}"
     append_frame "  %bDesc :%b %-60.60s\033[K\n" "${C_DIM}" "${C_RESET}" "${sel_dsc}"
     append_frame " %b──────────────────────────────────────────────────────────────────────────%b\033[K\n" "${C_DIM}" "${C_RESET}"
-    append_frame "  %b[Enter]%b Jalankan Tool   %b[v]%b Lihat Source Code   %b[0 / q]%b Kembali\033[K\n" \
+    append_frame "  %b[Enter]%b Run Tool   %b[v]%b View Source Code   %b[0 / q]%b Back\033[K\n" \
       "${C_GREEN}" "${C_RESET}" "${C_CYAN}" "${C_RESET}" "${C_RED}" "${C_RESET}"
     append_frame "\033[J"
 
@@ -693,7 +693,7 @@ tui_category_submenu() {
         printf "\033[?1049l\033[?25h" >&2
         stty sane 2>/dev/null || true
         run_script "${chosen}" || true
-        printf "\n%bTekan Enter untuk kembali ke WanForge TUI...%b" "${C_BOLD}${C_CYAN}" "${C_RESET}" >&2
+        printf "\n%bPress Enter to return to WanForge TUI...%b" "${C_BOLD}${C_CYAN}" "${C_RESET}" >&2
         read -r _ <&3 2>/dev/null || true
         printf "\033[?1049h\033[?25l" >&2
         stty -echo -icanon min 1 time 0 2>/dev/null || true
@@ -748,9 +748,9 @@ tui_main() {
       "${C_CYAN}" "${C_RESET}" "${C_WHITE}" "${kpi_os}" "${C_RESET}" \
       "${C_CYAN}" "${C_RESET}" "${C_GREEN}" "${kpi_ram}" "${C_RESET}"
     append_frame " %b──────────────────────────────────────────────────────────────────────────%b\033[K\n" "${C_DIM}" "${C_RESET}"
-    append_frame "  %bPILIH KATEGORI TOOLKIT:%b\033[K\n" "${C_BOLD}${C_YELLOW}" "${C_RESET}"
-    append_frame "  %b[1-10] Nomor · ↑/↓ Pindah · ENTER Buka · / Cari · B Batch · Q Keluar%b\033[K\n\n" "${C_DIM}" "${C_RESET}"
-    append_frame "  %b── Kategori Modul ──%b\033[K\n" "${C_BOLD}${C_YELLOW}" "${C_RESET}"
+    append_frame "  %bSELECT TOOLKIT CATEGORY:%b\033[K\n" "${C_BOLD}${C_YELLOW}" "${C_RESET}"
+    append_frame "  %b[1-10] Number · ↑/↓ Move · ENTER Open · / Search · B Batch · Q Quit%b\033[K\n\n" "${C_DIM}" "${C_RESET}"
+    append_frame "  %b── Module Categories ──%b\033[K\n" "${C_BOLD}${C_YELLOW}" "${C_RESET}"
 
     for ((i = 0; i < num_cats; i++)); do
       local c="${CATEGORIES[i]}"
@@ -774,7 +774,7 @@ tui_main() {
     done
 
     append_frame "\n %b──────────────────────────────────────────────────────────────────────────%b\033[K\n" "${C_DIM}" "${C_RESET}"
-    append_frame "  %b[ /]%b Cari Tools   %b[ b]%b Batch Mode   %b[ i]%b Audit Server   %b[ q]%b Keluar\033[K\n" \
+    append_frame "  %b[ /]%b Search   %b[ b]%b Batch Mode   %b[ i]%b System Info   %b[ q]%b Quit\033[K\n" \
       "${C_YELLOW}" "${C_RESET}" "${C_YELLOW}" "${C_RESET}" "${C_CYAN}" "${C_RESET}" "${C_RED}" "${C_RESET}"
     append_frame " %b──────────────────────────────────────────────────────────────────────────%b\033[K\n" "${C_DIM}" "${C_RESET}"
     append_frame "\033[J"
@@ -843,7 +843,7 @@ tui_main() {
   done
 
   tui_cleanup
-  printf "\n%bSampai jumpa! WanForge Ops Toolkit selesai. 👋%b\n\n" "${C_BOLD}${C_CYAN}" "${C_RESET}" >&2
+  printf "\n%bGoodbye! WanForge Ops Toolkit session ended. 👋%b\n\n" "${C_BOLD}${C_CYAN}" "${C_RESET}" >&2
 }
 
 # --- Classic Prompt Menu Fallback -----------------------------------------
@@ -853,7 +853,7 @@ classic_menu() {
     banner "Server Toolkit v2.5"
     sys_snapshot
 
-    printf "\n%bKATEGORI SCRIPT:%b\n" "${C_BOLD}${C_YELLOW}" "${C_RESET}" >&2
+    printf "\n%bSCRIPT CATEGORIES:%b\n" "${C_BOLD}${C_YELLOW}" "${C_RESET}" >&2
     for ((i = 0; i < ${#CATEGORIES[@]}; i++)); do
       local c="${CATEGORIES[i]}"
       local count=0
@@ -866,13 +866,13 @@ classic_menu() {
         "$c" "${C_DIM}" "$count" "${C_RESET}" >&2
     done
 
-    printf "\n%bNAVIGASI CEPAT:%b\n" "${C_DIM}" "${C_RESET}" >&2
-    printf "  %b[ s]%b  Cari Script (Search keyword)\n" "${C_YELLOW}" "${C_RESET}" >&2
-    printf "  %b[ b]%b  Batch Mode (Jalankan banyak script sekaligus)\n" "${C_YELLOW}" "${C_RESET}" >&2
-    printf "  %b[ h]%b  Audit Sistem Cepat\n" "${C_YELLOW}" "${C_RESET}" >&2
-    printf "  %b[ q]%b  Keluar (Exit)\n\n" "${C_RED}" "${C_RESET}" >&2
+    printf "\n%bQUICK NAVIGATION:%b\n" "${C_DIM}" "${C_RESET}" >&2
+    printf "  %b[ s]%b  Search Tools (by keyword)\n" "${C_YELLOW}" "${C_RESET}" >&2
+    printf "  %b[ b]%b  Batch Mode (Run multiple scripts sequentially)\n" "${C_YELLOW}" "${C_RESET}" >&2
+    printf "  %b[ h]%b  Fast System Audit\n" "${C_YELLOW}" "${C_RESET}" >&2
+    printf "  %b[ q]%b  Quit\n\n" "${C_RED}" "${C_RESET}" >&2
 
-    printf "%b› Masukkan nomor kategori [1-%d] atau menu [s/b/h/q]: %b" "${C_YELLOW}" "${#CATEGORIES[@]}" "${C_RESET}" >&2
+    printf "%b› Enter category number [1-%d] or option [s/b/h/q]: %b" "${C_YELLOW}" "${#CATEGORIES[@]}" "${C_RESET}" >&2
 
     local choice=""
     read -r choice <&3 || break
@@ -883,7 +883,7 @@ classic_menu() {
       b|B)   batch_select_mode ;;
       h|H)   tui_sys_info ;;
       q|Q|0|exit)
-        printf "\n%bSampai jumpa! 👋%b\n\n" "${C_CYAN}" "${C_RESET}" >&2
+        printf "\n%bGoodbye! 👋%b\n\n" "${C_CYAN}" "${C_RESET}" >&2
         break
         ;;
       "") ;;
@@ -927,14 +927,14 @@ case "${1:-}" in
       cli_help
       exit 0
     fi
-    cli_list | grep -iE "$q" || echo "Tidak ada script yang cocok dengan '$q'"
+    cli_list | grep -iE "$q" || echo "No scripts matched '$q'"
     exit 0
     ;;
   run)
     shift
-    if [ -z "${1:-}" ]; then err "Nama atau nomor script diperlukan. Contoh: $0 run docker"; exit 1; fi
+    if [ -z "${1:-}" ]; then err "Script name or number required. Example: $0 run docker"; exit 1; fi
     target_lbl="$(resolve_script "$1" 2>/dev/null || echo "")"
-    if [ -z "${target_lbl}" ]; then err "Script '$1' tidak ditemukan."; exit 1; fi
+    if [ -z "${target_lbl}" ]; then err "Script '$1' not found."; exit 1; fi
     run_script "${target_lbl}"
     exit $?
     ;;
@@ -961,7 +961,7 @@ case "${1:-}" in
         run_script "${sub_items[$(($2-1))]}"
         exit $?
       else
-        err "Nomor script $2 tidak valid untuk kategori $1 (1-${#sub_items[@]})."
+        err "Script number $2 is invalid for category $1 (1-${#sub_items[@]})."
         exit 1
       fi
     fi
@@ -972,7 +972,7 @@ case "${1:-}" in
       run_script "${target_lbl}"
       exit $?
     else
-      err "Pilihan '$1' tidak ditemukan. Gunakan './wf list' untuk melihat daftar script."
+      err "Option '$1' not found. Use './wf list' to see available tools."
       exit 1
     fi
     ;;

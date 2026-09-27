@@ -106,23 +106,23 @@ a_install_docker() {
   fi
 
   # Enable & start service
-  step "Mengaktifkan dan menjalankan layanan Docker..."
+  step "Enabling and starting Docker service..."
   run ${SUDO} systemctl enable --now docker 2>/dev/null || true
 
   # Add current user to docker group
   local cur_u; cur_u="$(id -un)"
   if [ "${cur_u}" != "root" ]; then
-    if ask_yn "Tambahkan user aktif (${cur_u}) ke grup 'docker' (menjalankan docker tanpa sudo)?" "y"; then
+    if ask_yn "Add active user (${cur_u}) to 'docker' group (run docker without sudo)?" "y"; then
       run ${SUDO} groupadd -f docker
       run ${SUDO} usermod -aG docker "${cur_u}"
-      ok "User ${cur_u} dimasukkan ke grup 'docker'. (Perlu relogin/su - ${cur_u} untuk efek aktif)."
+      ok "User ${cur_u} added to 'docker' group. (Requires relogin or su - ${cur_u} to take effect)."
     fi
   fi
 
   if command -v docker >/dev/null 2>&1; then
-    ok "Docker Engine berhasil dipasang: $(docker --version 2>/dev/null || echo 'Installed')"
+    ok "Docker Engine installed successfully: $(docker --version 2>/dev/null || echo 'Installed')"
   else
-    err "Instalasi Docker selesai tetapi biner 'docker' tidak ditemukan di PATH."
+    err "Docker installation completed but 'docker' binary not found in PATH."
   fi
 }
 
@@ -137,7 +137,7 @@ a_install_podman() {
     os_like="$(. /etc/os-release && echo "${ID_LIKE:-}")"
   fi
 
-  sub "Memasang paket Podman..."
+  sub "Installing Podman packages..."
   if [[ "${os_id}" =~ ^(ubuntu|debian|pop|mint|kali)$ ]] || [[ "${os_like}" =~ (ubuntu|debian) ]]; then
     run ${SUDO} apt-get update
     run ${SUDO} apt-get install -y podman podman-compose podman-docker || run ${SUDO} apt-get install -y podman podman-compose || run ${SUDO} apt-get install -y podman
@@ -152,17 +152,17 @@ a_install_podman() {
   elif [ "${os_id}" = "alpine" ]; then
     run ${SUDO} apk add podman podman-compose
   else
-    err "Manajer paket untuk distro ${os_id} tidak dikenali."; return 1
+    err "Package manager for distro ${os_id} is not supported."; return 1
   fi
 
   if command -v podman >/dev/null 2>&1; then
-    ok "Podman berhasil dipasang: $(podman --version)"
+    ok "Podman installed successfully: $(podman --version)"
     printf "\n"
-    if ask_yn "Konfigurasi Podman sebagai pengganti perintah 'docker' sekarang?" "y"; then
+    if ask_yn "Configure Podman as 'docker' command replacement now?" "y"; then
       a_setup_podman_as_docker
     fi
   else
-    err "Pemasangan Podman gagal."; return 1
+    err "Podman installation failed."; return 1
   fi
 }
 
@@ -255,17 +255,17 @@ a_diagnostics() {
 
   local eng; eng="$(detect_engine)"
   if [ "${eng}" = "none" ]; then
-    err "Tidak ditemukan Docker maupun Podman di sistem."; return 1
+    err "Neither Docker nor Podman found on this system."; return 1
   fi
 
-  info "Engine aktif terdeteksi: ${C_BOLD}${eng}${C_RESET}"
+  info "Active container engine detected: ${C_BOLD}${eng}${C_RESET}"
 
   # Show running containers
-  printf "\n%b[1] Daftar Container:%b\n" "${C_BOLD}${C_CYAN}" "${C_RESET}"
+  printf "\n%b[1] Container List:%b\n" "${C_BOLD}${C_CYAN}" "${C_RESET}"
   ${eng} ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || ${eng} ps -a || true
 
   # Check for restarting or crash loops
-  printf "\n%b[2] Cek Container Crash-Loop:%b\n" "${C_BOLD}${C_CYAN}" "${C_RESET}"
+  printf "\n%b[2] Check Crash-Loop Containers:%b\n" "${C_BOLD}${C_CYAN}" "${C_RESET}"
   local is_podman=0
   if ${eng} --version 2>&1 | grep -qi 'podman'; then
     is_podman=1
@@ -277,7 +277,7 @@ a_diagnostics() {
     restarts="${restarts//[^0-9]/}"
     restarts="${restarts:-0}"
     if [ "${restarts}" -gt 0 ]; then
-      warn "Ditemukan ${restarts} container dalam loop restart/crash!"
+      warn "Found ${restarts} container(s) in restart/crash loops!"
       ${eng} ps -a --filter "status=restarting" --format "table {{.Names}}\t{{.Status}}\t{{.Image}}" 2>/dev/null || true
     fi
   fi
@@ -285,14 +285,14 @@ a_diagnostics() {
   local failed=""
   failed="$(${eng} ps -a --filter "status=exited" --format "{{.Names}} exited {{.Status}}" 2>/dev/null | grep -i -v -E 'exited \([0]\)|exited 0' || true)"
   if [ -n "${failed}" ]; then
-    warn "Container yang berhenti dengan status error:"
+    warn "Containers exited with error status:"
     echo "${failed}"
   elif [ "${restarts}" -eq 0 ]; then
-    ok "Semua container berjalan normal atau berhenti dengan exit code 0."
+    ok "All containers running normally or exited cleanly (exit code 0)."
   fi
 
   # Stats snapshot
-  printf "\n%b[3] Penggunaan Resource Container (Snapshot):%b\n" "${C_BOLD}${C_CYAN}" "${C_RESET}"
+  printf "\n%b[3] Container Resource Usage (Snapshot):%b\n" "${C_BOLD}${C_CYAN}" "${C_RESET}"
   ${eng} stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}" 2>/dev/null || true
   printf "\n"
 }
@@ -303,17 +303,17 @@ a_cleanup() {
 
   local eng; eng="$(detect_engine)"
   if [ "${eng}" = "none" ]; then
-    err "Tidak ditemukan Docker maupun Podman."; return 1
+    err "Neither Docker nor Podman found."; return 1
   fi
 
-  warn "Tindakan ini akan menghapus container yang stopped, unused networks, dangling images, dan build cache."
-  if ! ask_yn "Lanjutkan pembersihan penyimpanan ${eng}?" "n"; then
-    info "Dibatalkan."; return 0
+  warn "This action will remove stopped containers, unused networks, dangling images, and build cache."
+  if ! ask_yn "Proceed with ${eng} storage cleanup?" "n"; then
+    info "Cancelled."; return 0
   fi
 
-  step "Menjalankan ${eng} system prune..."
+  step "Running ${eng} system prune..."
   ${eng} system prune -f --volumes 2>/dev/null || ${eng} system prune -f
-  ok "Pembersihan selesai."
+  ok "Cleanup completed."
 }
 
 # --- Action 6: UFW Firewall Security Patch --------------------------------
@@ -321,23 +321,23 @@ a_ufw_patch() {
   hd "UFW Firewall Security Patch (Docker Bypass Fix)"
 
   if [ ! -f /etc/ufw/after.rules ]; then
-    err "UFW tidak terpasang atau berkas /etc/ufw/after.rules tidak ditemukan."; return 1
+    err "UFW is not installed or /etc/ufw/after.rules not found."; return 1
   fi
 
   if grep -q "docker-user" /etc/ufw/after.rules; then
-    ok "Patch UFW-Docker sudah terpasang di /etc/ufw/after.rules."; return 0
+    ok "UFW-Docker patch already installed in /etc/ufw/after.rules."; return 0
   fi
 
-  warn "Secara default, Docker melakukan manipulasi iptables dan mem-bypass aturan UFW."
-  warn "Patch ini memastikan traffic ke port container melewati filter UFW."
-  if ! ask_yn "Terapkan patch keamanan UFW-Docker?" "y"; then
-    info "Dibatalkan."; return 0
+  warn "By default, Docker manipulates iptables and bypasses UFW rules."
+  warn "This patch ensures traffic to container ports respects UFW rules."
+  if ! ask_yn "Apply UFW-Docker security patch?" "y"; then
+    info "Cancelled."; return 0
   fi
 
-  step "Membuat backup /etc/ufw/after.rules..."
+  step "Backing up /etc/ufw/after.rules..."
   run ${SUDO} cp /etc/ufw/after.rules /etc/ufw/after.rules.bak
 
-  step "Menulis aturan docker-user ke /etc/ufw/after.rules..."
+  step "Writing docker-user rules to /etc/ufw/after.rules..."
   local patch="
 # BEGIN UFW AND DOCKER
 *filter
@@ -350,9 +350,9 @@ COMMIT
 
   printf "%s\n" "${patch}" | run ${SUDO} tee -a /etc/ufw/after.rules >/dev/null
 
-  step "Me-reload UFW..."
+  step "Reloading UFW..."
   run ${SUDO} ufw reload
-  ok "Patch keamanan berhasil diterapkan. Port container kini mematuhi aturan UFW."
+  ok "Security patch applied. Container ports now adhere to UFW rules."
 }
 
 # --- Action 7: Uninstall Runtimes -----------------------------------------
@@ -360,17 +360,17 @@ a_uninstall() {
   hd "Uninstall Container Runtime"
 
   local eng; eng="$(detect_engine)"
-  warn "Pilih komponen yang ingin dihapus:"
+  warn "Select components to uninstall:"
   printf "  [1] Uninstall Docker Engine\n"
   printf "  [2] Uninstall Podman & Wrapper\n"
-  printf "  [3] Hapus Keduanya (Docker & Podman)\n"
-  printf "  [0] Batal\n"
-  local choice; choice="$(ask "Pilihan Anda" "0")"
+  printf "  [3] Remove Both (Docker & Podman)\n"
+  printf "  [0] Cancel\n"
+  local choice; choice="$(ask "Your choice" "0")"
 
   case "${choice}" in
     1|3)
       if command -v docker >/dev/null 2>&1; then
-        sub "Menghapus paket Docker..."
+        sub "Removing Docker packages..."
         if command -v apt-get >/dev/null 2>&1; then
           run ${SUDO} apt-get purge -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin 2>/dev/null || true
           run ${SUDO} apt-get autoremove -y 2>/dev/null || true
@@ -380,10 +380,10 @@ a_uninstall() {
         elif command -v pacman >/dev/null 2>&1; then
           run ${SUDO} pacman -Rns --noconfirm docker docker-compose 2>/dev/null || true
         fi
-        if ask_yn "Hapus direktori data Docker (/var/lib/docker)?" "n"; then
+        if ask_yn "Delete Docker data directory (/var/lib/docker)?" "n"; then
           run ${SUDO} rm -rf /var/lib/docker /etc/docker /var/lib/containerd
         fi
-        ok "Docker berhasil dihapus."
+        ok "Docker removed successfully."
       fi
       ;;
   esac
@@ -391,7 +391,7 @@ a_uninstall() {
   case "${choice}" in
     2|3)
       if command -v podman >/dev/null 2>&1; then
-        sub "Menghapus paket Podman..."
+        sub "Removing Podman packages..."
         if command -v apt-get >/dev/null 2>&1; then
           run ${SUDO} apt-get purge -y podman podman-compose podman-docker 2>/dev/null || true
         elif command -v dnf >/dev/null 2>&1; then
@@ -402,7 +402,7 @@ a_uninstall() {
         run ${SUDO} rm -f /etc/profile.d/wanforge-podman-docker.sh /etc/containers/nodocker /etc/containers/registries.conf.d/00-wanforge-search.conf
         [ -L /usr/local/bin/docker ] && run ${SUDO} rm -f /usr/local/bin/docker
         [ -L /var/run/docker.sock ] && run ${SUDO} rm -f /var/run/docker.sock
-        ok "Podman dan konfigurasinya berhasil dihapus."
+        ok "Podman and configurations removed successfully."
       fi
       ;;
   esac
@@ -423,33 +423,33 @@ case "${1:-}" in
     elif systemctl is-active podman.socket >/dev/null 2>&1; then
       systemctl status podman.socket --no-pager
     else
-      echo "Layanan docker / podman tidak aktif."
+      echo "Docker / Podman services are inactive."
     fi
     exit $?
     ;;
   restart)
     systemctl restart docker 2>/dev/null || systemctl restart podman.socket 2>/dev/null || true
-    ok "Restart selesai."; exit 0
+    ok "Restart completed."; exit 0
     ;;
 esac
 
 # --- Interactive Main Menu ------------------------------------------------
 banner
 MENU=(
-  "Engine|install_docker|Pasang Docker Engine & Docker Compose (Official Repo)"
-  "Engine|install_podman|Pasang Podman & Podman Compose (Rootless/Daemonless)"
-  "Engine|podman_docker|Konfigurasi Podman sebagai Perintah 'docker' & Socket"
-  "Audit|diagnostics|Audit container aktif, port binding & crash-loop"
-  "Audit|cleanup|Bersihkan container stopped, dangling images & build cache"
-  "Audit|ufw_patch|Terapkan patch keamanan bypass UFW Firewall (Docker)"
-  "Layanan|status|Lihat status layanan Docker / Podman Socket"
-  "Layanan|restart|Restart layanan Docker / Podman Socket"
-  "Layanan|stop|Hentikan layanan Docker / Podman Socket"
-  "Hapus|uninstall|Uninstall Docker / Podman & konfigurasi"
+  "Engine|install_docker|Install Docker Engine & Docker Compose (Official Repo)"
+  "Engine|install_podman|Install Podman & Podman Compose (Rootless/Daemonless)"
+  "Engine|podman_docker|Configure Podman as 'docker' command & socket"
+  "Audit|diagnostics|Audit active containers, port bindings & crash-loops"
+  "Audit|cleanup|Clean up stopped containers, dangling images & build cache"
+  "Audit|ufw_patch|Apply UFW firewall security bypass fix (Docker)"
+  "Services|status|View Docker / Podman socket service status"
+  "Services|restart|Restart Docker / Podman socket service"
+  "Services|stop|Stop Docker / Podman socket service"
+  "Remove|uninstall|Uninstall Docker / Podman & configurations"
 )
 
 while true; do
-  if menu_select "PILIH AKSI CONTAINER RUNTIME (DOCKER & PODMAN):"; then
+  if menu_select "SELECT CONTAINER RUNTIME ACTION (DOCKER & PODMAN):"; then
     case "${MENU_KEY}" in
       install_docker) a_install_docker ;;
       install_podman) a_install_podman ;;
@@ -463,24 +463,24 @@ while true; do
         elif systemctl is-active podman.socket >/dev/null 2>&1; then
           ${SUDO} systemctl status podman.socket --no-pager || true
         else
-          info "Tidak ada layanan docker atau podman.socket yang aktif."
+          info "No active docker or podman.socket service found."
         fi
         pause
         ;;
       restart)
         run ${SUDO} systemctl restart docker 2>/dev/null || run ${SUDO} systemctl restart podman.socket 2>/dev/null || true
-        ok "Restart layanan selesai."
+        ok "Service restart completed."
         ;;
       stop)
         run ${SUDO} systemctl stop docker 2>/dev/null || run ${SUDO} systemctl stop podman.socket 2>/dev/null || true
-        ok "Layanan dihentikan."
+        ok "Service stopped."
         ;;
       uninstall) a_uninstall ;;
-      *) warn "Pilihan tidak valid: ${MENU_KEY}" ;;
+      *) warn "Invalid choice: ${MENU_KEY}" ;;
     esac
   else
     break
   fi
 done
 
-ok "Script ${TASK} selesai."
+ok "Script ${TASK} completed."
