@@ -4,9 +4,10 @@ Interactive Linux server automation toolkit — one unified launcher, 39 scripts
 across 10 categories: system setup, security hardening, databases, app runtimes,
 cloud panels, network & tunneling, monitoring, observability, CI/CD runners, and AI & agents.
 
-Run scripts individually or use `install.sh`, a fast categorized interactive
-launcher featuring category submenus, single-key numeric jumps (`1`..`10`),
-instant keyword search, batch multi-select, and automatic local-or-remote execution.
+Run scripts individually, use `install.sh`, or use `./wf`, a zero-dependency
+portable keyboard-driven dual-pane TUI dashboard. It features live search,
+category sidebars, code inspector (`v`), batch multi-select (`b`), and runs 100%
+portably in-place without polluting system directories or requiring root.
 No authentication required — public repo, served via GitHub Pages at `scripts.wanforge.asia`.
 
 Scripts are organized under `script/linux/<category>/`, structured so future
@@ -16,6 +17,7 @@ macOS or Windows scripts can be added alongside without changing the layout.
 
 - **OS**: Linux (currently). Scripts live under `script/linux/`; macOS/Windows
   variants would go in `script/macos/` / `script/windows/` when added.
+- **Portability**: 100% portable. Runs in-place from repo or isolated user-space cache (`~/.cache/wanforge-scripts`). No dependencies to install the TUI.
 - **Package manager**: `apt`, `dnf`, `yum`, `pacman`, `zypper`, or `apk`.
   Some scripts are Debian/Ubuntu only (noted in the table below).
 - **Tools**: `curl` and `sudo` (or root). Node.js, Composer, and PM2 install
@@ -47,10 +49,14 @@ If you are `root` (e.g. a fresh container/VM), drop the `sudo`. No package
 manager handy? `curl` usually rides along with `wget` — see the wget alternative
 below.
 
-## Run via the Launcher
+## Run via the Portable TUI Launcher
 
 ```bash
+# Remote one-liner (Zero installation, runs in memory/user-space cache)
 curl -fsSL https://scripts.wanforge.asia/install.sh | bash
+
+# Or via cloned repository
+./wf            # or: ./install.sh
 ```
 
 No `curl`? Use `wget` instead (present on many minimal images):
@@ -59,43 +65,50 @@ No `curl`? Use `wget` instead (present on many minimal images):
 wget -qO- https://scripts.wanforge.asia/install.sh | bash
 ```
 
-### Interactive Controls & Shortcuts
+### Interactive TUI Controls & Shortcuts
 
-| Key / Input     | Action                                                    |
-| --------------- | --------------------------------------------------------- |
-| `1` – `9`       | Direct numeric jump (instantly opens category / runs tool)|
-| `Up` / `Down`   | Move cursor between rows                                  |
-| `Enter`         | Select or execute highlighted item                        |
-| `s` or `/`      | Open interactive search mode                              |
-| `b`             | Enter batch multi-select mode                             |
-| `h`             | Show server health and diagnostic snapshot                |
-| `0` or `q`      | Back to previous menu or exit                             |
+The new keyboard-driven TUI provides a dual-pane interface with alternate screen buffering (leaves your terminal prompt 100% clean upon exit):
 
-### CLI Command Options
+| Key / Shortcut    | Action                                                        |
+| ----------------- | ------------------------------------------------------------- |
+| `↑` / `↓` / `k`/`j` | Move selection in the active pane                           |
+| `Tab` / `←` / `→` | Switch focus between Category pane and Tools pane             |
+| `Enter`           | Run selected script (or focus tools pane from category)       |
+| `v`               | **View Code**: Inspect script source in pager without running |
+| `/` or `s`        | **Live Search**: Instant real-time filter across all 39 tools |
+| `b`               | **Batch Mode**: Multi-select and run several tools in order   |
+| `i`               | **System Snapshot**: Instant audit popup (OS, RAM, CPU, IP)   |
+| `1` – `9`, `0`    | Direct jump to category index 1 to 10                         |
+| `q` / `Esc`       | Cleanly exit back to original shell prompt                    |
 
-You can also run commands directly from the terminal without interactive prompts:
+### CLI Command Options (Headless / Pipelines)
+
+All scripts can also be invoked non-interactively without the TUI:
 
 ```bash
-# List all 35 scripts with index numbers
-./install.sh list
+# List all 39 tools with indices and descriptions
+./wf list
 
-# Open a category directly by number (1-9)
-./install.sh 1                      # System category
-./install.sh 2                      # Security category
+# Run a specific script directly by name or global number
+./wf setup-motd
+./wf docker
+./wf 6                              # Global #6 (setup-motd)
+
+# Open a category submenu directly (1-10)
+./wf 1                              # System category
+./wf 2                              # Security category
 
 # Run a specific script by category & tool number
-./install.sh 1 5                    # Category 1 (System), Tool 5 (hardware-info)
+./wf 1 6                            # Category 1 (System), Tool 6 (setup-motd)
 
-# Run a specific script directly by global number or name
-./install.sh 16                     # Global #16 (install-docker)
-./install.sh docker                 # Direct name shorthand
-./install.sh run install-docker
+# Search tools by keyword non-interactively
+./wf search docker
 
-# Search for a script by keyword
-./install.sh search cloudflared
+# Server quick status audit
+./wf info
 
-# Quick server health & resource snapshot
-./install.sh info
+# Classic prompt menu fallback (if running on primitive terminal)
+./wf --classic
 ```
 
 ```text
