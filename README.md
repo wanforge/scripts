@@ -133,7 +133,7 @@ Select scripts to run:
   ── Panel & Console ──
   [✓] install-cloudpanel   Install CloudPanel CE v2 (Ubuntu 24 only)
   [✓] clpctl-manager       Manage CloudPanel via clpctl (sites, db, users, certs)
-  [✓] install-cockpit      Install Cockpit web console + modules (Debian/Ubuntu)
+  [✓] install-cockpit      Install Cockpit web console, plugins, proxy & optimized PCP logger
   ── Database ──
   [✓] install-postgresql   Install PostgreSQL + create roles + remote access
   [✓] enable-mysql-remote  Allow remote MySQL/MariaDB access (sensitive)
@@ -428,7 +428,7 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/ai/setup-9router-tunnel.sh
 | Security        | `ssl-toolkit.sh`           | SSL/TLS diagnostics: remote/local audit, self-signed SAN, handshake, Certbot  | Yes  | Any             |
 | Panel & Console | `install-cloudpanel.sh`    | Install CloudPanel CE v2, choose DB engine, verify checksum                   | Yes  | Ubuntu 24       |
 | Panel & Console | `clpctl-manager.sh`        | Manage CloudPanel via `clpctl`: sites, db, users, certs, vhosts               | Yes  | CloudPanel      |
-| Panel & Console | `install-cockpit.sh`       | Install Cockpit + modules, reverse-proxy config, open port 9090               | Yes  | Debian/Ubuntu   |
+| Panel & Console | `install-cockpit.sh`       | Install Cockpit + modules, reverse-proxy config, optimized PCP logger, port 9090 | Yes  | Debian/Ubuntu/RHEL |
 | Database        | `install-postgresql.sh`    | Install latest PostgreSQL (PGDG), create roles, remote access                 | Yes  | Debian/Ubuntu   |
 | Database        | `enable-mysql-remote.sh`   | Remote MySQL/MariaDB: bind-address, firewall, create users                    | Yes  | Debian/Ubuntu   |
 | Database        | `database-toolkit.sh`      | Monitor / optimize / config / datetime — MySQL & PostgreSQL                   | Yes  | Any (DB client) |
@@ -699,18 +699,28 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/ai/setup-9router-tunnel.sh
 
 ### install-cockpit.sh
 
-- Debian/Ubuntu only. **Grouped checkbox menu** (default all on, uncheck to skip):
-  - **Core** — install Cockpit; open port `9090` in `ufw` (skip if proxied).
-  - **Proxy** — write `/etc/cockpit/cockpit.conf` with `AllowOrigins` (bare
-    domain, e.g. `cockpit.domain.id` — TLS terminated by CloudPanel),
-    `ProtocolHeader`, `AllowUnencrypted`. Add the domain in CloudPanel as a
-    reverse proxy to `http://127.0.0.1:9090`.
-  - **Network** — install NetworkManager and set the netplan renderer (with a
-    backup and an explicit `yes` confirmation, since it can drop SSH).
-  - **Plugins** — `networkmanager`, `storaged`, `sosreport`, `pcp`, `machines`,
-    `podman` (each individually selectable).
-  - **Metrics** — enable `pmcd` + `pmlogger`.
-- Console at `http://127.0.0.1:9090`.
+- **Full Suite & Modular Setup**: Debian, Ubuntu, and Fedora/RHEL support.
+  - **Core Web Console**: Installs Cockpit, enables socket activation (`cockpit.socket`) on port `9090`.
+  - **Plugin Suite**:
+    - `cockpit-networkmanager`: Network interfaces, IP/DNS, bridges, VLANs, bonds.
+    - `cockpit-storaged`: Disks, partitions, LVM volume groups, RAID, NFS mounts, SMART drive health.
+    - `cockpit-sosreport`: Diagnostic system state and support reports.
+    - `cockpit-pcp`: Performance Co-Pilot integration for live & historical metrics graphing.
+    - `cockpit-machines`: KVM / QEMU virtual machines management via libvirt.
+    - `cockpit-podman`: Podman container images and container lifecycle management.
+  - **Optimized Performance Logger (PCP)**:
+    - Automatically enables & starts `pmcd` and `pmlogger` daemons.
+    - Refreshes complete metric definitions via `pmlogconf -r` (CPU, memory, disk I/O, network, filesystems).
+    - Sets primary logger control to capture 10s interval historical performance data.
+    - Enables `pmlogger_daily.timer` and `pmlogger_check.timer` for automatic archive rotation.
+    - Ensures persistent systemd journal storage so historical logs are fully available in Cockpit's System Logs viewer.
+  - **Reverse Proxy Wizard**:
+    - Interactive config generator for `/etc/cockpit/cockpit.conf` (`Origins`, `AllowOrigins`, `ProtocolHeader = X-Forwarded-Proto`, `AllowUnencrypted = true`).
+    - Tailored for SSL-terminating proxies (CloudPanel, Nginx, Caddy).
+  - **Firewall Integration**:
+    - Opens port `9090/tcp` in UFW or Firewalld with an explicit note that it can remain closed if accessed exclusively via reverse proxy.
+  - **Audit & Status (`status`)**:
+    - Audits socket state, active plugins in `/usr/share/cockpit/`, PCP logger status, archive disk footprint, and reverse proxy rules.
 
 ### install-postgresql.sh
 

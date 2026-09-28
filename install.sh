@@ -118,7 +118,7 @@ SCRIPTS=(
 
   "Panel & Console|install-cloudpanel|script/linux/cloud/install-cloudpanel.sh|Install CloudPanel CE v2 (Ubuntu 24 only)"
   "Panel & Console|clpctl-manager|script/linux/cloud/clpctl-manager.sh|Manage CloudPanel via clpctl (sites, db, users, certs)"
-  "Panel & Console|install-cockpit|script/linux/cloud/install-cockpit.sh|Install Cockpit web console + modules (Debian/Ubuntu)"
+  "Panel & Console|install-cockpit|script/linux/cloud/install-cockpit.sh|Install Cockpit web console, plugins, proxy & optimized PCP logger"
 
   "Network & Tunnel|install-cloudflared|script/linux/network/install-cloudflared.sh|Cloudflare Tunnel: quick tunnels, named tunnels, ingress, systemd"
   "Network & Tunnel|net-tools|script/linux/network/net-tools.sh|Local/public IP, ports, speedtest, ping, dig, traceroute, scan"
