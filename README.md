@@ -131,7 +131,7 @@ Select scripts to run:
   [✓] manage-users         Manage Linux users, sudo access & SSH keys
   [✓] ssl-toolkit          SSL/TLS diagnostics & management: remote/local audit, self-signed SAN, TLS handshake debug, Certbot
   ── Panel & Console ──
-  [✓] install-cloudpanel   Install CloudPanel CE v2 (Debian/Ubuntu only)
+  [✓] install-cloudpanel   Install CloudPanel CE v2 (Ubuntu 24 only)
   [✓] clpctl-manager       Manage CloudPanel via clpctl (sites, db, users, certs)
   [✓] install-cockpit      Install Cockpit web console + modules (Debian/Ubuntu)
   ── Database ──
@@ -426,7 +426,7 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/ai/setup-9router-tunnel.sh
 | Security        | `manage-users.sh`          | Manage Linux users, sudo access, passwords, shells, and SSH keys              | Yes  | Any             |
 | Security        | `generate-ssh-key.sh`      | Generate an ed25519 SSH key, fix perms, print public key                      | No   | Any             |
 | Security        | `ssl-toolkit.sh`           | SSL/TLS diagnostics: remote/local audit, self-signed SAN, handshake, Certbot  | Yes  | Any             |
-| Panel & Console | `install-cloudpanel.sh`    | Install CloudPanel CE v2, choose DB engine, verify checksum                   | Yes  | Debian/Ubuntu   |
+| Panel & Console | `install-cloudpanel.sh`    | Install CloudPanel CE v2, choose DB engine, verify checksum                   | Yes  | Ubuntu 24       |
 | Panel & Console | `clpctl-manager.sh`        | Manage CloudPanel via `clpctl`: sites, db, users, certs, vhosts               | Yes  | CloudPanel      |
 | Panel & Console | `install-cockpit.sh`       | Install Cockpit + modules, reverse-proxy config, open port 9090               | Yes  | Debian/Ubuntu   |
 | Database        | `install-postgresql.sh`    | Install latest PostgreSQL (PGDG), create roles, remote access                 | Yes  | Debian/Ubuntu   |
@@ -658,13 +658,14 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/ai/setup-9router-tunnel.sh
 
 ### install-cloudpanel.sh
 
-- **Supported OS** (per the docs): Ubuntu 24.04 / 22.04 LTS, Debian 11 / 12 / 13.
-  The script detects the OS and **refuses unsupported versions** (e.g. Ubuntu
-  25/26) unless you explicitly opt in. Database-engine options are offered per OS
-  (e.g. MariaDB 11.8 on Debian 13, MariaDB 10.6 on Ubuntu 22.04).
-- Downloads the official installer and verifies its SHA-256 checksum. **Fails
-  closed** on mismatch. Update `EXPECTED_SHA` from the CloudPanel docs for new
-  releases. Web console at `https://<server-ip>:8443`.
+- **Supported OS**: Ubuntu 24.04 LTS strictly mandatory. The script checks
+  `/etc/os-release` and **aborts immediately** if the host is not Ubuntu 24.
+- **Database Engine**: Defaults to `MARIADB_12.3`, with support for `MARIADB_11.8`,
+  `MARIADB_11.4`, `MARIADB_10.11`, `MYSQL_8.4`, and `MYSQL_8.0`.
+- **Integrity Verification**: Downloads installer from `https://installer.cloudpanel.io/ce/v2/install.sh`,
+  pipes checksum verification against `8146dbe0a488e7088b04071b0c34d59aa0ab1fe9dcec382d395fd155c9e6c476`,
+  and executes via `sudo DB_ENGINE=MARIADB_12.3 bash install.sh`.
+- Web console available upon completion at `https://<server-ip>:8443`.
 
 ### clpctl-manager.sh
 

@@ -2,7 +2,7 @@
 # shellcheck disable=SC2086
 #
 # install-cloudpanel.sh — install CloudPanel CE v2.
-# Supported: Ubuntu 24.04/22.04 LTS, Debian 11/12/13 (NOT Ubuntu 25/26).
+# Supported: Ubuntu 24.04 LTS (Mandatory).
 # Docs: https://www.cloudpanel.io/docs/v2/getting-started/other/
 #
 # Usage (public repo, no auth needed):
@@ -58,31 +58,25 @@ if [ -z "${1:-}" ]; then
   esac
 fi
 
-# CloudPanel is Debian/Ubuntu only.
+# CloudPanel requires Ubuntu 24.
 if ! command -v apt-get >/dev/null 2>&1; then
-  err "CloudPanel supports only Debian/Ubuntu (apt). Aborting."
+  err "CloudPanel requires Ubuntu 24 (apt-get not found). Aborting."
   exit 1
 fi
 
-# ---- supported OS check -------------------------------------------------
-# Per https://www.cloudpanel.io/docs/v2/getting-started/other/
-# Supported: Ubuntu 24.04 / 22.04 LTS, Debian 11 / 12 / 13.  (Ubuntu 25/26: NO)
-# TODO: re-check the docs above periodically — when Ubuntu 26.04 becomes
-#       supported, add `ubuntu:26.04` to the case below and to the ENGINES case.
+# ---- supported OS check (Strict Ubuntu 24 enforcement) -------------------
 # shellcheck disable=SC1091
 . /etc/os-release 2>/dev/null || true
 OS_ID="${ID:-}"; OS_VER="${VERSION_ID:-}"
 info "Detected OS: ${OS_ID} ${OS_VER}"
 case "${OS_ID}:${OS_VER}" in
-  ubuntu:24.04|ubuntu:22.04|debian:11|debian:12|debian:13) ;;
+  ubuntu:24.04|ubuntu:24.*)
+    ok "OS check passed: Ubuntu 24 (${VERSION_CODENAME:-noble})"
+    ;;
   *)
-    warn "CloudPanel officially supports Ubuntu 24.04/22.04 LTS and Debian 11/12/13."
-    warn "${OS_ID} ${OS_VER} is NOT supported (e.g. Ubuntu 25/26 not yet supported)."
-    warn "Docs: https://www.cloudpanel.io/docs/v2/getting-started/other/"
-    case "$(ask "Try installing anyway? (likely to fail) [y/N]:" "n")" in
-      y|Y|yes) warn "Proceeding on an unsupported OS at your own risk." ;;
-      *) err "Aborting on unsupported OS."; exit 1 ;;
-    esac
+    err "CloudPanel strictly requires Ubuntu 24.04 LTS. Detected OS: ${OS_ID} ${OS_VER}."
+    err "Aborting: installation is restricted strictly to Ubuntu 24."
+    exit 1
     ;;
 esac
 
@@ -95,28 +89,30 @@ info "Installing curl wget sudo"
 run ${SUDO} apt-get -y install curl wget sudo
 ok "Prerequisites ready."
 
-# ---- step 2: choose database engine (options vary per OS, per docs) ------
+# ---- step 2: choose database engine --------------------------------------
 step "Choose database engine"
-case "${OS_ID}:${OS_VER}" in
-  ubuntu:24.04) ENGINES=(MARIADB_11.4 MARIADB_10.11 MYSQL_8.4 MYSQL_8.0) ;;
-  ubuntu:22.04) ENGINES=(MARIADB_11.4 MARIADB_10.11 MARIADB_10.6 MYSQL_8.0) ;;
-  debian:13)    ENGINES=(MARIADB_11.8 MYSQL_8.4 MYSQL_8.0) ;;
-  debian:12)    ENGINES=(MARIADB_11.4 MARIADB_10.11 MYSQL_8.4 MYSQL_8.0) ;;
-  debian:11)    ENGINES=(MARIADB_10.6 MYSQL_8.0 MYSQL_5.7) ;;
-  *)            ENGINES=(MARIADB_11.4 MARIADB_10.11 MYSQL_8.4 MYSQL_8.0) ;;
-esac
-MENU=()
-for e in "${ENGINES[@]}"; do
-  MENU+=("DB Engine|${e}|${e}")
-done
-menu_select "Select database engine:" || exit 0
-DB_ENGINE="${MENU_KEY}"
+ENGINES=(MARIADB_12.3 MARIADB_11.8 MARIADB_11.4 MARIADB_10.11 MYSQL_8.4 MYSQL_8.0)
+MENU=(
+  "DB Engine|MARIADB_12.3|MariaDB 12.3 (Recommended / Default)"
+  "DB Engine|MARIADB_11.8|MariaDB 11.8 (Rolling)"
+  "DB Engine|MARIADB_11.4|MariaDB 11.4 (LTS)"
+  "DB Engine|MARIADB_10.11|MariaDB 10.11 (LTS)"
+  "DB Engine|MYSQL_8.4|MySQL 8.4 (LTS)"
+  "DB Engine|MYSQL_8.0|MySQL 8.0"
+)
+
+if [ -n "${DB_ENGINE:-}" ]; then
+  ok "Using database engine from environment: ${DB_ENGINE}"
+else
+  menu_select "Select database engine for CloudPanel:" || exit 0
+  DB_ENGINE="${MENU_KEY:-MARIADB_12.3}"
+fi
 ok "Database engine: ${DB_ENGINE}"
 
 # ---- step 3: download, verify checksum, install -------------------------
-step "Download & install CloudPanel"
-# Official checksum from CloudPanel docs (changes per installer release).
-EXPECTED_SHA="6eac061df80f08b75224fcd7fce2f115e201696d8a6122e31abf7259a813b462"
+step "Download, verify checksum & install CloudPanel"
+# Official checksum from CloudPanel docs (https://www.cloudpanel.io/docs/v2/getting-started/other/)
+EXPECTED_SHA="8146dbe0a488e7088b04071b0c34d59aa0ab1fe9dcec382d395fd155c9e6c476"
 INSTALLER="https://installer.cloudpanel.io/ce/v2/install.sh"
 TMP_DIR="$(mktemp -d)"; trap 'rm -rf "${TMP_DIR}"' EXIT
 cd "${TMP_DIR}"
@@ -125,20 +121,13 @@ info "Downloading installer..."
 curl -sS "${INSTALLER}" -o install.sh
 
 info "Verifying SHA-256 checksum..."
-ACTUAL_SHA="$(sha256sum install.sh | awk '{print $1}')"
-# Fail closed: a mismatch means the file is untrusted (tampered) OR the pinned
-# hash is stale for a new release. Either way we refuse to run unverified code.
-# To install a newer release, update EXPECTED_SHA from the official CloudPanel
-# docs after confirming the published hash.
-if [ "${ACTUAL_SHA}" != "${EXPECTED_SHA}" ]; then
+if ! echo "${EXPECTED_SHA}  install.sh" | sha256sum -c - >/dev/null 2>&1; then
   err "Checksum mismatch — refusing to run unverified installer."
-  info "expected: ${EXPECTED_SHA}"
-  info "actual:   ${ACTUAL_SHA}"
-  info "If a new CloudPanel release shipped, update EXPECTED_SHA from:"
-  info "  https://www.cloudpanel.io/docs/v2/getting-started/other/"
+  info "Expected: ${EXPECTED_SHA}"
+  info "Actual:   $(sha256sum install.sh | awk '{print $1}')"
   exit 1
 fi
-ok "Checksum verified."
+ok "Checksum verified (${EXPECTED_SHA:0:16}...)."
 
 info "Running CloudPanel installer (DB_ENGINE=${DB_ENGINE})..."
 ${SUDO} DB_ENGINE="${DB_ENGINE}" bash install.sh
