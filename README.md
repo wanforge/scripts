@@ -125,7 +125,7 @@ Select scripts to run:
   ── Security ──
   [✓] install-firewall     Install & configure ufw firewall
   [✓] firewall-manager     Full ufw manager: allow/deny IP/port, multiple, rate-limit
-  [✓] install-fail2ban     Install & enable Fail2Ban
+  [✓] install-fail2ban     Install, optimize & manage Fail2Ban (progressive ban, recidive)
   [✓] secure-ssh           Harden SSH: audit, port change, root/pw lockdown, SELinux & firewall
   [✓] generate-ssh-key     Generate an ed25519 SSH key (user-local)
   [✓] manage-users         Manage Linux users, sudo access & SSH keys
@@ -421,7 +421,7 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/ai/setup-9router-tunnel.sh
 | System          | `setup-motd.sh`            | Custom dynamic SSH login banner (MOTD) with live system KPIs                  | Yes  | Any             |
 | Security        | `install-firewall.sh`      | Install `ufw`, open SSH/http/https, add custom ports, enable                  | Yes  | Mainly Deb/Ubu  |
 | Security        | `firewall-manager.sh`      | Full ufw manager: allow/deny IP & port, multi-IP, rate-limit                  | Yes  | Any (ufw)       |
-| Security        | `install-fail2ban.sh`      | Install and enable the Fail2Ban service                                       | Yes  | Multi           |
+| Security        | `install-fail2ban.sh`      | Install, optimize & manage Fail2Ban (progressive ban, recidive)              | Yes  | Multi           |
 | Security        | `secure-ssh.sh`            | Audit, port change, root/pw lockdown, passwordless sudo, CIS, SELinux/fw      | Yes  | Any (OpenSSH)   |
 | Security        | `manage-users.sh`          | Manage Linux users, sudo access, passwords, shells, and SSH keys              | Yes  | Any             |
 | Security        | `generate-ssh-key.sh`      | Generate an ed25519 SSH key, fix perms, print public key                      | No   | Any             |
@@ -612,8 +612,23 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/ai/setup-9router-tunnel.sh
 
 ### install-fail2ban.sh
 
-- Installs Fail2Ban via the detected package manager.
-- Enables and starts the service (systemd or OpenRC).
+- **Multi-distro Installation**: Installs Fail2Ban across Debian, Ubuntu, RHEL/Fedora/CentOS/Rocky, Arch Linux, openSUSE, and Alpine.
+- **Aggressive & Progressive Banning**:
+  - `bantime.increment = true`: Applies exponential progressive bans for recidivists (1h → 2h → 4h up to 4 weeks).
+  - Default timers: `bantime = 1h`, `findtime = 15m`, `maxretry = 4`.
+  - Repeat offender jail (`[recidive]`): Traps and bans persistent attackers across all services for 2 weeks.
+- **Smart System Detection**:
+  - Dynamic SSH port discovery: protects both port 22 and any custom SSH ports detected via `ss` and `sshd_config`.
+  - Systemd Journal backend (`backend = systemd`): provides zero-lag log parsing immune to log rotation.
+  - Firewall integration: auto-detects `ufw`, `firewallcmd-richrules`, `nftables-multiport`, or `iptables-multiport`.
+  - Anti-lockout whitelist: auto-detects current admin SSH connection IP (`SSH_CLIENT`) and RFC 1918 subnets into `ignoreip`.
+  - Web server jails: automatically enables `[nginx-http-auth]`, `[nginx-botsearch]`, and `[nginx-bad-request]` if Nginx or CloudPanel is detected.
+- **Management CLI & Interactive Menu**:
+  - `status`: Real-time audit of service state, active jails, and currently banned IPs.
+  - `optimize`: Applies production hardening presets with automatic config backup.
+  - `unban <ip>`: Unbans an IP address across all jails or selected jail.
+  - `ban <ip> [jail]`: Manually bans an IP address in a specific jail.
+  - `logs`: Inspects the last 35 Ban/Unban events from `/var/log/fail2ban.log` or journalctl.
 
 ### secure-ssh.sh
 
