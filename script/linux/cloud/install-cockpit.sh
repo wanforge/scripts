@@ -223,27 +223,39 @@ a_optimize_logger() {
       ;;
   esac
 
-  sub "Configuring complete metric coverage via pmlogconf..."
-  # Re-generate complete default metrics configuration if pmlogconf exists
-  if command -v pmlogconf >/dev/null 2>&1; then
-    run ${SUDO} mkdir -p /var/lib/pcp/config/pmlogger
-    run ${SUDO} pmlogconf -r /var/lib/pcp/config/pmlogger/config.default 2>/dev/null || true
-    ok "Default metric templates refreshed."
-  fi
+  sub "Configuring metric collection (non-interactive)..."
+  # Remove any leftover temporary file from previous interactive prompts
+  run ${SUDO} rm -f /var/lib/pcp/config/pmlogger/config.default.new 2>/dev/null || true
 
-  # Ensure control.d/local primary logger configuration
+  # If config.default is missing, generate it non-interactively using -c
+  if [ ! -f /var/lib/pcp/config/pmlogger/config.default ] || [ ! -s /var/lib/pcp/config/pmlogger/config.default ]; then
+    if command -v pmlogconf >/dev/null 2>&1; then
+      run ${SUDO} mkdir -p /var/lib/pcp/config/pmlogger
+      run ${SUDO} pmlogconf -c /var/lib/pcp/config/pmlogger/config.default 2>/dev/null || true
+    fi
+  fi
+  ok "Metric configuration verified."
+
+  # Ensure control.d/local has canonical valid PCP control syntax ($version=1.1 and LOCALHOSTNAME)
   if [ -d /etc/pcp/pmlogger/control.d ]; then
-    sub "Optimizing /etc/pcp/pmlogger/control.d/local..."
-    local host_str='$host'
+    sub "Configuring canonical /etc/pcp/pmlogger/control.d/local..."
     local tmp_ctrl; tmp_ctrl="$(mktemp)"
-    cat > "${tmp_ctrl}" <<EOF
-# PCP Local Primary Logger Control (WanForge Optimized)
-# Records CPU, memory, disks, network, filesystems at 10-second intervals
-${host_str} y n PCP_LOG_DIR/pmlogger/${host_str} -r -T24h10m -c config.default -m pmns-sproc
+    cat > "${tmp_ctrl}" <<'EOF'
+# PCP archive logging configuration/control
+$version=1.1
+
+# local primary pmlogger
+LOCALHOSTNAME	y   n	PCP_ARCHIVE_DIR/LOCALHOSTNAME	-r -T24h10m -c config.default -v 100Mb
 EOF
     run ${SUDO} cp -f "${tmp_ctrl}" /etc/pcp/pmlogger/control.d/local
     run ${SUDO} chmod 644 /etc/pcp/pmlogger/control.d/local
     rm -f "${tmp_ctrl}"
+  fi
+
+  # Ensure archive directories and permissions
+  run ${SUDO} mkdir -p /var/log/pcp/pmlogger
+  if id pcp >/dev/null 2>&1; then
+    run ${SUDO} chown -R pcp:pcp /var/log/pcp /var/lib/pcp 2>/dev/null || true
   fi
 
   # Ensure persistent systemd journal logging for complete system logs in Cockpit
@@ -253,14 +265,24 @@ EOF
     run ${SUDO} systemd-tmpfiles --create --prefix /var/log/journal 2>/dev/null || true
   fi
 
-  sub "Enabling and starting pmcd, pmlogger, and maintenance timers..."
+  sub "Enabling and starting pmcd (Collector Daemon)..."
   if command -v systemctl >/dev/null 2>&1; then
-    run ${SUDO} systemctl enable --now pmcd pmlogger
-    run ${SUDO} systemctl enable --now pmlogger_daily.timer pmlogger_check.timer 2>/dev/null || true
-    run ${SUDO} systemctl restart pmcd pmlogger
+    run ${SUDO} systemctl enable pmcd >/dev/null 2>&1 || true
+    run ${SUDO} systemctl restart pmcd || run ${SUDO} systemctl start pmcd || true
+    sleep 2
+
+    sub "Enabling and starting pmlogger (Metrics Logger)..."
+    run ${SUDO} systemctl enable pmlogger >/dev/null 2>&1 || true
+    if ! run ${SUDO} systemctl restart pmlogger 2>/dev/null; then
+      warn "pmlogger restart failed; checking fallback start..."
+      run ${SUDO} systemctl start pmlogger 2>/dev/null || warn "pmlogger service failed to start. Run 'journalctl -xeu pmlogger' for details."
+    fi
+
+    run ${SUDO} systemctl enable --now pmlogger_daily.timer 2>/dev/null || true
+    run ${SUDO} systemctl enable --now pmlogger_check.timer 2>/dev/null || true
   fi
 
-  ok "PCP metrics logger optimized. Real-time & historical performance graphs will record completely."
+  ok "PCP metrics logger configured. Real-time & historical performance graphs will record completely."
 }
 
 # --- Action: Firewall Port 9090 -------------------------------------------
