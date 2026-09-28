@@ -125,13 +125,13 @@ SCRIPTS=(
   "Network & Tunnel|proxmox-toolkit|script/linux/network/proxmox-toolkit.sh|Proxmox VE helper: disable enterprise repo, CT/VM dashboard"
 
   "Monitoring & Metrics|monitor-system|script/linux/monitoring/monitor-system.sh|CPU, RAM, storage, processes, network (snapshot or realtime)"
-  "Monitoring & Metrics|install-prometheus|script/linux/monitoring/install-prometheus.sh|Prometheus + node_exporter (+ Alertmanager)"
+  "Monitoring & Metrics|install-prometheus|script/linux/monitoring/install-prometheus.sh|Prometheus + node_exporter + Alertmanager (alerts & audit)"
   "Monitoring & Metrics|install-goaccess|script/linux/monitoring/install-goaccess.sh|GoAccess — real-time web log analyzer (terminal & HTML daemon)"
 
-  "Observability Stack|install-grafana|script/linux/monitoring/install-grafana.sh|Grafana + Prometheus data source"
+  "Observability Stack|install-grafana|script/linux/monitoring/install-grafana.sh|Grafana + Prometheus datasource, Node Exporter dashboard & proxy"
   "Observability Stack|install-uptime-kuma|script/linux/monitoring/install-uptime-kuma.sh|Uptime Kuma — self-hosted status page and service monitor"
   "Observability Stack|install-loki|script/linux/monitoring/install-loki.sh|Loki + Promtail log aggregator & forwarding agent"
-  "Observability Stack|install-zabbix|script/linux/monitoring/install-zabbix.sh|Zabbix agent or server (official repo)"
+  "Observability Stack|install-zabbix|script/linux/monitoring/install-zabbix.sh|Zabbix 7.0 LTS Server or Agent 2 (official repo, multi-firewall)"
 
   "CI/CD Runners|install-github-runner|script/linux/cicd/install-github-runner.sh|GitHub Actions self-hosted runner as a systemd service"
   "CI/CD Runners|install-gitlab-runner|script/linux/cicd/install-gitlab-runner.sh|GitLab CI/CD self-hosted runner as a systemd service"

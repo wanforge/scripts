@@ -443,9 +443,9 @@ curl -fsSL https://scripts.wanforge.asia/script/linux/ai/setup-9router-tunnel.sh
 | Proxmox         | `proxmox-toolkit.sh`       | PVE node/VM/CT resources, storage, cluster, realtime dashboard                | Yes  | Proxmox VE      |
 | CI/CD           | `install-github-runner.sh` | GitHub Actions self-hosted runner as a systemd service (avoid billed minutes) | Yes  | Linux           |
 | CI/CD           | `install-gitlab-runner.sh` | GitLab CI/CD self-hosted runner manager                                       | Yes  | Linux           |
-| Observability   | `install-prometheus.sh`    | Prometheus + node_exporter + Alertmanager (with alert rules & integrations)  | Yes  | Debian/Ubuntu   |
-| Observability   | `install-grafana.sh`       | Grafana (official repo) + auto datasource & dashboard provisioning           | Yes  | Debian/Ubuntu   |
-| Observability   | `install-zabbix.sh`        | Zabbix agent or full server (frontend + MySQL schema)                         | Yes  | Debian/Ubuntu   |
+| Observability   | `install-prometheus.sh`    | Prometheus + node_exporter + Alertmanager (alerts, notification wizard, audit) | Yes  | Debian/Ubuntu   |
+| Observability   | `install-grafana.sh`       | Grafana (official repo) + datasource/dashboard provisioning, proxy & audit   | Yes  | Debian/Ubuntu   |
+| Observability   | `install-zabbix.sh`        | Zabbix 7.0 LTS Server or Agent 2 (official repo, MySQL schema, multi-fw)     | Yes  | Debian/Ubuntu   |
 | Observability   | `install-uptime-kuma.sh`   | Uptime Kuma status page & endpoint monitor (Node.js + PM2)                    | No   | Linux           |
 | Observability   | `install-loki.sh`          | Loki + Promtail log aggregator & forwarding agent                             | Yes  | Debian/Ubuntu   |
 | Observability   | `install-goaccess.sh`      | GoAccess real-time web log analyzer (terminal & HTML daemon)                 | Yes  | Debian/Ubuntu   |
@@ -860,22 +860,27 @@ Menu actions:
 
 ### install-prometheus.sh
 
-- Debian/Ubuntu. Checkbox components: Prometheus (`:9090`), node_exporter (`:9100`, host CPU/RAM/disk metrics), Alertmanager (`:9093`), and firewall.
+- Debian/Ubuntu. Checkbox components: Prometheus (`:9090`), node_exporter (`:9100`, host CPU/RAM/disk metrics), Alertmanager (`:9093`), and firewall (UFW & Firewalld).
 - Installs from distro packages, enables services, and **adds a node_exporter scrape job** to `/etc/prometheus/prometheus.yml`.
 - **System Alerts**: Automatically provisions `/etc/prometheus/alert.rules.yml` containing pre-configured rules (Host down, high CPU/RAM, low disk space) and links them to Prometheus.
 - **Alertmanager Notification Wizard**: Offers interactive setup for Alertmanager notifications including Slack/Discord webhooks, Telegram bots, generic webhook URLs, and SMTP emails.
+- **Diagnostics & Audit (`status`)**: Audits running services, open ports (9090, 9100, 9093), configured scrape jobs, and active alert rules.
 
 ### install-grafana.sh
 
-- Debian/Ubuntu. Adds the **official Grafana APT repo**, installs and enables `grafana-server` (`:3000`), and opens the firewall.
-- **Datasource Provisioning**: Optionally auto-provisions a Prometheus data source.
+- Debian/Ubuntu. Adds the **official Grafana APT repo**, installs and enables `grafana-server` (`:3000`), and opens the firewall (UFW & Firewalld).
+- **Datasource Provisioning**: Optionally auto-provisions a Prometheus data source (`http://localhost:9090`).
 - **Dashboard Provisioning**: Optionally auto-provisions the "Node Exporter Full" dashboard (ID 1860) and binds it to the Prometheus datasource so metrics are visible immediately out-of-the-box.
+- **Reverse Proxy Wizard (`proxy`)**: Configures `domain` and `root_url` in `/etc/grafana/grafana.ini` for SSL reverse proxies (CloudPanel / Nginx / Caddy).
+- **Admin Password Reset (`reset-pass`)**: Resets the Grafana `admin` user password directly from CLI using `grafana-cli`.
+- **Diagnostics & Audit (`status`)**: Audits `grafana-server` state, listening port 3000, provisioned datasources, and dashboards.
 
 ### install-zabbix.sh
 
-- Debian/Ubuntu. Adds the **official Zabbix repo** (version + OS auto-detected), then choose:
-  - **Agent** — `zabbix-agent2`, set the server IP + hostname, open `:10050`.
-  - **Server** — server + PHP frontend + MySQL/MariaDB: creates the `zabbix` database, imports the schema, sets `DBPassword`, starts everything. Frontend at `http://<ip>/zabbix`, default login `Admin/zabbix`.
+- Debian/Ubuntu. Adds the **official Zabbix 7.0 LTS repo** (auto-detected for Ubuntu 24.04/22.04, Debian 12/11):
+  - **Agent** — `zabbix-agent2` with plugins, sets server polling IP + hostname, opens port `:10050` in UFW / Firewalld.
+  - **Server** — server + PHP frontend + MySQL/MariaDB: creates the `zabbix` database, imports schema, configures `DBPassword`, starts everything. Frontend at `http://<ip>/zabbix`, default login `Admin/zabbix`.
+  - **Diagnostics & Audit (`status`)**: Audits Zabbix server, agent, database connectivity, and listening ports (10051, 10050, 80).
 
 ### install-uptime-kuma.sh
 
