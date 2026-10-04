@@ -39,7 +39,14 @@ a_uninstall() {
 }
 
 # ---- run ----------------------------------------------------------------
-[ "${1:-}" = "--uninstall" ] && { a_uninstall; exit $?; }
+case "${1:-}" in
+  -h|--help)
+    printf "Usage: %s [--uninstall|-h|--help]\n\n" "$0"
+    printf "Install Composer into ~/.local/bin with signature verification.\n"
+    exit 0
+    ;;
+  --uninstall) a_uninstall; exit $? ;;
+esac
 banner
 if [ -z "${1:-}" ]; then
   MENU=(

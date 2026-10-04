@@ -52,6 +52,11 @@ a_uninstall() {
 
 # ---- run ----------------------------------------------------------------
 case "${1:-}" in
+  -h|--help)
+    printf "Usage: %s [--enable|--disable|--status|--reload|--reset|--uninstall|-h|--help]\n\n" "$0"
+    printf "Install and configure UFW firewall interactively.\n"
+    exit 0
+    ;;
   --stop|--disable)
     hd "Disable UFW"; run ${SUDO} ufw --force disable; ok "UFW disabled."; exit 0 ;;
   --start|--enable)

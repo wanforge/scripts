@@ -227,6 +227,22 @@ run_all() {
 }
 
 # --- run -----------------------------------------------------------------
+case "${1:-}" in
+  -h|--help)
+    printf "Usage: %s [all|health|failed|oom|nginx|db|fail2ban|net] [-h|--help]\n\n" "$0"
+    printf "Diagnostic and troubleshooting toolkit for Linux servers.\n"
+    exit 0
+    ;;
+  all) run_all; exit 0 ;;
+  health) check_system_health; exit 0 ;;
+  failed) check_failed_services; exit 0 ;;
+  oom) check_oom_killer; exit 0 ;;
+  nginx) check_nginx_logs; exit 0 ;;
+  db) check_database; exit 0 ;;
+  fail2ban) check_fail2ban; exit 0 ;;
+  net) check_network; exit 0 ;;
+esac
+
 banner
 while true; do
   MENU=(

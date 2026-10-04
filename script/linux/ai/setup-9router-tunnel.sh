@@ -35,13 +35,13 @@ mkdir -p "${CF_DIR}"
 # --- Check cloudflared binary --------------------------------------------
 check_cloudflared() {
   if ! command -v cloudflared >/dev/null 2>&1; then
-    warn "Biner 'cloudflared' belum terpasang di sistem."
-    if ask_yn "Pasang cloudflared sekarang via installer wanforge?" "y"; then
+    warn "The 'cloudflared' binary is not installed on this system."
+    if ask_yn "Install cloudflared now via WanForge installer?" "y"; then
       local cf_installer="${__d}/../network/install-cloudflared.sh"
       if [ -x "${cf_installer}" ]; then
         bash "${cf_installer}"
       else
-        sub "Mengunduh biner resmi cloudflared..."
+        sub "Downloading official cloudflared binary..."
         local arch
         case "$(uname -m)" in
           x86_64)  arch="amd64" ;;
@@ -97,14 +97,14 @@ action_quick_tunnel() {
 action_named_tunnel() {
   check_cloudflared || return 1
 
-  info "Konfigurasi Named Tunnel Cloudflare dengan Custom Domain (contoh: ai.wanforge.asia)."
-  local domain; domain="$(ask "Masukkan Domain / Subdomain yang diarahkan ke 9Router" "ai.wanforge.asia")"
+  info "Configure Cloudflare Named Tunnel with Custom Domain (e.g. ai.wanforge.asia)."
+  local domain; domain="$(ask "Domain / Subdomain routed to 9Router" "ai.wanforge.asia")"
   if [ -z "${domain}" ]; then
-    err "Domain tidak boleh kosong."
+    err "Domain cannot be empty."
     return 1
   fi
 
-  local tunnel_name; tunnel_name="$(ask "Nama Tunnel Cloudflare" "9router-tunnel")"
+  local tunnel_name; tunnel_name="$(ask "Cloudflare Tunnel Name" "9router-tunnel")"
 
   # 1. Login check
   if [ ! -f "${CF_DIR}/cert.pem" ]; then
@@ -144,21 +144,21 @@ ingress:
       connectTimeout: 30s
   - service: http_status:404
 EOF
-  ok "Konfigurasi ingress Cloudflare Tunnel tersimpan di ${conf_file}."
+  ok "Cloudflare Tunnel ingress configuration saved to ${conf_file}."
 
   # 4. Route DNS
-  if ask_yn "Buat DNS CNAME '${domain}' otomatis di Cloudflare?" "y"; then
-    sub "Mengarahkan DNS ${domain} ke tunnel ${tunnel_name}..."
+  if ask_yn "Automatically create DNS CNAME '${domain}' in Cloudflare?" "y"; then
+    sub "Routing DNS ${domain} to tunnel ${tunnel_name}..."
     cloudflared tunnel route dns "${tunnel_name}" "${domain}" || true
-    ok "Rute DNS dibuat untuk ${domain}."
+    ok "DNS route created for ${domain}."
   fi
 
   # 5. Service setup
-  if ask_yn "Pasang service daemon untuk tunnel ini?" "y"; then
+  if ask_yn "Install background service daemon for this tunnel?" "y"; then
     if [ "$(id -u)" -eq 0 ]; then
       cloudflared --config "${conf_file}" service install || true
       systemctl enable --now cloudflared 2>/dev/null || true
-      ok "Service systemd cloudflared aktif di tingkat sistem."
+      ok "System-wide cloudflared service installed and active."
     else
       local user_svc_dir="${HOME}/.config/systemd/user"
       mkdir -p "${user_svc_dir}"
@@ -182,17 +182,17 @@ WantedBy=default.target
 EOF
       systemctl --user daemon-reload 2>/dev/null || true
       systemctl --user enable --now cloudflared-9router.service 2>/dev/null || true
-      ok "User systemd service terpasang: cloudflared-9router.service"
+      ok "User systemd service installed: cloudflared-9router.service"
     fi
   fi
 
   # 6. Offer updating Hermes & Claude configurations
-  if ask_yn "Perbarui konfigurasi Hermes & Claude Code agar menggunakan custom domain 'https://${domain}/v1'?" "y"; then
+  if ask_yn "Update Hermes & Claude Code configuration to use custom domain 'https://${domain}/v1'?" "y"; then
     update_agent_endpoints "https://${domain}/v1"
   fi
 
-  printf "\n%b✔ Setup Custom Domain Proxy Selesai!%b\n" "${C_BOLD}${C_GREEN}" "${C_RESET}"
-  printf "  • URL Publik AI Gateway: %bhttps://%s/v1%b\n" "${C_BOLD}${C_CYAN}" "${domain}" "${C_RESET}"
+  printf "\n%b✔ Custom Domain Proxy Setup Complete!%b\n" "${C_BOLD}${C_GREEN}" "${C_RESET}"
+  printf "  • AI Gateway Public URL: %bhttps://%s/v1%b\n" "${C_BOLD}${C_CYAN}" "${domain}" "${C_RESET}"
   printf "  • Health Endpoint      : https://%s/api/health\n" "${domain}"
   printf "  • Models List Endpoint : https://%s/v1/models\n\n" "${domain}"
 }
@@ -201,19 +201,19 @@ EOF
 action_token_service() {
   check_cloudflared || return 1
   info "Setup Cloudflare Tunnel via Token Zero Trust Dashboard (One-Click)."
-  local token; token="$(ask_secret "Masukkan Token Cloudflare Tunnel (eyJh...):")"
+  local token; token="$(ask_secret "Enter Cloudflare Tunnel Token (eyJh...):")"
   if [ -z "${token}" ]; then
-    err "Token tidak boleh kosong."
+    err "Token cannot be empty."
     return 1
   fi
 
   if [ "$(id -u)" -eq 0 ]; then
-    sub "Menginstal service cloudflared sistem via token..."
+    sub "Installing system-wide cloudflared service via token..."
     cloudflared service install "${token}"
     systemctl enable --now cloudflared
-    ok "Service cloudflared terpasang dan berjalan via token."
+    ok "System cloudflared service installed and running via token."
   else
-    sub "Menginstal service user systemd cloudflared via token..."
+    sub "Installing user systemd cloudflared service via token..."
     local user_svc_dir="${HOME}/.config/systemd/user"
     mkdir -p "${user_svc_dir}"
     local user_svc="${user_svc_dir}/cloudflared.service"
@@ -235,14 +235,14 @@ WantedBy=default.target
 EOF
     systemctl --user daemon-reload
     systemctl --user enable --now cloudflared.service
-    ok "User systemd service terpasang: cloudflared.service"
+    ok "User systemd service installed: cloudflared.service"
   fi
 }
 
 # --- Action: Update Agent Endpoints ---------------------------------------
 update_agent_endpoints() {
   local target_url="$1"
-  sub "Memperbarui konfigurasi endpoint AI Agent ke: ${target_url}"
+  sub "Updating AI Agent endpoint configuration to: ${target_url}"
 
   # 1. Update Claude Code settings
   local claude_settings="${HOME}/.claude/settings.json"
@@ -262,7 +262,7 @@ update_agent_endpoints() {
 }
 EOF
       fi
-      ok "Claude Code settings.json diperbarui: ANTHROPIC_BASE_URL=${target_url}"
+      ok "Claude Code settings.json updated: ANTHROPIC_BASE_URL=${target_url}"
     fi
   fi
 
@@ -294,7 +294,7 @@ if os.path.exists(cfg):
         yaml.dump(d, f, default_flow_style=False, sort_keys=False)
     print("Hermes config.yaml custom_providers updated.")
 EOF
-    ok "Hermes config.yaml diperbarui dengan endpoint Cloudflare Proxy."
+    ok "Hermes config.yaml updated with Cloudflare Proxy endpoint."
   fi
 }
 

@@ -51,6 +51,13 @@ a_uninstall() {
 }
 
 # ---- run ----------------------------------------------------------------
+case "${1:-}" in
+  -h|--help)
+    printf "Usage: %s [--start|--stop|--restart|--status|--uninstall|-h|--help]\n\n" "$0"
+    printf "Install and manage PostgreSQL server and roles.\n"
+    exit 0
+    ;;
+esac
 wf_svc_dispatch "${1:-}" "PostgreSQL" "postgresql" postgresql && exit $?
 [ "${1:-}" = "--uninstall" ] && { a_uninstall; exit $?; }
 banner

@@ -13,10 +13,12 @@
 # ---- colors -------------------------------------------------------------
 if [ -t 2 ] && [ -z "${NO_COLOR:-}" ]; then
   C_RESET="\033[0m"; C_BOLD="\033[1m"; C_DIM="\033[2m"
-  C_RED="\033[38;5;196m"; C_GREEN="\033[38;5;46m"; C_YELLOW="\033[38;5;226m"; C_CYAN="\033[38;5;45m"; C_WHITE="\033[97m"
+  C_RED="\033[38;5;196m"; C_GREEN="\033[38;5;46m"; C_YELLOW="\033[38;5;226m"; C_CYAN="\033[38;5;45m"
+  C_WHITE="\033[38;5;255m"; C_BLUE="\033[38;5;39m"; C_MAGENTA="\033[38;5;201m"
   USE_COLOR=1
 else
-  C_RESET=""; C_BOLD=""; C_DIM=""; C_RED=""; C_GREEN=""; C_YELLOW=""; C_CYAN=""; C_WHITE=""; USE_COLOR=0
+  C_RESET=""; C_BOLD=""; C_DIM=""; C_RED=""; C_GREEN=""; C_YELLOW=""; C_CYAN=""
+  C_WHITE=""; C_BLUE=""; C_MAGENTA=""; USE_COLOR=0
 fi
 
 # ---- verbosity / mode ---------------------------------------------------

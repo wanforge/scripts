@@ -268,6 +268,20 @@ MENU=(
 )
 
 # ---- run ----------------------------------------------------------------
+case "${1:-}" in
+  -h|--help)
+    printf "Usage: %s [list|add|view <user>] [-h|--help]\n\n" "$0"
+    printf "Interactive Linux user manager & privilege administration toolkit.\n"
+    exit 0
+    ;;
+  list) list_users; exit 0 ;;
+  view)
+    if [ -n "${2:-}" ]; then
+      u="${2}"; a_view; exit 0
+    fi
+    ;;
+esac
+
 banner
 while true; do
   printf "\n" >&2

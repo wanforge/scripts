@@ -147,6 +147,11 @@ WantedBy=multi-user.target"
 # --- dispatch flags --------------------------------------------------------
 for __a in "$@"; do
   case "${__a}" in
+    -h|--help)
+      printf "Usage: %s [--install|--start|--stop|--restart|--status|--uninstall|-h|--help]\n\n" "$0"
+      printf "GoAccess real-time web log analyzer manager.\n"
+      exit 0
+      ;;
     --uninstall) a_uninstall; exit $? ;;
     --start) run ${SUDO} systemctl start goaccess; exit $? ;;
     --stop) run ${SUDO} systemctl stop goaccess; exit $? ;;

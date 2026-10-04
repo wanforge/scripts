@@ -106,6 +106,17 @@ MENU=(
 )
 
 # ---- run ----------------------------------------------------------------
+case "${1:-}" in
+  -h|--help)
+    printf "Usage: %s [user-list|db-master|cloudflare-ips] [-h|--help]\n\n" "$0"
+    printf "Interactive wrapper for CloudPanel v2 CLI (clpctl).\n"
+    exit 0
+    ;;
+  user-list|users) a_user_list; exit 0 ;;
+  db-master) a_db_master; exit 0 ;;
+  cloudflare-ips) a_cloudflare_ips; exit 0 ;;
+esac
+
 banner
 if ! command -v clpctl >/dev/null 2>&1; then
   err "clpctl not found. Install CloudPanel first (install-cloudpanel.sh)."

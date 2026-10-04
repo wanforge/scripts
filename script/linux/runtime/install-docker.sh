@@ -53,14 +53,14 @@ a_install_docker() {
     os_version="$(. /etc/os-release && echo "${VERSION_ID:-}")"
   fi
 
-  sub "Mendeteksi sistem operasi: ${os_id} (${os_like:-standalone})..."
+  sub "Detecting operating system: ${os_id} (${os_like:-standalone})..."
 
   if [[ "${os_id}" =~ ^(ubuntu|debian|pop|mint|kali)$ ]] || [[ "${os_like}" =~ (ubuntu|debian) ]]; then
-    step "Memasang dependencies APT..."
+    step "Installing APT dependencies..."
     run ${SUDO} apt-get update
     run ${SUDO} apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
 
-    step "Menyiapkan keyring repository resmi Docker..."
+    step "Configuring official Docker repository keyring..."
     run ${SUDO} mkdir -p /etc/apt/keyrings
     local repo_id="ubuntu"
     [[ "${os_id}" =~ ^(debian|kali)$ ]] && repo_id="debian"
@@ -74,12 +74,12 @@ a_install_docker() {
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/${repo_id} ${os_codename} stable" \
       | run ${SUDO} tee /etc/apt/sources.list.d/docker.list >/dev/null
 
-    step "Memasang Docker packages..."
+    step "Installing Docker packages..."
     run ${SUDO} apt-get update
     run ${SUDO} apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
   elif [[ "${os_id}" =~ ^(fedora|rhel|centos|rocky|almalinux)$ ]] || [[ "${os_like}" =~ (fedora|rhel) ]]; then
-    step "Memasang Docker di sistem berbasis RHEL/Fedora..."
+    step "Installing Docker on RHEL/Fedora system..."
     if command -v dnf >/dev/null 2>&1; then
       run ${SUDO} dnf install -y dnf-plugins-core
       local repo_dist="fedora"
@@ -93,15 +93,15 @@ a_install_docker() {
     fi
 
   elif [[ "${os_id}" =~ ^(arch|manjaro)$ ]] || [[ "${os_like}" =~ arch ]]; then
-    step "Memasang Docker via Pacman..."
+    step "Installing Docker via Pacman..."
     run ${SUDO} pacman -Sy --noconfirm docker docker-compose
 
   elif [ "${os_id}" = "alpine" ]; then
-    step "Memasang Docker via APK..."
+    step "Installing Docker via APK..."
     run ${SUDO} apk add docker docker-cli-compose
 
   else
-    warn "Distro ${os_id} tidak didukung langsung oleh script ini. Mencoba instalasi via generic docker script..."
+    warn "Distribution ${os_id} is not directly supported by native packages. Trying generic docker installer..."
     curl -fsSL https://get.docker.com | run ${SUDO} sh
   fi
 
@@ -168,13 +168,13 @@ a_install_podman() {
 
 # --- Action 3: Configure Podman as Docker CLI & Socket --------------------
 a_setup_podman_as_docker() {
-  hd "Konfigurasi Podman sebagai Perintah 'docker' & Emulasi Socket"
+  hd "Configure Podman as 'docker' CLI & Socket Emulation"
 
   if ! command -v podman >/dev/null 2>&1; then
-    err "Podman belum terpasang. Jalankan instalasi Podman terlebih dahulu."; return 1
+    err "Podman is not installed. Please install Podman first."; return 1
   fi
 
-  sub "1. Konfigurasi wrapper CLI 'docker'..."
+  sub "1. Configuring 'docker' CLI wrapper..."
   # If podman-docker package is available, attempt to install it
   if ! command -v docker >/dev/null 2>&1; then
     if command -v dnf >/dev/null 2>&1; then
@@ -188,11 +188,11 @@ a_setup_podman_as_docker() {
   local podman_bin; podman_bin="$(command -v podman)"
   if ! command -v docker >/dev/null 2>&1; then
     run ${SUDO} ln -sf "${podman_bin}" /usr/local/bin/docker
-    ok "Symlink dibuat: /usr/local/bin/docker -> ${podman_bin}"
+    ok "Symlink created: /usr/local/bin/docker -> ${podman_bin}"
   fi
 
   # Alias fallback in /etc/profile.d
-  sub "2. Memasang profile alias global di /etc/profile.d/wanforge-podman-docker.sh..."
+  sub "2. Installing global profile alias in /etc/profile.d/wanforge-podman-docker.sh..."
   local profile_alias="/etc/profile.d/wanforge-podman-docker.sh"
   cat << 'EOF' | run ${SUDO} tee "${profile_alias}" >/dev/null
 # WanForge Podman as Docker Compatibility Wrapper
@@ -204,26 +204,26 @@ if command -v podman >/dev/null 2>&1; then
 fi
 EOF
   run ${SUDO} chmod 644 "${profile_alias}"
-  ok "Profile alias aktif di ${profile_alias}."
+  ok "Profile alias active at ${profile_alias}."
 
   # Quiet podman emulation notice
-  sub "3. Mematikan pesan peringatan emulasi podman (/etc/containers/nodocker)..."
+  sub "3. Suppressing podman emulation warning (/etc/containers/nodocker)..."
   run ${SUDO} mkdir -p /etc/containers
   run ${SUDO} touch /etc/containers/nodocker
-  ok "Pesan emulasi dinonaktifkan via /etc/containers/nodocker."
+  ok "Emulation notice disabled via /etc/containers/nodocker."
 
   # Shortnames config to avoid interactive registry prompts
-  sub "4. Mengonfigurasi default search registry (docker.io, quay.io)..."
+  sub "4. Configuring default registry search (docker.io, quay.io)..."
   local reg_conf="/etc/containers/registries.conf.d/00-wanforge-search.conf"
   run ${SUDO} mkdir -p /etc/containers/registries.conf.d
   cat << 'EOF' | run ${SUDO} tee "${reg_conf}" >/dev/null
 # WanForge Podman Registry Search
 unqualified-search-registries = ["docker.io", "quay.io"]
 EOF
-  ok "Registry search dikonfigurasi ke docker.io & quay.io."
+  ok "Registry search configured to docker.io & quay.io."
 
   # Podman socket emulation (/var/run/docker.sock)
-  sub "5. Mengaktifkan Podman API Socket untuk kompatibilitas Docker tools..."
+  sub "5. Enabling Podman API Socket for Docker tools compatibility..."
   if systemctl list-unit-files | grep -q 'podman.socket'; then
     run ${SUDO} systemctl enable --now podman.socket 2>/dev/null || true
 
@@ -237,15 +237,15 @@ EOF
     local cur_u; cur_u="$(id -un)"
     if [ "${cur_u}" != "root" ]; then
       systemctl --user enable --now podman.socket 2>/dev/null || true
-      info "Untuk user non-root (${cur_u}), tambahkan ke ~/.bashrc jika dibutuhkan:"
+      info "For non-root user (${cur_u}), add to ~/.bashrc if needed:"
       info "  export DOCKER_HOST=\"unix:///run/user/$(id -u)/podman/podman.sock\""
     fi
   fi
 
-  printf "\n%b✔ KONFIGURASI PODMAN SEBAGAI DOCKER SELESAI%b\n" "${C_BOLD}${C_GREEN}" "${C_RESET}"
+  printf "\n%b✔ PODMAN CONFIGURED AS DOCKER SUCCESSFULLY%b\n" "${C_BOLD}${C_GREEN}" "${C_RESET}"
   printf "  • CLI Executable       : %s\n" "$(command -v docker 2>/dev/null || echo 'alias docker=podman')"
   printf "  • Engine Version       : %s\n" "$(podman --version 2>/dev/null || echo 'Unknown')"
-  printf "  • Registry Search      : docker.io, quay.io (tanpa prompt)\n"
+  printf "  • Registry Search      : docker.io, quay.io (no interactive prompts)\n"
   printf "  • Docker Socket        : /var/run/docker.sock -> /run/podman/podman.sock\n\n"
 }
 

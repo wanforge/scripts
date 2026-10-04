@@ -51,6 +51,14 @@ MENU=(
 )
 
 # ---- run ----------------------------------------------------------------
+case "${1:-}" in
+  -h|--help)
+    printf "Usage: %s [-h|--help]\n\n" "$0"
+    printf "Update system & install base packages (multi-distro).\n"
+    exit 0
+    ;;
+esac
+
 banner
 info "Package manager: ${C_BOLD}${PM}${C_RESET}"
 checkbox "Select actions & packages to install:" || { warn "Cancelled."; exit 0; }

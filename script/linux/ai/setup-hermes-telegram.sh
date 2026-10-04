@@ -43,13 +43,13 @@ elif [ -x "${HERMES_DIR}/hermes-agent/venv/bin/python" ]; then
 fi
 
 if [ -z "${PYTHON_BIN}" ]; then
-  err "Python 3 diperlukan untuk memproses konfigurasi Hermes Agent."
+  err "Python 3 is required to configure Hermes Agent."
   exit 1
 fi
 
 # Ensure pyyaml is available in python environment
 if ! "${PYTHON_BIN}" -c "import yaml" >/dev/null 2>&1; then
-  sub "Menginstal modul PyYAML..."
+  sub "Installing PyYAML module..."
   "${PYTHON_BIN}" -m pip install pyyaml >/dev/null 2>&1 || true
 fi
 
@@ -81,54 +81,54 @@ TG_TOKEN="${ARG_TOKEN}"
 if [ -z "${TG_TOKEN}" ]; then
   if [ -n "${CURRENT_TOKEN}" ]; then
     masked_tok="${CURRENT_TOKEN:0:8}...${CURRENT_TOKEN: -5}"
-    info "Token saat ini terpasang: ${masked_tok}"
-    if ask_yn "Gunakan token Telegram yang tersimpan?" "y"; then
+    info "Current saved token: ${masked_tok}"
+    if ask_yn "Use currently saved Telegram token?" "y"; then
       TG_TOKEN="${CURRENT_TOKEN}"
     else
-      TG_TOKEN="$(ask_secret "Masukkan Token Bot Telegram baru dari @BotFather")"
+      TG_TOKEN="$(ask_secret "Enter new Telegram Bot Token from @BotFather")"
     fi
   else
-    TG_TOKEN="$(ask_secret "Masukkan Token Bot Telegram dari @BotFather")"
+    TG_TOKEN="$(ask_secret "Enter Telegram Bot Token from @BotFather")"
   fi
 fi
 
 if [ -z "${TG_TOKEN}" ]; then
-  err "Token Bot Telegram tidak boleh kosong."
+  err "Telegram Bot Token cannot be empty."
   exit 1
 fi
 
-# Simpan token ke .env
+# Save token to .env
 if grep -q '^TELEGRAM_BOT_TOKEN=' "${ENV_FILE}" 2>/dev/null; then
   sed -i "s|^TELEGRAM_BOT_TOKEN=.*|TELEGRAM_BOT_TOKEN=\"${TG_TOKEN}\"|" "${ENV_FILE}"
 else
   echo "TELEGRAM_BOT_TOKEN=\"${TG_TOKEN}\"" >> "${ENV_FILE}"
 fi
 chmod 600 "${ENV_FILE}"
-ok "Token tersimpan di ${ENV_FILE} (chmod 600)"
+ok "Token saved to ${ENV_FILE} (chmod 600)"
 
 # --- Allowed Users (allow_from) -------------------------------------------
 TG_USERS="${ARG_USER}"
 if [ -z "${TG_USERS}" ]; then
   printf "\n" >&2
-  info "Daftar User ID / Username Telegram yang diizinkan mengakses agent (DM & Admin)."
-  info "Pisahkan dengan koma jika lebih dari satu. Contoh: 310068528, @username"
-  TG_USERS="$(ask "Telegram Allowed Users (ID atau @username)" "${USER_TG_ID:-310068528}")"
+  info "List of Telegram User IDs or Usernames authorized to access agent (DM & Admin)."
+  info "Separate with commas if multiple. Example: 310068528, @username"
+  TG_USERS="$(ask "Telegram Allowed Users (ID or @username)" "${USER_TG_ID:-310068528}")"
 fi
 
 # --- Allowed Group Chats (allowed_chats) -----------------------------------
 TG_CHATS="${ARG_CHAT}"
 if [ -z "${TG_CHATS}" ]; then
   printf "\n" >&2
-  info "Daftar Chat ID Group Telegram yang diizinkan (format grup umumnya berawalan -100)."
-  info "Kosongkan jika hanya ingin mengizinkan pesan DM / Private."
-  TG_CHATS="$(ask "Telegram Allowed Groups (contoh: -100123456789 atau kosong)" "")"
+  info "List of Telegram Group Chat IDs authorized (groups typically start with -100)."
+  info "Leave empty to allow Direct Messages (DM) only."
+  TG_CHATS="$(ask "Telegram Allowed Groups (e.g. -100123456789 or blank)" "")"
 fi
 
 # --- Group Policies -------------------------------------------------------
 REQ_MENTION="${ARG_REQUIRE_MENTION}"
 if [ -z "${ARG_USER}" ] && [ -n "${TG_CHATS}" ]; then
   printf "\n" >&2
-  if ask_yn "Wajibkan mention (@botname atau reply) di dalam Group agar bot tidak spam?" "y"; then
+  if ask_yn "Require mention (@botname or reply) in Groups to prevent spam?" "y"; then
     REQ_MENTION="true"
   else
     REQ_MENTION="false"
@@ -139,13 +139,13 @@ fi
 BACKEND_URL="${ARG_API_URL}"
 if [ -z "${ARG_USER}" ]; then
   printf "\n" >&2
-  info "URL AI Gateway untuk Hermes Agent."
-  info "Pilihan: Lokal 9Router (http://127.0.0.1:20128/v1) atau Cloudflare Tunnel domain (https://ai.domain.com/v1)"
+  info "AI Gateway URL for Hermes Agent."
+  info "Options: Local 9Router (http://127.0.0.1:20128/v1) or Cloudflare Tunnel (https://ai.domain.com/v1)"
   BACKEND_URL="$(ask "AI Gateway Base URL" "http://127.0.0.1:20128/v1")"
 fi
 
 # --- Update config.yaml with Python safely --------------------------------
-sub "Memperbarui konfigurasi Hermes di ${CONFIG_FILE}..."
+sub "Updating Hermes configuration in ${CONFIG_FILE}..."
 
 "${PYTHON_BIN}" - <<EOF
 import os

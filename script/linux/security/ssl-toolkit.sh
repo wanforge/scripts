@@ -155,14 +155,51 @@ a_debug_handshake() {
 
 a_install_certbot() {
   hd "Install Certbot (Let's Encrypt)"
-  step "Updating package index & installing Certbot"
-  run ${SUDO} apt-get update
-  run ${SUDO} apt-get install -y certbot python3-certbot-nginx
+  step "Installing Certbot..."
+  if command -v apt-get >/dev/null 2>&1; then
+    run ${SUDO} apt-get update -qq
+    run ${SUDO} apt-get install -y certbot python3-certbot-nginx
+  elif command -v dnf >/dev/null 2>&1; then
+    run ${SUDO} dnf install -y certbot python3-certbot-nginx
+  elif command -v yum >/dev/null 2>&1; then
+    run ${SUDO} yum install -y certbot python3-certbot-nginx
+  elif command -v pacman >/dev/null 2>&1; then
+    run ${SUDO} pacman -S --noconfirm certbot certbot-nginx
+  elif command -v apk >/dev/null 2>&1; then
+    run ${SUDO} apk add certbot certbot-nginx
+  else
+    err "Unsupported package manager for certbot."
+    return 1
+  fi
   ok "Certbot and Nginx plugin installed successfully."
   info "To generate certificates, run: certbot --nginx -d yourdomain.com"
 }
 
 # --- interactive menu ------------------------------------------------------
+case "${1:-}" in
+  -h|--help)
+    printf "Usage: %s [inspect <domain> | debug <domain> | self-signed | certbot] [-h|--help]\n\n" "$0"
+    printf "SSL/TLS certificate inspection, generation, and troubleshooting toolkit.\n"
+    exit 0
+    ;;
+  inspect)
+    if [ -n "${2:-}" ]; then
+      TARGET="${2}"; a_inspect_remote; exit 0
+    fi
+    ;;
+  debug)
+    if [ -n "${2:-}" ]; then
+      TARGET="${2}"; a_debug_handshake; exit 0
+    fi
+    ;;
+  self_signed|self-signed)
+    a_generate_self_signed; exit 0
+    ;;
+  certbot)
+    a_install_certbot; exit 0
+    ;;
+esac
+
 banner
 while true; do
   MENU=(

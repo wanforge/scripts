@@ -54,6 +54,13 @@ a_uninstall() {
 }
 
 # ---- run ----------------------------------------------------------------
+case "${1:-}" in
+  -h|--help)
+    printf "Usage: %s [--start|--stop|--restart|--status|--uninstall|-h|--help]\n\n" "$0"
+    printf "Loki & Promtail log aggregation stack installer and manager.\n"
+    exit 0
+    ;;
+esac
 wf_svc_dispatch "${1:-}" "Loki" "loki" loki promtail && exit $?
 [ "${1:-}" = "--uninstall" ] && { a_uninstall; exit $?; }
 banner

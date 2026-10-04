@@ -38,7 +38,14 @@ a_uninstall() {
 }
 
 # ---- run ----------------------------------------------------------------
-[ "${1:-}" = "--uninstall" ] && { a_uninstall; exit $?; }
+case "${1:-}" in
+  -h|--help)
+    printf "Usage: %s [--uninstall|-h|--help]\n\n" "$0"
+    printf "Generate and manage ed25519 SSH keys.\n"
+    exit 0
+    ;;
+  --uninstall) a_uninstall; exit $? ;;
+esac
 banner
 if [ -z "${1:-}" ]; then
   MENU=(

@@ -46,7 +46,14 @@ a_uninstall() {
 }
 
 # ---- run ----------------------------------------------------------------
-[ "${1:-}" = "--uninstall" ] && { a_uninstall; exit $?; }
+case "${1:-}" in
+  -h|--help)
+    printf "Usage: %s [--rollback|--uninstall|-h|--help]\n\n" "$0"
+    printf "Allow or restrict remote access to MySQL/MariaDB database.\n"
+    exit 0
+    ;;
+  --uninstall|--rollback) a_uninstall; exit $? ;;
+esac
 banner
 if [ -z "${1:-}" ]; then
   MENU=(

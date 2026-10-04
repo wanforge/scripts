@@ -123,18 +123,30 @@ pg_optimize() {
 }
 
 # ---- run ----------------------------------------------------------------
+case "${1:-}" in
+  -h|--help)
+    printf "Usage: %s [mysql|postgres] [-h|--help]\n\n" "$0"
+    printf "Interactive database management and inspection toolkit.\n"
+    exit 0
+    ;;
+  mysql|mariadb) ENGINE="mysql" ;;
+  postgres|postgresql|pg) ENGINE="postgres" ;;
+  *) ENGINE="" ;;
+esac
+
 banner
 HAVE_MY=0; HAVE_PG=0
 command -v mysql >/dev/null 2>&1 && HAVE_MY=1
 command -v psql  >/dev/null 2>&1 && HAVE_PG=1
 [ "${HAVE_MY}" -eq 0 ] && [ "${HAVE_PG}" -eq 0 ] && { err "No mysql/psql client found. Install a database first."; exit 1; }
 
-ENGINE=""
-if [ "${HAVE_MY}" -eq 1 ] && [ "${HAVE_PG}" -eq 1 ]; then
-  MENU=("Engine|mysql|MySQL / MariaDB" "Engine|postgres|PostgreSQL")
-  menu_select "Which database engine?" || exit 0
-  ENGINE="${MENU_KEY}"
-elif [ "${HAVE_MY}" -eq 1 ]; then ENGINE="mysql"; else ENGINE="postgres"; fi
+if [ -z "${ENGINE}" ]; then
+  if [ "${HAVE_MY}" -eq 1 ] && [ "${HAVE_PG}" -eq 1 ]; then
+    MENU=("Engine|mysql|MySQL / MariaDB" "Engine|postgres|PostgreSQL")
+    menu_select "Which database engine?" || exit 0
+    ENGINE="${MENU_KEY}"
+  elif [ "${HAVE_MY}" -eq 1 ]; then ENGINE="mysql"; else ENGINE="postgres"; fi
+fi
 
 case "${ENGINE}" in
   mysql|mariadb)

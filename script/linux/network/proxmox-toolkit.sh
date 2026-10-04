@@ -145,6 +145,14 @@ MENU=(
 )
 
 # ---- run ----------------------------------------------------------------
+case "${1:-}" in
+  -h|--help)
+    printf "Usage: %s [-h|--help]\n\n" "$0"
+    printf "Proxmox VE management & resource monitoring toolkit.\n"
+    exit 0
+    ;;
+esac
+
 banner
 if ! have pvesh && ! have qm && [ ! -d /etc/pve ]; then
   err "This does not look like a Proxmox VE node (no pvesh/qm /etc/pve)."

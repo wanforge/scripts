@@ -117,6 +117,18 @@ MENU=(
 )
 
 # ---- run ----------------------------------------------------------------
+case "${1:-}" in
+  -h|--help)
+    printf "Usage: %s [status|enable|disable|reload] [-h|--help]\n\n" "$0"
+    printf "Full UFW firewall interactive manager and rules toolkit.\n"
+    exit 0
+    ;;
+  status) a_status; exit 0 ;;
+  enable) a_enable; exit 0 ;;
+  disable) a_disable; exit 0 ;;
+  reload) a_reload; exit 0 ;;
+esac
+
 banner
 [ "${DRY_RUN}" = "1" ] && warn "DRY-RUN mode: ufw commands are printed, not executed."
 if [ "${DRY_RUN}" != "1" ] && ! command -v ufw >/dev/null 2>&1; then

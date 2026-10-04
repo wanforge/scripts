@@ -46,6 +46,11 @@ a_uninstall() {
 
 # ---- run ----------------------------------------------------------------
 case "${1:-}" in
+  -h|--help)
+    printf "Usage: %s [--uninstall|--remove-cron|-h|--help]\n\n" "$0"
+    printf "Install Node.js via nvm in user home + PM2 setup.\n"
+    exit 0
+    ;;
   --remove-cron) hd "Remove Cron"; wf_cron_remove "nvm|node|npm|pm2"; exit 0 ;;
   --uninstall)   a_uninstall; exit $? ;;
 esac

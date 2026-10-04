@@ -141,6 +141,22 @@ MENU=(
 )
 
 # ---- run ----------------------------------------------------------------
+case "${1:-}" in
+  -h|--help)
+    printf "Usage: %s [subcommand] [-h|--help]\n\n" "$0"
+    printf "Network diagnostics & inspection toolkit.\n\n"
+    printf "Subcommands:\n"
+    printf "  ip, public, gateway, dns, listening, speedtest\n"
+    exit 0
+    ;;
+  ip|local_ip) a_local_ip; exit 0 ;;
+  public|public_ip) a_public_ip; exit 0 ;;
+  gateway) a_gateway; exit 0 ;;
+  dns) a_dns; exit 0 ;;
+  listening) a_listening; exit 0 ;;
+  speedtest) a_speedtest; exit 0 ;;
+esac
+
 banner
 while true; do
   printf "\n" >&2

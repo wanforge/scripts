@@ -289,6 +289,15 @@ MENU=(
 )
 
 # ---- run ----------------------------------------------------------------
+case "${1:-}" in
+  -h|--help)
+    printf "Usage: %s [list|status|install] [-h|--help]\n\n" "$0"
+    printf "GitHub Actions self-hosted runner installer and manager.\n"
+    exit 0
+    ;;
+  list) a_list; exit 0 ;;
+esac
+
 banner
 PM="$(detect_pm)" || { err "No supported package manager found."; exit 1; }
 have systemctl || warn "systemd not detected; service install/management may not work."

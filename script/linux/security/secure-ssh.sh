@@ -89,16 +89,16 @@ firewall_allow_port() {
   local fw; fw="$(detect_firewall)"
   case "${fw}" in
     ufw)
-      sub "Membuka port ${p}/tcp di ufw..."
-      run ${SUDO} ufw allow "${p}/tcp" || warn "Gagal menambahkan aturan ufw untuk port ${p}."
+      sub "Opening port ${p}/tcp in ufw..."
+      run ${SUDO} ufw allow "${p}/tcp" || warn "Failed to add ufw rule for port ${p}."
       ;;
     firewalld)
-      sub "Membuka port ${p}/tcp di firewalld..."
+      sub "Opening port ${p}/tcp in firewalld..."
       run ${SUDO} firewall-cmd --permanent --add-port="${p}/tcp" || true
       run ${SUDO} firewall-cmd --reload || true
       ;;
     *)
-      warn "Firewall lokal aktif tidak terdeteksi. Pastikan port ${p}/tcp diizinkan di Cloud Security Group (AWS/GCP/DigitalOcean/IDCloudHost)."
+      warn "No active local firewall detected. Ensure port ${p}/tcp is allowed in Cloud Security Group (AWS/GCP/DigitalOcean/Hetzner)."
       ;;
   esac
 }
@@ -130,7 +130,7 @@ selinux_allow_port() {
       run ${SUDO} semanage port -a -t ssh_port_t -p tcp "${p}" 2>/dev/null || \
       run ${SUDO} semanage port -m -t ssh_port_t -p tcp "${p}" 2>/dev/null || true
     else
-      warn "SELinux aktif namun utilitas 'semanage' belum terpasang. Paket policycoreutils-python-utils mungkin diperlukan."
+      warn "SELinux active but 'semanage' utility is not installed. package policycoreutils-python-utils may be required."
     fi
   fi
 }
@@ -146,20 +146,20 @@ set_opt() {
 
 # --- Action 1: Status & Security Audit -------------------------------------
 a_status() {
-  hd "Audit Keamanan & Status SSH Server"
+  hd "SSH Server Security & Status Audit"
   local svc; svc="$(detect_ssh_service)"
   local ports; ports="$(get_current_ports)"
   local fw; fw="$(detect_firewall)"
 
-  printf "\n%b[1] Status Layanan Daemon:%b\n" "${C_BOLD}${C_CYAN}" "${C_RESET}"
+  printf "\n%b[1] Daemon Service Status:%b\n" "${C_BOLD}${C_CYAN}" "${C_RESET}"
   if systemctl is-active "${svc}" >/dev/null 2>&1; then
-    ok "Daemon SSH aktif: ${svc} (Running)"
+    ok "SSH daemon active: ${svc} (Running)"
   else
-    warn "Daemon SSH tidak aktif atau stopped (${svc})."
+    warn "SSH daemon inactive or stopped (${svc})."
   fi
-  info "Port aktif listening: ${ports}"
+  info "Active listening port(s): ${ports}"
 
-  printf "\n%b[2] Parameter Konfigurasi Efektif:%b\n" "${C_BOLD}${C_CYAN}" "${C_RESET}"
+  printf "\n%b[2] Effective Configuration Parameters:%b\n" "${C_BOLD}${C_CYAN}" "${C_RESET}"
   local p_root="unknown" p_pubkey="unknown" p_pw="unknown" p_x11="unknown" p_tries="unknown"
   if command -v sshd >/dev/null 2>&1; then
     local sshd_out; sshd_out="$(${SUDO} sshd -T 2>/dev/null || true)"
@@ -185,40 +185,40 @@ a_status() {
   printf "  • X11Forwarding         : %b%s%b\n" "${C_YELLOW}" "${p_x11}" "${C_RESET}"
   printf "  • MaxAuthTries          : %b%s%b\n" "${C_YELLOW}" "${p_tries}" "${C_RESET}"
 
-  printf "\n%b[3] Kunci Publik Terdaftar (authorized_keys):%b\n" "${C_BOLD}${C_CYAN}" "${C_RESET}"
+  printf "\n%b[3] Registered Public Keys (authorized_keys):%b\n" "${C_BOLD}${C_CYAN}" "${C_RESET}"
   local u_auth="${HOME}/.ssh/authorized_keys"
   local r_auth="/root/.ssh/authorized_keys"
   local u_count=0 r_count=0
   [ -f "${u_auth}" ] && u_count="$(grep -cE '^(ssh-|ecdsa-|sk-)' "${u_auth}" 2>/dev/null || echo 0)"
   [ -f "${r_auth}" ] && r_count="$(grep -cE '^(ssh-|ecdsa-|sk-)' "${r_auth}" 2>/dev/null || echo 0)"
 
-  printf "  • User lokal (%s): %d key terdaftar (%s)\n" "$(id -un)" "${u_count}" "${u_auth}"
+  printf "  • Local user (%s) : %d registered key(s) (%s)\n" "$(id -un)" "${u_count}" "${u_auth}"
   if [ "$(id -u)" -eq 0 ] || [ -r "${r_auth}" ]; then
-    printf "  • User root       : %d key terdaftar (%s)\n" "${r_count}" "${r_auth}"
+    printf "  • Root user       : %d registered key(s) (%s)\n" "${r_count}" "${r_auth}"
   fi
   if [ "${u_count}" -eq 0 ] && [ "${r_count}" -eq 0 ]; then
-    warn "PERINGATAN: Tidak ada public key di authorized_keys! Mematikan password auth akan menyebabkan LOCKOUT."
+    warn "WARNING: No public key found in authorized_keys! Disabling password auth will cause LOCKOUT."
   else
-    ok "Kunci public key ditemukan di sistem."
+    ok "SSH public key(s) present on host."
   fi
 
-  printf "\n%b[4] Firewall & Proteksi:%b\n" "${C_BOLD}${C_CYAN}" "${C_RESET}"
+  printf "\n%b[4] Firewall & Protection:%b\n" "${C_BOLD}${C_CYAN}" "${C_RESET}"
   case "${fw}" in
-    ufw)       ok "Firewall aktif: UFW" ;;
-    firewalld) ok "Firewall aktif: firewalld" ;;
-    none)      warn "Tidak ada firewall lokal aktif (UFW/firewalld)." ;;
+    ufw)       ok "Active firewall: UFW" ;;
+    firewalld) ok "Active firewall: firewalld" ;;
+    none)      warn "No active local firewall (UFW/firewalld)." ;;
   esac
 
   if command -v getenforce >/dev/null 2>&1; then
     local se_status; se_status="$(getenforce 2>/dev/null || echo 'Unknown')"
-    info "Status SELinux: ${se_status}"
+    info "SELinux Status: ${se_status}"
   fi
 
-  printf "\n%b[5] Status Akses Sudo (NOPASSWD):%b\n" "${C_BOLD}${C_CYAN}" "${C_RESET}"
+  printf "\n%b[5] Sudo Access Policy (NOPASSWD):%b\n" "${C_BOLD}${C_CYAN}" "${C_RESET}"
   if ${SUDO} grep -rhE 'NOPASSWD:\s*ALL' /etc/sudoers /etc/sudoers.d/ 2>/dev/null | grep -v '^[#[:space:]]*#' | grep -q .; then
-    ok "Passwordless sudo aktif: 'sudo su' bebas password (standar Cloud VPS)."
+    ok "Passwordless sudo active: 'sudo su' password-free (Cloud VPS standard)."
   else
-    info "Sudo masih memerlukan password (belum diatur NOPASSWD)."
+    info "Sudo requires password entry (NOPASSWD not configured)."
   fi
   printf "\n"
 }
@@ -228,9 +228,9 @@ a_install() {
   hd "Install OpenSSH Server"
   local svc; svc="$(detect_ssh_service)"
   if systemctl is-active "${svc}" >/dev/null 2>&1; then
-    ok "OpenSSH server sudah terpasang dan berjalan (${svc})."; return 0
+    ok "OpenSSH server is already installed and running (${svc})."; return 0
   fi
-  info "Memasang paket openssh-server..."
+  info "Installing openssh-server package..."
   if command -v apt-get >/dev/null 2>&1; then
     run ${SUDO} apt-get update -qq
     run ${SUDO} apt-get install -y openssh-server
@@ -243,7 +243,7 @@ a_install() {
   elif command -v apk >/dev/null 2>&1; then
     run ${SUDO} apk add openssh
   else
-    err "Package manager tidak didukung."; return 1
+    err "Unsupported package manager."; return 1
   fi
 
   svc="$(detect_ssh_service)"
@@ -304,27 +304,27 @@ a_key_helper() {
 
 # --- Action 4: Configure & Harden SSH -------------------------------------
 a_configure() {
-  hd "Konfigurasi & Hardening SSH Server"
-  [ -f "${SSHD_MAIN}" ] || { err "${SSHD_MAIN} tidak ditemukan. Pasang openssh-server terlebih dahulu."; return 1; }
+  hd "SSH Server Configuration & Hardening"
+  [ -f "${SSHD_MAIN}" ] || { err "${SSHD_MAIN} not found. Please install openssh-server first."; return 1; }
 
-  warn "PERINGATAN PENTING:"
-  warn "Mengubah port SSH dan mematikan autentikasi password berisiko LOCKOUT."
-  warn "JANGAN TUTUP SESI INI sampai Anda memverifikasi login di terminal baru."
+  warn "CRITICAL WARNING:"
+  warn "Changing SSH port and disabling password authentication carries a risk of LOCKOUT."
+  warn "DO NOT CLOSE THIS TERMINAL SESSION until you verify login in a new terminal."
 
   # 1. Port SSH
   local cur_ports; cur_ports="$(get_current_ports)"
-  info "Port SSH saat ini: ${cur_ports}"
-  local port; port="$(ask_cfg CFG_SSH_PORT "Masukkan Port SSH Baru" "${DEFAULT_PORT}")"
+  info "Current SSH port(s): ${cur_ports}"
+  local port; port="$(ask_cfg CFG_SSH_PORT "Enter New SSH Port" "${DEFAULT_PORT}")"
   if ! [[ "${port}" =~ ^[0-9]+$ ]] || [ "${port}" -lt 1 ] || [ "${port}" -gt 65535 ]; then
-    err "Port '${port}' tidak valid. Harus angka antara 1 sampai 65535."; return 1
+    err "Port '${port}' is invalid. Must be an integer between 1 and 65535."; return 1
   fi
 
   # 2. Root login
   printf "\n"
-  info "Pengaturan Akses Root:"
-  info "  • no: Matikan login root sepenuhnya (Sangat Disarankan, login via user biasa + sudo)"
-  info "  • prohibit-password: Hanya izinkan root dengan SSH key (tidak bisa pakai password)"
-  info "  • yes: Izinkan root login (Kurang aman)"
+  info "Root Login Policy:"
+  info "  • no: Disable root login completely (Highly Recommended, use standard user + sudo)"
+  info "  • prohibit-password: Allow root only with SSH key (no passwords)"
+  info "  • yes: Allow direct root login (Less secure)"
   local root_choice; root_choice="$(ask_cfg CFG_SSH_ROOT_LOGIN "PermitRootLogin [no / prohibit-password / yes]" "no")"
   case "${root_choice}" in
     prohibit-password|without-password) root_choice="prohibit-password" ;;
@@ -337,7 +337,7 @@ a_configure() {
 
   # 4. Password Authentication & Lockout Guard
   printf "\n"
-  local pwauth_ans; pwauth_ans="$(ask_cfg CFG_SSH_PWAUTH "Matikan autentikasi password (hanya login via SSH Key)? [y/N]" "n")"
+  local pwauth_ans; pwauth_ans="$(ask_cfg CFG_SSH_PWAUTH "Disable password authentication (SSH Key login only)? [y/N]" "n")"
   local disable_pw=0
   if [[ "${pwauth_ans}" =~ ^(y|Y|yes)$ ]]; then
     local keyfound=0
@@ -347,12 +347,12 @@ a_configure() {
       fi
     done
     if [ "${keyfound}" -eq 0 ]; then
-      warn "⚠ BAHAYA: Tidak ditemukan public key di ~/.ssh/authorized_keys!"
-      warn "Jika password dimatikan sekarang, server TIDAK AKAN BISA DIAKSES (LOCKOUT)!"
-      printf "\nPilihan Pengamanan:\n"
-      printf "  [1] Tambahkan public key sekarang\n"
-      printf "  [2] Tetap izinkan login password (Batal matikan password)\n"
-      local sec_pick; sec_pick="$(ask "Pilihan Anda" "2")"
+      warn "⚠ DANGER: No public key found in ~/.ssh/authorized_keys!"
+      warn "If password authentication is disabled now, this server will be LOCKED OUT!"
+      printf "\nSafety Options:\n"
+      printf "  [1] Add public key now\n"
+      printf "  [2] Keep password login enabled (Cancel disabling password)\n"
+      local sec_pick; sec_pick="$(ask "Your choice" "2")"
       if [ "${sec_pick}" = "1" ]; then
         a_key_helper
         # Re-check
@@ -361,26 +361,26 @@ a_configure() {
         done
         if [ "${keyfound}" -eq 1 ]; then
           disable_pw=1
-          ok "Public key terverifikasi. Autentikasi password akan dimatikan."
+          ok "Public key verified. Password authentication will be disabled."
         else
-          warn "Kunci masih belum terdeteksi. Autentikasi password TETAP DIAKTIFKAN demi keselamatan."
+          warn "Key still not detected. Password authentication KEPT ENABLED for safety."
           disable_pw=0
         fi
       else
-        info "Autentikasi password tetap diaktifkan demi keselamatan."
+        info "Password authentication remains enabled for safety."
         disable_pw=0
       fi
     else
       disable_pw=1
-      ok "SSH public key terverifikasi di authorized_keys."
+      ok "SSH public key verified in authorized_keys."
     fi
   fi
 
   # 5. Passwordless Sudo (Cloud VPS Standard)
   printf "\n"
   info "Sudoers Policy (Cloud VPS Standard):"
-  info "  Mengizinkan 'sudo su' atau perintah root tanpa meminta password lagi (seperti VPS cloud default)."
-  local nopasswd_ans; nopasswd_ans="$(ask_cfg CFG_SSH_NOPASSWD "Aktifkan sudo tanpa password (NOPASSWD untuk sudo / sudo su)? [Y/n]" "y")"
+  info "  Allow 'sudo su' or root commands without password prompt (standard for cloud instances)."
+  local nopasswd_ans; nopasswd_ans="$(ask_cfg CFG_SSH_NOPASSWD "Enable passwordless sudo (NOPASSWD for sudo / sudo su)? [Y/n]" "y")"
   local enable_nopasswd=0
   if [[ "${nopasswd_ans}" =~ ^(y|Y|yes|1)$ ]]; then
     enable_nopasswd=1
@@ -399,7 +399,7 @@ a_configure() {
   local backup_file="${SSHD_MAIN}.bak.${ts}"
 
   run ${SUDO} cp "${SSHD_MAIN}" "${backup_file}"
-  info "Backup sshd_config dibuat: ${backup_file}"
+  info "Backup of sshd_config created: ${backup_file}"
 
   if [ -d "${DROPIN_DIR}" ] || ${SUDO} grep -qE '^\s*Include\s+/etc/ssh/sshd_config\.d/\*\.conf' "${SSHD_MAIN}"; then
     run ${SUDO} mkdir -p "${DROPIN_DIR}"
@@ -412,17 +412,17 @@ a_configure() {
       run ${SUDO} cp "${tmp_conf}" "${SSHD_MAIN}"
       rm -f "${tmp_conf}"
     fi
-    info "Menulis hardening ke drop-in: ${target_file}"
+    info "Writing hardening profile to drop-in: ${target_file}"
   else
     target_file="${SSHD_MAIN}"
-    info "Menulis hardening langsung ke main config: ${target_file}"
+    info "Writing hardening profile directly to main config: ${target_file}"
   fi
 
   # 7. Apply Hardening Directives
   local pw_val="yes"
   [ "${disable_pw}" -eq 1 ] && pw_val="no"
 
-  sub "Menerapkan konfigurasi SSH..."
+  sub "Applying SSH configuration..."
   if [ "${target_file}" = "${DROPIN}" ]; then
     cat <<EOF | run ${SUDO} tee "${target_file}" >/dev/null
 # WanForge SSH Hardening Profile
@@ -454,17 +454,17 @@ EOF
     set_opt "ClientAliveInterval" "${alive_interval}" "${target_file}"
     set_opt "ClientAliveCountMax" "${alive_count}" "${target_file}"
   fi
-  ok "Konfigurasi ditulis ke ${target_file}."
+  ok "Configuration written to ${target_file}."
 
   # 8. Syntax Test BEFORE Firewall / Restart
-  sub "Menguji sintaks konfigurasi sshd (-t)..."
+  sub "Testing sshd syntax validity (-t)..."
   if ! ${SUDO} sshd -t; then
-    err "Uji sintaks sshd GAGAL! Mengembalikan konfigurasi awal demi mencegah server mati."
+    err "sshd configuration test FAILED! Rolling back original config to avoid lockouts."
     run ${SUDO} cp "${backup_file}" "${SSHD_MAIN}"
     [ -f "${DROPIN}" ] && run ${SUDO} rm -f "${DROPIN}"
     return 1
   fi
-  ok "Uji sintaks sshd -t LULUS."
+  ok "sshd -t syntax test PASSED."
 
   # 9. SELinux Registration
   selinux_allow_port "${port}"
@@ -474,7 +474,7 @@ EOF
 
   # 11. Ubuntu 24.04 ssh.socket handling
   if systemctl is-active ssh.socket >/dev/null 2>&1 || systemctl is-enabled ssh.socket >/dev/null 2>&1; then
-    sub "Mendeteksi Ubuntu/Debian ssh.socket. Mengalihkan ke ssh.service standar agar port kustom aktif..."
+    sub "Detected Ubuntu/Debian ssh.socket. Migrating to standard ssh.service for custom port..."
     run ${SUDO} systemctl stop ssh.socket 2>/dev/null || true
     run ${SUDO} systemctl disable ssh.socket 2>/dev/null || true
     run ${SUDO} systemctl daemon-reload 2>/dev/null || true

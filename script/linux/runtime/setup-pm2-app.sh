@@ -48,6 +48,11 @@ a_uninstall() {
 
 # ---- run ----------------------------------------------------------------
 case "${1:-}" in
+  -h|--help)
+    printf "Usage: %s [--start|--stop|--restart|--status|--logs|--uninstall|-h|--help]\n\n" "$0"
+    printf "Configure pm2-logrotate & register Node/PM2 apps.\n"
+    exit 0
+    ;;
   --stop)
     hd "Stop PM2 App";    _pm2_load || exit 1
     pm2 stop    "${CFG_PM2_APP_NAME:-my-app}" 2>/dev/null || warn "App not found in PM2"

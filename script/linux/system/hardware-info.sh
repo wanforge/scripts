@@ -1014,9 +1014,46 @@ case "$MODE_ARG" in
     collect_all
     render_markdown
     ;;
-  "")
+  -c|--cli)
     collect_all
     render_cli
+    ;;
+  "")
+    if [ -t 0 ]; then
+      banner "Hardware & System Specifications"
+      while true; do
+        printf "\n%bSelect Hardware Inspection Mode:%b\n" "${C_BOLD}${C_CYAN}" "${C_RESET}"
+        local choice
+        choice="$(menu_select \
+          "Full Detailed Hardware Audit (CLI)" \
+          "Concise 1-Page Summary" \
+          "Documentation-Ready Markdown Format" \
+          "Structured JSON Output" \
+          "Export Audit Report to File (/tmp)" \
+          "Exit / Return")"
+        case "${choice}" in
+          1) collect_all; render_cli ;;
+          2) collect_all; render_summary ;;
+          3) collect_all; render_markdown ;;
+          4) collect_all; render_json ;;
+          5)
+            collect_all
+            local exp_path="/tmp/hw-report-$(date +%Y%m%d_%H%M%S).md"
+            render_markdown > "${exp_path}"
+            ok "Markdown report exported to: ${exp_path}"
+            local json_path="${exp_path%.md}.json"
+            render_json > "${json_path}"
+            ok "JSON report exported to: ${json_path}"
+            ;;
+          6|*) break ;;
+        esac
+        printf "\n"
+        pause
+      done
+    else
+      collect_all
+      render_cli
+    fi
     ;;
   *)
     printf "Unknown option: %s\n" "$MODE_ARG" >&2

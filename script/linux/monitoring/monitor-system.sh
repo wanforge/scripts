@@ -26,6 +26,15 @@ else . <(wget -qO- "${__LIB}"); fi
 cfg_load
 wf_log_init
 
+# --- argument handling ----------------------------------------------------
+case "${1:-}" in
+  -h|--help)
+    printf "Usage: %s [-w|--watch] [-h|--help]\n\n" "$0"
+    printf "Interactive system monitor & resource inspection dashboard.\n"
+    exit 0
+    ;;
+esac
+
 pm_install() {
   local pm; for pm in apt-get dnf yum pacman zypper apk; do command -v "$pm" >/dev/null 2>&1 && break; done
   case "$pm" in

@@ -27,6 +27,19 @@ cfg_load
 wf_log_init
 
 # ---- run ----------------------------------------------------------------
+case "${1:-}" in
+  -h|--help)
+    printf "Usage: %s [UTC|Asia/Jakarta|<custom-tz>] [-h|--help]\n\n" "$0"
+    printf "Set the system timezone interactively or via CLI.\n"
+    exit 0
+    ;;
+  "") ;;
+  *)
+    run ${SUDO} timedatectl set-timezone "$1" && ok "Timezone set to $1."
+    exit $?
+    ;;
+esac
+
 banner
 if ! command -v timedatectl >/dev/null 2>&1; then
   err "timedatectl not available on this system."; exit 1

@@ -435,6 +435,11 @@ a_uninstall() {
 # --- CLI flag dispatch ----------------------------------------------------
 for __a in "$@"; do
   case "${__a}" in
+    -h|--help)
+      printf "Usage: %s [--install|--update|--backup|--restore|--start|--stop|--restart|--status|--logs|--uninstall|-h|--help]\n\n" "$0"
+      printf "Uptime Kuma monitoring service manager via PM2.\n"
+      exit 0
+      ;;
     --install)   need_node && a_install; exit $? ;;
     --uninstall) need_node && a_uninstall; exit $? ;;
     --update)    need_node && a_update; exit $? ;;

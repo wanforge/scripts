@@ -1145,6 +1145,23 @@ a_cron_test() {
 #   --remove-cron [profile]     remove matching cron entries from crontab
 #   --delete    <profile> [..]  delete one or more profiles
 case "${1:-}" in
+  -h|--help)
+    printf "Usage: %s [OPTION] [ARG]\n\n" "$0"
+    printf "Multi-destination backup manager: S3, FTP, SFTP.\n\n"
+    printf "Options:\n"
+    printf "  (no args)                   Interactive TUI menu\n"
+    printf "  --run <profile>             Run backup for profile\n"
+    printf "  --run-all                   Run all profiles\n"
+    printf "  --test <profile>            Dry-run backup\n"
+    printf "  --dump <profile> [dir]      Dump DB locally\n"
+    printf "  --dump-all [dir]            Dump all DBs locally\n"
+    printf "  --list                      List all profiles\n"
+    printf "  --status [profile]          Show backup engine status\n"
+    printf "  --cron <profile> [hour]     Setup daily cron\n"
+    printf "  --remove-cron [profile]     Remove cron entry\n"
+    printf "  --delete <profile>          Delete a profile\n"
+    exit 0
+    ;;
   --run)
     [ -n "${2:-}" ] || { printf "Usage: %s --run <profile>\n" "$0" >&2; exit 1; }
     _run_one "$2"; exit $? ;;
