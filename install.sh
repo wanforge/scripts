@@ -14,7 +14,7 @@
 #   - Rock-solid TUI: keyboard-driven (arrows, numeric, Enter, search, batch)
 #   - Pure Bash & ANSI: no external curses, python, or package dependencies
 #   - Dual-view hierarchy: Category Dashboard -> Script Submenu -> Action
-#   - Realtime search filter across all 39 tools
+#   - Realtime search filter across all 40 tools
 #   - Code viewer (v) to inspect source before running
 #   - Batch multi-select runner (b)
 #
@@ -48,6 +48,9 @@ C_YELLOW="${C_YELLOW:-\033[33m}"
 C_RED="${C_RED:-\033[31m}"
 C_WHITE="${C_WHITE:-\033[97m}"
 C_REV="${C_REV:-\033[7m}"
+if [ -n "${NO_COLOR:-}" ] || [ ! -t 2 ]; then
+  C_RESET="" C_BOLD="" C_DIM="" C_CYAN="" C_GREEN="" C_YELLOW="" C_RED="" C_WHITE="" C_REV=""
+fi
 
 # --- safe TTY initialization (FD 3) ---------------------------------------
 if [ -t 0 ]; then
@@ -78,6 +81,7 @@ fi
 
 spinner() {
   local pid=$1 msg=$2
+  [ -t 2 ] && [ "${TERM:-dumb}" != dumb ] && [ "${WF_ANIMATIONS:-1}" != 0 ] || return 0
   local frames='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
   local i=0
   while kill -0 "$pid" 2>/dev/null; do
@@ -85,10 +89,10 @@ spinner() {
     printf "\r%b%s%b %s" "${C_YELLOW}" "${frames:$i:1}" "${C_RESET}" "$msg" >&2
     sleep 0.08
   done
-  printf "\r%b✔%b %s\n" "${C_GREEN}" "${C_RESET}" "$msg" >&2
+  printf "\r\033[K" >&2
 }
 
-# --- script registry (39 tools across 10 categories) ----------------------
+# --- script registry (40 tools across 10 categories) ----------------------
 # Format: "group|label|path-in-repo|description"
 SCRIPTS=(
   "System|install-packages|script/linux/system/install-packages.sh|Update system + install base essentials (micro, curl, wget, git, tmux)"
@@ -139,6 +143,7 @@ SCRIPTS=(
   "AI & Agents|install-ai-agents|script/linux/ai/install-ai-agents.sh|Modular AI stack: Hermes, Claude Code, AGY, 9Router"
   "AI & Agents|setup-hermes-telegram|script/linux/ai/setup-hermes-telegram.sh|Configure Hermes Telegram bot: token, allowed users, groups & topics"
   "AI & Agents|setup-9router-tunnel|script/linux/ai/setup-9router-tunnel.sh|Integrate 9Router with Cloudflare Tunnel & custom domain proxy"
+  "System|server-audit|script/linux/system/server-audit.sh|Audit server tanpa perubahan: resource, disk, layanan, firewall, SSH, port"
 )
 
 # Extract unique categories
@@ -173,7 +178,7 @@ cat_summary() {
 resolve_script() {
   local target="$1"
 
-  # 1. Numeric global index (1 to 39)
+  # 1. Numeric global index (1 to 40)
   if [[ "${target}" =~ ^[0-9]+$ ]] && [ "${target}" -ge 1 ] && [ "${target}" -le "${#SCRIPTS[@]}" ]; then
     IFS='|' read -r _ lbl _ _ <<< "${SCRIPTS[$((target-1))]}"
     echo "${lbl}"
@@ -227,7 +232,6 @@ run_script() {
   # 1. Local execution if running inside cloned repository
   if [ -r "${local_candidate}" ]; then
     exec_file="${local_candidate}"
-    chmod +x "${exec_file}" 2>/dev/null || true
   else
     # 2. Remote download and caching into user-space cache
     local perm_file="${WF_INSTALL_DIR}/${lbl}.sh"
@@ -301,7 +305,7 @@ tui_view_code() {
 
   # Temporarily exit alternate buffer for standard pager
   printf "\033[?1049l\033[?25h" >&2
-  stty sane 2>/dev/null || true
+  stty sane <&3 2>/dev/null || true
 
   if [ -r "${abs_path}" ]; then
     if command -v less >/dev/null 2>&1; then
@@ -321,13 +325,13 @@ tui_view_code() {
 
   # Return to alternate buffer
   printf "\033[?1049h\033[?25l" >&2
-  stty -echo -icanon min 1 time 0 2>/dev/null || true
+  stty -echo -icanon min 1 time 0 <&3 2>/dev/null || true
 }
 
 # --- System Snapshot Modal ------------------------------------------------
 tui_sys_info() {
   printf "\033[?1049l\033[?25h" >&2
-  stty sane 2>/dev/null || true
+  stty sane <&3 2>/dev/null || true
 
   printf "\033[H\033[2J" >&2
   hd "Server System Audit & Snapshot"
@@ -344,7 +348,7 @@ tui_sys_info() {
   read -r _ <&3 2>/dev/null || true
 
   printf "\033[?1049h\033[?25l" >&2
-  stty -echo -icanon min 1 time 0 2>/dev/null || true
+  stty -echo -icanon min 1 time 0 <&3 2>/dev/null || true
 }
 
 # --- CLI List -------------------------------------------------------------
@@ -368,8 +372,11 @@ cli_help() {
   printf "WANFORGE Server Ops Toolkit v2.5 (Portable TUI & CLI)\n\n"
   printf "Usage:\n"
   printf "  %s                      Launch interactive keyboard TUI\n" "$0"
+  printf "  %s guide                Panduan konfigurasi server bertahap\n" "$0"
+  printf "  %s audit                Audit server tanpa mengubah konfigurasi\n" "$0"
+  printf "  %s tools                Open advanced tool catalog\n" "$0"
   printf "  %s 1-10                 Open category 1 to 10 directly\n" "$0"
-  printf "  %s 1-39                 Run script by number 1 to 39 directly\n" "$0"
+  printf "  %s run <number>         Run script by global number from list\n" "$0"
   printf "  %s <script_name>        Run script by name (e.g., setup-motd)\n" "$0"
   printf "  %s list                 Display all tools (%d) in a formatted list\n" "$0" "${#SCRIPTS[@]}"
   printf "  %s search <keyword>     Search tools by keyword\n" "$0"
@@ -381,7 +388,8 @@ cli_help() {
 
 # --- Single Key Input Reader ----------------------------------------------
 read_tui_key() {
-  local ch rest
+  local ch rest key_wait=1
+  if [ "${BASH_VERSINFO[0]}" -ge 4 ]; then key_wait=0.08; fi
   TUI_KEY=""
   IFS= read -rsn1 ch <&3 || return 1
   if [ -z "$ch" ] || [ "$ch" = $'\n' ] || [ "$ch" = $'\r' ]; then
@@ -393,10 +401,10 @@ read_tui_key() {
     return 0
   fi
   if [ "$ch" = $'\x1b' ]; then
-    IFS= read -rsn2 -t 0.08 rest <&3 || rest=""
+    IFS= read -rsn2 -t "$key_wait" rest <&3 || rest=""
     ch+="$rest"
     if [ "$ch" = $'\x1b[' ]; then
-      IFS= read -rsn1 -t 0.08 rest <&3 || rest=""
+      IFS= read -rsn1 -t "$key_wait" rest <&3 || rest=""
       ch+="$rest"
     fi
     case "$ch" in
@@ -507,7 +515,7 @@ tui_search_screen() {
       append_frame "  %bInfo : No tools matched query '%s'%b\033[K\n" "${C_YELLOW}" "${query}" "${C_RESET}"
     fi
     append_frame " %b──────────────────────────────────────────────────────────────────────────%b\033[K\n" "${C_DIM}" "${C_RESET}"
-    append_frame "  %b[Enter]%b Run   %b[v]%b View Code   %b[↑/↓]%b Move   %b[Esc / 0]%b Back\033[K\n" \
+    append_frame "  %b[Enter]%b Run   %b[Tab]%b View Code   %b[↑/↓]%b Move   %b[Esc]%b Clear / Back\033[K\n" \
       "${C_GREEN}" "${C_RESET}" "${C_CYAN}" "${C_RESET}" "${C_YELLOW}" "${C_RESET}" "${C_RED}" "${C_RESET}"
     append_frame "\033[J"
 
@@ -525,11 +533,11 @@ tui_search_screen() {
         fi
         ;;
 
-      UP|k)
+      UP)
         [ "$cursor" -gt 0 ] && cursor=$((cursor - 1))
         ;;
 
-      DOWN|j)
+      DOWN)
         [ "$cursor" -lt "$((total - 1))" ] && cursor=$((cursor + 1))
         ;;
 
@@ -537,16 +545,16 @@ tui_search_screen() {
         if [ "$total" -gt 0 ] && [ "$cursor" -lt "$total" ]; then
           local chosen="${m_labels[cursor]}"
           printf "\033[?1049l\033[?25h" >&2
-          stty sane 2>/dev/null || true
+          stty sane <&3 2>/dev/null || true
           run_script "${chosen}" || true
           printf "\n%bPress Enter to return to WanForge TUI...%b" "${C_BOLD}${C_CYAN}" "${C_RESET}" >&2
           read -r _ <&3 2>/dev/null || true
           printf "\033[?1049h\033[?25l" >&2
-          stty -echo -icanon min 1 time 0 2>/dev/null || true
+          stty -echo -icanon min 1 time 0 <&3 2>/dev/null || true
         fi
         ;;
 
-      v|V)
+      TAB)
         if [ "$total" -gt 0 ] && [ "$cursor" -lt "$total" ]; then
           tui_view_code "${m_paths[cursor]}"
         fi
@@ -610,7 +618,7 @@ tui_category_submenu() {
     local frame="\033[H"
     append_frame() { local _l; printf -v _l "$@"; frame+="${_l}"; }
 
-    local cat_title="CATEGORY: ${target_cat^^} (${n} TOOLS)"
+    local cat_title="CATEGORY: ${target_cat} (${n} TOOLS)"
     local t_len=${#cat_title}
     local cat_spaces=$(( 72 - 4 - t_len - 15 ))
     [ "$cat_spaces" -lt 2 ] && cat_spaces=2
@@ -691,12 +699,12 @@ tui_category_submenu() {
       ENTER) # ENTER
         local chosen="${labels[cursor]}"
         printf "\033[?1049l\033[?25h" >&2
-        stty sane 2>/dev/null || true
+        stty sane <&3 2>/dev/null || true
         run_script "${chosen}" || true
         printf "\n%bPress Enter to return to WanForge TUI...%b" "${C_BOLD}${C_CYAN}" "${C_RESET}" >&2
         read -r _ <&3 2>/dev/null || true
         printf "\033[?1049h\033[?25l" >&2
-        stty -echo -icanon min 1 time 0 2>/dev/null || true
+        stty -echo -icanon min 1 time 0 <&3 2>/dev/null || true
         ;;
 
       v|V) # VIEW CODE
@@ -713,17 +721,19 @@ tui_category_submenu() {
 # --- TUI Level 1: Category Dashboard (Main Entry) -------------------------
 tui_cleanup() {
   printf "\033[?1049l\033[?25h\033[0m" >&2
-  stty sane 2>/dev/null || true
+  stty sane <&3 2>/dev/null || true
 }
 
 tui_main() {
   local orig_stty=""
-  orig_stty="$(stty -g 2>/dev/null || true)"
-  trap 'tui_cleanup; [ -n "${orig_stty:-}" ] && stty "${orig_stty:-}" 2>/dev/null || true; exit 0' EXIT INT TERM
+  orig_stty="$(stty -g <&3 2>/dev/null || true)"
+  trap 'tui_cleanup' EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
 
   # Switch to alternate buffer and hide cursor
   printf "\033[?1049h\033[?25l" >&2
-  stty -echo -icanon min 1 time 0 2>/dev/null || true
+  stty -echo -icanon min 1 time 0 <&3 2>/dev/null || true
 
   local cursor=0
   local num_cats=${#CATEGORIES[@]}
@@ -826,10 +836,10 @@ tui_main() {
 
       b|B) # BATCH SELECT
         printf "\033[?1049l\033[?25h" >&2
-        stty sane 2>/dev/null || true
+        stty sane <&3 2>/dev/null || true
         batch_select_mode || true
         printf "\033[?1049h\033[?25l" >&2
-        stty -echo -icanon min 1 time 0 2>/dev/null || true
+        stty -echo -icanon min 1 time 0 <&3 2>/dev/null || true
         ;;
 
       i|I) # SYS INFO
@@ -843,67 +853,179 @@ tui_main() {
   done
 
   tui_cleanup
+  [ -z "$orig_stty" ] || stty "$orig_stty" <&3 2>/dev/null || true
+  trap - EXIT INT TERM
   printf "\n%bGoodbye! WanForge Ops Toolkit session ended. 👋%b\n\n" "${C_BOLD}${C_CYAN}" "${C_RESET}" >&2
 }
 
-# --- Classic Prompt Menu Fallback -----------------------------------------
-classic_menu() {
+# Guided menus use one column; the numeric fallback also works with screen readers.
+flow_menu() {
+  local flow_stty=''
+  if [ -t 3 ]; then
+    flow_stty=$(stty -g <&3)
+    trap 'stty "$flow_stty" <&3 2>/dev/null || true' EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+  fi
+  flow_menu_read "$@"
+  if [ -n "$flow_stty" ]; then
+    stty "$flow_stty" <&3
+    trap - EXIT INT TERM
+  fi
+}
+
+flow_menu_read() {
+  local title="$1" hint="$2" cursor=0 first=1 key cols rows visible start end i answer wrapped hint_lines
+  local plain="${WF_PLAIN:-0}"
+  shift 2
+  local options=("$@")
+  MENU_CHOICE=-1
   while true; do
-    printf "\033[H\033[2J" >&2
-    banner "Server Toolkit v2.5"
-    sys_snapshot
-
-    printf "\n%bSCRIPT CATEGORIES:%b\n" "${C_BOLD}${C_YELLOW}" "${C_RESET}" >&2
-    for ((i = 0; i < ${#CATEGORIES[@]}; i++)); do
-      local c="${CATEGORIES[i]}"
-      local count=0
-      for r in "${SCRIPTS[@]}"; do
-        IFS='|' read -r g _ <<< "${r}"
-        [ "$g" = "$c" ] && count=$((count + 1))
-      done
-      printf "  %b[%2d]%b  %-24s  %b(%d tools)%b\n" \
-        "${C_CYAN}" "$((i+1))" "${C_RESET}" \
-        "$c" "${C_DIM}" "$count" "${C_RESET}" >&2
+    cols=$(tput cols 2>/dev/null || echo 80)
+    rows=$(tput lines 2>/dev/null || echo 24)
+    [ "$cols" -ge 20 ] || cols=20
+    if [ "$plain" = 1 ] || [ "${TERM:-dumb}" = dumb ] || [ ! -t 2 ] || [ "$cols" -lt 40 ] || [ "$rows" -lt 12 ]; then
+      [ -z "$flow_stty" ] || stty "$flow_stty" <&3
+      printf '\n%s\n%s\n' "$title" "$hint" >&2
+      for ((i=0; i<${#options[@]}; i++)); do printf '  %d. %s\n' "$((i+1))" "${options[i]}" >&2; done
+      printf 'Nomor pilihan, q = kembali: ' >&2
+      read -r answer <&3 || return 0
+      case "$answer" in q|Q) return 0 ;; esac
+      if [[ "$answer" =~ ^[0-9]{1,2}$ ]] && [ "$((10#$answer))" -ge 1 ] && [ "$((10#$answer))" -le "${#options[@]}" ]; then
+        MENU_CHOICE=$((10#$answer - 1)); return 0
+      fi
+      printf 'Pilihan belum valid. Masukkan nomor dari menu.\n' >&2
+      continue
+    fi
+    [ -z "$flow_stty" ] || stty -echo -icanon min 1 time 0 <&3
+    wrapped=$(printf '%s\n' "$hint" | fold -s -w "$((cols-1))")
+    hint_lines=$(printf '%s\n' "$wrapped" | wc -l)
+    visible=$((rows - hint_lines - 7))
+    if [ "$visible" -lt 1 ]; then plain=1; continue; fi
+    start=$((cursor / visible * visible)); end=$((start + visible))
+    printf '\033[H\033[2J%b%.*s%b\n%s\n\n' "$C_BOLD$C_CYAN" "$((cols-1))" "$title" "$C_RESET" "$wrapped" >&2
+    for ((i=start; i<end && i<${#options[@]}; i++)); do
+      if [ "$i" -eq "$cursor" ]; then printf '%b >' "$C_BOLD$C_GREEN" >&2; else printf '  ' >&2; fi
+      printf ' %d. %.*s%b\n' "$((i+1))" "$((cols-8))" "${options[i]}" "$C_RESET" >&2
+      if [ "$first" = 1 ] && [ "${WF_ANIMATIONS:-1}" != 0 ]; then sleep 0.03; fi
     done
+    printf '\n%.*s\n%.*s\n' "$((cols-1))" 'Panah: pilih | Enter: buka | q: kembali' "$((cols-1))" "Nomor: pilih langsung | $((cursor+1))/${#options[@]}" >&2
+    first=0
+    read_tui_key || return 0
+    key=$TUI_KEY
+    case "$key" in
+      UP|k) cursor=$(((cursor + ${#options[@]} - 1) % ${#options[@]})) ;;
+      DOWN|j|TAB) cursor=$(((cursor + 1) % ${#options[@]})) ;;
+      ENTER) MENU_CHOICE=$cursor; return 0 ;;
+      [1-9]) if [ "$key" -le "${#options[@]}" ]; then MENU_CHOICE=$((key-1)); return 0; fi ;;
+      q|Q|ESC|LEFT) return 0 ;;
+    esac
+  done
+}
 
-    printf "\n%bQUICK NAVIGATION:%b\n" "${C_DIM}" "${C_RESET}" >&2
-    printf "  %b[ s]%b  Search Tools (by keyword)\n" "${C_YELLOW}" "${C_RESET}" >&2
-    printf "  %b[ b]%b  Batch Mode (Run multiple scripts sequentially)\n" "${C_YELLOW}" "${C_RESET}" >&2
-    printf "  %b[ h]%b  Fast System Audit\n" "${C_YELLOW}" "${C_RESET}" >&2
-    printf "  %b[ q]%b  Quit\n\n" "${C_RED}" "${C_RESET}" >&2
+flow_pause() {
+  [ -t 3 ] || return 0
+  printf '\nEnter untuk lanjut...' >&2
+  read -r _ <&3 || true
+}
 
-    printf "%b› Enter category number [1-%d] or option [s/b/h/q]: %b" "${C_YELLOW}" "${#CATEGORIES[@]}" "${C_RESET}" >&2
+flow_run() {
+  local target="$1" row g label path description rc=0
+  for row in "${SCRIPTS[@]}"; do
+    IFS='|' read -r g label path description <<< "$row"
+    [ "$label" = "$target" ] && break
+  done
+  printf '\n%s\n%s\n' "$label" "$description" >&2
+  if [ "$target" != server-audit ]; then
+    flow_menu "$label" "$description. Skrip dapat mengubah server; baca setiap konfirmasi." 'Kembali' 'Jalankan'
+    [ "$MENU_CHOICE" = 1 ] || return 0
+  fi
+  run_script "$target" || rc=$?
+  if [ "$rc" -ne 0 ]; then printf 'Langkah gagal (status %d). Periksa pesan, lalu coba ulang.\n' "$rc" >&2; fi
+  flow_pause
+}
 
-    local choice=""
-    read -r choice <&3 || break
-    choice="$(echo "${choice}" | tr -d '[:space:]')"
+guided_setup() {
+  local step=0 entry choice target
+  local stages=(
+    'Audit awal|Kenali kondisi server sebelum membuat perubahan.|server-audit'
+    'Backup|Cadangkan data yang sudah ada sebelum pembaruan atau konfigurasi.|backup-tools'
+    'Persiapan sistem|Perbarui paket dasar, lalu atur zona waktu.|install-packages set-timezone'
+    'Akses pengguna|Uji login sudo dengan key dari komputer Anda sebelum mengunci SSH.|manage-users generate-ssh-key secure-ssh'
+    'Keamanan jaringan|Pastikan port SSH diizinkan sebelum mengaktifkan firewall.|install-firewall install-fail2ban'
+    'Panel (opsional)|CloudPanel perlu server bersih; pilih sebelum database/runtime.|install-cloudpanel install-cockpit'
+    'Aplikasi (opsional)|Pilih hanya runtime dan database yang aplikasi perlukan.|install-docker install-nodejs install-python install-composer install-postgresql'
+    'Monitoring|Pantau resource; Prometheus dipasang sebelum Grafana.|monitor-system install-prometheus install-grafana install-uptime-kuma'
+    'Audit akhir|Bandingkan temuan setelah konfigurasi; periksa yang belum terverifikasi.|server-audit'
+  )
+  local title hint targets labels=() actions=()
+  while [ "$step" -lt "${#stages[@]}" ]; do
+    IFS='|' read -r title hint targets <<< "${stages[step]}"
+    labels=(); actions=()
+    for target in $targets; do
+      case "$target" in
+        server-audit) entry='Periksa server (tanpa perubahan)' ;;
+        install-packages) entry='Perbarui sistem dan paket dasar' ;;
+        set-timezone) entry='Atur zona waktu' ;;
+        backup-tools) entry='Atur backup dan jadwal' ;;
+        manage-users) entry='Kelola pengguna dan akses sudo' ;;
+        generate-ssh-key) entry='Buat key lokal (opsional, koneksi keluar)' ;;
+        secure-ssh) entry='Periksa dan amankan akses SSH' ;;
+        install-firewall) entry='Atur firewall dan port yang diizinkan' ;;
+        install-fail2ban) entry='Lindungi login dengan Fail2Ban' ;;
+        monitor-system) entry='Lihat penggunaan resource' ;;
+        *) entry="${target#install-}" ;;
+      esac
+      labels+=("$entry"); actions+=("$target")
+    done
+    labels+=('Lanjut / lewati tahap ini' 'Tahap sebelumnya')
+    flow_menu "LANGKAH $((step+1))/${#stages[@]} - $title" "$hint" "${labels[@]}"
+    choice=$MENU_CHOICE
+    [ "$choice" -ge 0 ] || return 0
+    if [ "$choice" -lt "${#actions[@]}" ]; then
+      flow_run "${actions[choice]}"
+    elif [ "$choice" -eq "${#actions[@]}" ]; then
+      step=$((step+1))
+    elif [ "$step" -gt 0 ]; then
+      step=$((step-1))
+    fi
+  done
+  printf '\nPanduan selesai. Tahap yang dilewati belum tentu sudah dikonfigurasi.\nJalankan ./wf audit untuk memeriksa kondisi terbaru.\n' >&2
+  flow_pause
+}
 
-    case "${choice}" in
-      s|S|/) tui_search_screen ;;
-      b|B)   batch_select_mode ;;
-      h|H)   tui_sys_info ;;
-      q|Q|0|exit)
-        printf "\n%bGoodbye! 👋%b\n\n" "${C_CYAN}" "${C_RESET}" >&2
-        break
-        ;;
-      "") ;;
-      *)
-        if [[ "${choice}" =~ ^[0-9]+$ ]] && [ "${choice}" -ge 1 ] && [ "${choice}" -le "${#CATEGORIES[@]}" ]; then
-          tui_category_submenu "${CATEGORIES[$((choice-1))]}"
-        else
-          local resolved
-          resolved="$(resolve_script "${choice}" 2>/dev/null || echo "")"
-          if [ -n "${resolved}" ]; then
-            run_script "${resolved}" || true
-          fi
-        fi
-        ;;
+flow_catalog() {
+  local target
+  if [ "${WF_PLAIN:-0}" = 1 ] || [ "${TERM:-dumb}" = dumb ] || [ ! -t 3 ] || [ "$(tput cols 2>/dev/null || echo 80)" -lt 80 ] || [ "$(tput lines 2>/dev/null || echo 24)" -lt 26 ]; then
+    cli_list
+    printf 'Nama alat (kosong = kembali): ' >&2
+    read -r target <&3 || return 0
+    if [ -n "$target" ]; then
+      if target=$(resolve_script "$target"); then flow_run "$target"; else printf 'Alat tidak ditemukan.\n' >&2; fi
+    fi
+  else
+    tui_main
+  fi
+}
+
+flow_home() {
+  while true; do
+    flow_menu 'WANFORGE - Kelola server' 'Mulai dari audit, lalu ikuti panduan sesuai kebutuhan.' \
+      'Panduan server langkah demi langkah' 'Audit kondisi dan keamanan server' 'Semua alat (menu lanjutan)' 'Keluar'
+    case "$MENU_CHOICE" in
+      0) guided_setup ;;
+      1) flow_run server-audit ;;
+      2) flow_catalog ;;
+      *) return 0 ;;
     esac
   done
 }
 
 # --- CLI Dispatch ---------------------------------------------------------
 case "${1:-}" in
+  guide) guided_setup ;;
+  audit) run_script server-audit ;;
+  tools) flow_catalog ;;
   --help|-h|help)
     cli_help
     exit 0
@@ -917,7 +1039,7 @@ case "${1:-}" in
     exit 0
     ;;
   --classic|classic)
-    classic_menu
+    WF_PLAIN=1 flow_home
     exit 0
     ;;
   search|find)
@@ -939,11 +1061,11 @@ case "${1:-}" in
     exit $?
     ;;
   "")
-    if [ ! -t 0 ] && [ ! -c /dev/tty ]; then
+    if [ ! -t 3 ]; then
       cli_list
       exit 0
     fi
-    tui_main
+    flow_home
     ;;
   *)
     # Numeric category index: `./wf 1` opens Category 1
@@ -966,7 +1088,7 @@ case "${1:-}" in
       fi
     fi
 
-    # Global resolution (number 1..39 or script name)
+    # Global resolution (number 1..40 or script name)
     target_lbl="$(resolve_script "$1" 2>/dev/null || echo "")"
     if [ -n "${target_lbl}" ]; then
       run_script "${target_lbl}"

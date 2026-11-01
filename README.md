@@ -1,13 +1,13 @@
 # wanforge/scripts
 
-Interactive Linux server automation toolkit — one unified launcher, 39 scripts
+Interactive Linux server automation toolkit — one unified launcher, 40 scripts
 across 10 categories: system setup, security hardening, databases, app runtimes,
 cloud panels, network & tunneling, monitoring, observability, CI/CD runners, and AI & agents.
 
-Run scripts individually, use `install.sh`, or use `./wf`, a zero-dependency
-portable keyboard-driven dual-pane TUI dashboard. It features live search,
-category sidebars, code inspector (`v`), batch multi-select (`b`), and runs 100%
-portably in-place without polluting system directories or requiring root.
+Run scripts individually, use `install.sh`, or use `./wf` for a portable Bash
+launcher with an Indonesian guided workflow, read-only server audit, and an
+advanced tool catalog. No extra UI dependencies or root access needed to open
+the launcher; individual configuration tools may require elevated permissions.
 No authentication required — public repo, served via GitHub Pages at `scripts.wanforge.asia`.
 
 Scripts are organized under `script/linux/<category>/`, structured so future
@@ -65,17 +65,71 @@ No `curl`? Use `wget` instead (present on many minimal images):
 wget -qO- https://scripts.wanforge.asia/install.sh | bash
 ```
 
-### Interactive TUI Controls & Shortcuts
+### Mulai dari sini
 
-The new keyboard-driven TUI provides a dual-pane interface with alternate screen buffering (leaves your terminal prompt 100% clean upon exit):
+`./wf` membuka beranda dengan pilihan **Panduan**, **Audit server**, dan
+**Semua alat**. Gunakan panah dan Enter, atau tekan nomor pilihan.
+`q` / Escape kembali ke menu sebelumnya. Panduan mengikuti urutan:
+
+1. Audit awal: kenali kondisi server.
+2. Backup: cadangkan data yang sudah ada sebelum pembaruan atau konfigurasi.
+3. Persiapan: paket dasar dan zona waktu.
+4. Akses: pengguna dan SSH key. Uji login sudo dari komputer Anda sebelum mengunci SSH.
+5. Keamanan jaringan: firewall dan Fail2Ban.
+6. Panel opsional: pilih sebelum memasang database/runtime; CloudPanel memerlukan server bersih.
+7. Aplikasi opsional: pilih runtime dan database sesuai kebutuhan.
+8. Monitoring: resource, Prometheus, Grafana, atau Uptime Kuma.
+9. Audit akhir: periksa kondisi setelah konfigurasi.
+
+Setiap tahap bisa diulang, dilewati, atau dikunjungi kembali. Pilihan konfigurasi
+menampilkan penjelasan dan konfirmasi sebelum membuka skrip. Selesainya panduan
+tidak berarti tahap yang dilewati sudah dikonfigurasi; progres hanya berlaku
+selama sesi berjalan.
+
+```bash
+./wf guide                 # Langsung membuka panduan
+./wf audit                 # Audit tanpa mengubah konfigurasi
+./wf tools                 # Katalog untuk pengguna berpengalaman
+WF_ANIMATIONS=0 ./wf        # Matikan animasi menu dan progres audit
+./wf --classic             # Menu teks bernomor, cocok untuk pembaca layar
+NO_COLOR=1 ./wf             # Tanpa warna
+```
+
+Menu panduan menyesuaikan tinggi terminal dan membungkus petunjuk panjang.
+Terminal di bawah 40 kolom atau 12 baris memakai menu teks. Katalog lanjutan
+memakai daftar teks pada terminal kecil.
+
+### Audit server
+
+Audit memeriksa load CPU/I/O, RAM, disk dan inode, unit systemd gagal, firewall,
+konfigurasi SSH global, serta port TCP/UDP lokal. Hasil menampilkan `OK`,
+`PERHATIAN`, `BELUM_DICEK`, atau `INFO`, beserta saran tindak lanjut.
+Load di atas jumlah CPU, RAM minimal 90%, dan disk/inode minimal 85% mendapat
+peringatan. Query layanan dibatasi 5 detik; alat/izin yang tidak tersedia
+ditandai belum diperiksa, bukan sehat. Audit tidak memasang paket, menjalankan
+sudo otomatis, memindai jaringan, atau memperbaiki konfigurasi.
+
+```bash
+# Simpan laporan tanpa warna atau animasi di dalam file
+bash script/linux/system/server-audit.sh > audit-server.txt
+```
+
+Audit memerlukan Linux. Konfigurasi SSH `Match`, firewall provider, CVE/pembaruan,
+dan uji pemulihan backup belum tercakup. `INFO` bukan tanda lolos keamanan.
+Exit status `0` berarti audit selesai, bukan seluruh pemeriksaan lolos.
+
+### Advanced Catalog Controls & Shortcuts
+
+Open `./wf tools` for the category dashboard and tool submenus. On a sufficiently
+large terminal, it uses an alternate screen buffer:
 
 | Key / Shortcut    | Action                                                        |
 | ----------------- | ------------------------------------------------------------- |
-| `↑` / `↓` / `k`/`j` | Move selection in the active pane                           |
-| `Tab` / `←` / `→` | Switch focus between Category pane and Tools pane             |
-| `Enter`           | Run selected script (or focus tools pane from category)       |
-| `v`               | **View Code**: Inspect script source in pager without running |
-| `/` or `s`        | **Live Search**: Instant real-time filter across all 39 tools |
+| `↑` / `↓` / `k`/`j` | Move selection (`k`/`j` type text while searching)            |
+| `←` / `→`        | Return from a tool submenu / open a category                   |
+| `Enter`           | Open category or run selected script                          |
+| `v`               | **View Code** in a tool submenu; use `Tab` while searching    |
+| `/` or `s`        | **Live Search**: Filter across all 40 tools                    |
 | `b`               | **Batch Mode**: Multi-select and run several tools in order   |
 | `i`               | **System Snapshot**: Instant audit popup (OS, RAM, CPU, IP)   |
 | `1` – `9`, `0`    | Direct jump to category index 1 to 10                         |
@@ -86,13 +140,13 @@ The new keyboard-driven TUI provides a dual-pane interface with alternate screen
 All scripts can also be invoked non-interactively without the TUI:
 
 ```bash
-# List all 39 tools with indices and descriptions
+# List all 40 tools with indices and descriptions
 ./wf list
 
 # Run a specific script directly by name or global number
 ./wf setup-motd
 ./wf docker
-./wf 6                              # Global #6 (setup-motd)
+./wf run 6                          # Global #6 (setup-motd)
 
 # Open a category submenu directly (1-10)
 ./wf 1                              # System category
@@ -172,7 +226,10 @@ Select scripts to run:
 ```mermaid
 flowchart TD
     A(["curl | bash install.sh"])
-    B["TUI Checkbox Menu\n↑/↓ Space A Enter Q\n─ grouped by category ─"]
+    H["Home: Guide / Audit / All tools"]
+    G["Guided stages: audit, backup, preparation, access, security, apps, monitoring"]
+    AU["Read-only server audit + recommendations"]
+    B["Advanced catalog / search / batch"]
     C(["bash script.sh"])
     D["Management Menu\ninstall · stop · start · restart\nenable · disable · status\nremove-cron · uninstall"]
     E(["bash script.sh --flag"])
@@ -182,8 +239,12 @@ flowchart TD
     CRON["crontab cleanup\n(user + root)"]
     RM["Removal Wizard\n(purge packages,\nrepo, firewall rules)"]
 
-    A --> B
-    B -->|"bash script.sh --install\n(skips management menu)"| IW
+    A --> H
+    H --> G
+    H --> AU
+    H --> B
+    G -->|"Choose and confirm a tool"| D
+    B -->|"bash script.sh"| D
 
     C -->|no args| D
     D -->|install| IW
@@ -206,6 +267,9 @@ flowchart TD
     style CRON fill:#1e2d3a,color:#fff,stroke:#40a0bf
     style RM fill:#3a1e1e,color:#fff,stroke:#bf4040
 ```
+
+Launcher regression check (Python standard library, no server changes):
+`python3 tests/check_launcher.py`.
 
 > **Service scripts** (fail2ban, grafana, prometheus, zabbix, cockpit, postgresql) use `systemctl`
 > for stop/start/restart/enable/disable/status.
